@@ -38,7 +38,7 @@ git push origin submission
 Please NOTE that you need to select `submission` as the `Base` branch and the `Compare` will be your forks `submission` branch.
 
 ## 📞 Contact
-Questions? Please create an issue. Otherwise, you can also contact `mshihabr@amazon.com` or `bocchris@amazon.com`
+Questions? Please create an issue.
 
 ## ✍️ Citation
 If you found this repository helpful or are citing the numbers on the leaderboard for academic purposes, please cite:
