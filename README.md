@@ -45,7 +45,7 @@ If you found this repository helpful or are citing the numbers on the leaderboar
 ```
 @misc{rashid2025swepolybenchmultilanguagebenchmarkrepository,
       title={SWE-PolyBench: A multi-language benchmark for repository level evaluation of coding agents}, 
-      author={Muhammad Shihab Rashid and Christian Bock and Yuan Zhuang and Alexander Buccholz and Tim Esler and Simon Valentin and Luca Franceschi and Martin Wistuba and Prabhu Teja Sivaprasad and Woo Jung Kim and Anoop Deoras and Giovanni Zappella and Laurent Callot},
+      author={Muhammad Shihab Rashid and Christian Bock and Yuan Zhuang and Alexander Buchholz and Tim Esler and Simon Valentin and Luca Franceschi and Martin Wistuba and Prabhu Teja Sivaprasad and Woo Jung Kim and Anoop Deoras and Giovanni Zappella and Laurent Callot},
       year={2025},
       eprint={2504.08703},
       archivePrefix={arXiv},
