@@ -21,7 +21,7 @@ The main file to run is `src/poly_bench_evaluation/run_evaluation.py`. These are
 - `--num-threads`: Default is 1. For a machine with 16 cores CPU and 64GB Ram, 10-12 threads are recommended.
 - `--evaluate-gold`: Whether to run the gold code patch evaluator. If this flag is used, the `predictions-path` parameter is not required and will be overwritten even if provided. To evaluate a model generated patch, please do not use the `evaluate-gold` flag.
 - `--repo-path`: The directory to store base repos.
-- `--delete-image`: Whether to delete the instance level image. Please note that, deleting the image is recommeded if you do not have storage. Please use the `delete-image` flag to set it to True.
+- `--delete-image`: Whether to delete the instance level image. Please note that, deleting the image is recommended if you do not have storage. Please use the `delete-image` flag to set it to True.
 - `--skip-existing`: Whether to skip existing evaluations in `result-path`. If set to true, the instances that are available in result-path already will be skipped.
 - `--metrics-only` : This flag, when set will only compute the file retrieval metrics and the pass rate will not be computed. Typically this flag may be used after the pass rates are computed.
 - `--node-metrics`: If you also want to compute node retrieval metrics (this will increase time of running evaluation)
@@ -40,7 +40,7 @@ Using a conda environment with python=3.11 is recommended.
 python3 src/poly_bench_evaluation/run_evaluation.py --dataset-path <dataset_path_or_hf_path> --result-path ./eval_logs
 ```
 
-A sample run command to evaluage gold code patches (from root directory of package):
+A sample run command to evaluate gold code patches (from root directory of package):
 ```sh
 python3 src/poly_bench_evaluation/run_evaluation.py --dataset-path AmazonScience/SWE-PolyBench --result-path ./eval_logs/ --num-threads 9 --repo-path ~/repos --delete-image --evaluate-gold
 ```
@@ -53,7 +53,7 @@ python3 src/poly_bench_evaluation/run_evaluation.py --dataset-path AmazonScience
 
 The instance level results of each instance will be stored in `--result-path`. Instance level results include the list of passing tests and failing tests. The combined result will be outputted in the root directory `./result.json` file. In the terminal, the pass rate alongside the total number of "resolved" instances will also be printed.
 
-The test run logs of each instance will also be stored in `./run_logs_{language}` direcotry. The raw output from the test run can be found here.
+The test run logs of each instance will also be stored in `./run_logs_{language}` directory. The raw output from the test run can be found here.
 
 ## Run time
 If you are building all images and they are not available locally, then please expect a long running time. As we use instance specific docker image, they take some time to build. If you have storage, please do not set `delete-image`. This will reduce the runtime drastically the next time you run.

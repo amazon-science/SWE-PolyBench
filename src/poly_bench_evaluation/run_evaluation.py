@@ -116,6 +116,7 @@ def evaluate_instance(
     # build docker if image id is not available in local or public.ecr
     docker_manager = DockerManager(image_id=image_id, delete_image=delete_image, client=client)
 
+    repo_manager = None
     if not docker_manager.check_image_local(local_image_name=image_id):
         logger.info("Image not found locally, building docker images...")
         # clone the repo and build docker image
@@ -175,7 +176,7 @@ def evaluate_instance(
 
         # Store retrieval metrics
         instance_metric_output = instance_level_metric_scoring(
-            instance=instance, repo_path=repo_path, node_retrieval_metrics=node_retrieval_metrics
+            instance=instance, repo_path=repo_path, node_retrieval_metrics=node_retrieval_metrics, modified_nodes=instance.modified_nodes
         )
         store_instance_level_output(
             instance_output=instance_metric_output, result_path=result_path, suffix="_metrics"
@@ -252,7 +253,7 @@ def evaluate_instance(
 
     # Store retrieval metrics
     instance_metric_output = instance_level_metric_scoring(
-        instance=instance, repo_path=repo_path, node_retrieval_metrics=node_retrieval_metrics
+        instance=instance, repo_path=repo_path, node_retrieval_metrics=node_retrieval_metrics, modified_nodes=instance.modified_nodes
     )
     store_instance_level_output(
         instance_output=instance_metric_output, result_path=result_path, suffix="_metrics"
