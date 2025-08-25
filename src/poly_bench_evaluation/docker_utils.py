@@ -24,6 +24,7 @@ class DockerManager:
         self.delete_image = delete_image
         self.build_logs: List[str] = []
         self.run_logs: List[str] = []
+        self.ghcr_image_name = None
 
     def check_image_local(self, local_image_name: str) -> bool:
         """Check if image exists locally in Docker"""
@@ -34,6 +35,44 @@ class DockerManager:
         except docker.errors.ImageNotFound:
             return False
         except Exception as e:
+            return False
+
+    def try_pull_prebuilt_image(self, instance_id: str, version: str = "latest") -> bool:
+        """Try to pull a pre-built image from GHCR
+        
+        Args:
+            instance_id: The instance ID for the image
+            version: Image version tag (default: "latest")
+            
+        Returns:
+            bool: True if image was successfully pulled, False otherwise
+        """
+        ghcr_image_name = f"ghcr.io/timesler/swe-polybench.eval.x86_64.{instance_id}:{version}"
+        
+        try:
+            logger.info(f"Attempting to pull pre-built image: {ghcr_image_name}")
+            
+            # Try to pull the image from GHCR
+            self.client.images.pull(ghcr_image_name)
+            
+            # Tag the pulled image with our local naming convention
+            pulled_image = self.client.images.get(ghcr_image_name)
+            pulled_image.tag(self.image_id)
+            
+            # Store GHCR image name for cleanup
+            self.ghcr_image_name = ghcr_image_name
+            
+            logger.info(f"Successfully pulled and tagged pre-built image for {instance_id}")
+            return True
+            
+        except docker.errors.ImageNotFound:
+            logger.info(f"Pre-built image not found in GHCR: {ghcr_image_name}")
+            return False
+        except docker.errors.APIError as e:
+            logger.info(f"Failed to pull pre-built image: {e}")
+            return False
+        except Exception as e:
+            logger.info(f"Unexpected error pulling pre-built image: {e}")
             return False
 
     def docker_build(self, repo_path: Path, dockerfile_content: str) -> int:
@@ -344,8 +383,20 @@ EOF"""
         if self.delete_image:
             try:
                 self.client.images.remove(self.image_id, force=True)
+                logger.debug(f"Removed local image tag: {self.image_id}")
             except docker.errors.ImageNotFound:
                 pass  # Image doesn't exist, nothing to delete
+            except Exception as e:
+                logger.debug(f"Failed to remove local image tag {self.image_id}: {e}")
+            
+            if self.ghcr_image_name:
+                try:
+                    self.client.images.remove(self.ghcr_image_name, force=True)
+                    logger.debug(f"Removed GHCR image tag: {self.ghcr_image_name}")
+                except docker.errors.ImageNotFound:
+                    pass  # Image doesn't exist, nothing to delete
+                except Exception as e:
+                    logger.debug(f"Failed to remove GHCR image tag {self.ghcr_image_name}: {e}")
 
     def __del__(self):
         """Stop and remove the container, and delete the image if provided."""

@@ -1,0 +1,509 @@
+#!/bin/bash
+
+# Prerequisites
+# 
+# 1. A Github account (https://github.com)
+# 2. A Github personal access token with read/write packages and repo permission (https://github.com/settings/tokens)
+# 3. Set environment variables:
+#     $ export GH_USERNAME=<your_github_username>
+#     $ export GH_PAT=<your_token>
+# 4. Run the script (it handles Docker login automatically):
+#     $ ./scripts/upload_instance_images_to_ghcr.sh --dry-run --limit 1
+#
+# Usage:
+#     $ ./scripts/upload_instance_images_to_ghcr.sh --jobs 8 --skip-existing --version v1.0
+# 
+# Important: In order to avoid costs and to enable users to access the images, the uploaded GHCR images must have
+# their visibility set to "public". Unfortunately, the only way to do this is via the GitHub web interface, and must be
+# done for every single image manually.
+
+set -euo pipefail
+
+# Configuration
+DEFAULT_VERSION="v1.0"
+DEFAULT_DATASET="AmazonScience/SWE-PolyBench_500"
+DEFAULT_REPO_PATH="~/polybench_repos"
+
+# Script options
+DRY_RUN=false
+VERSION="$DEFAULT_VERSION"
+DATASET_PATH="$DEFAULT_DATASET"
+REPO_PATH="$DEFAULT_REPO_PATH"
+PARALLEL_JOBS=1
+SKIP_EXISTING=false
+LIMIT=""
+OFFSET=""
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Logging functions
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+log_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Usage function
+usage() {
+    cat << EOF
+Usage: $0 [OPTIONS]
+
+Build and upload SWE-PolyBench instance images to GitHub Container Registry.
+
+OPTIONS:
+    -d, --dataset PATH         Dataset path or HuggingFace path (default: $DEFAULT_DATASET)
+    -r, --repo-path PATH       Base repository path (default: $DEFAULT_REPO_PATH)
+    -v, --version VERSION      Image version tag (default: $DEFAULT_VERSION)
+    -j, --jobs N               Number of parallel jobs (default: 1)
+    -l, --limit N              Limit number of instances to process (for testing)
+    -o, --offset N             Skip first N instances (for resuming uploads)
+    -s, --skip-existing        Skip instances that already have images in registry
+    --dry-run                  Perform dry run (build but don't upload)
+    -h, --help                 Show this help message
+
+ENVIRONMENT VARIABLES:
+    GH_USERNAME                GitHub username (required for GHCR registry)
+    GH_PAT                     GitHub personal access token (required for upload)
+
+EXAMPLES:
+    # Set up environment (required)
+    export GH_USERNAME=your_github_username
+    export GH_PAT=your_github_token
+    
+    # Dry run with default dataset (script handles login automatically)
+    $0 --dry-run
+
+    # Test with a single instance (recommended for testing)
+    $0 --dry-run --limit 1
+
+    # Resume upload from instance 100 (skip first 100)
+    $0 --offset 100 --skip-existing
+
+    # Process instances 50-99 (offset 50, limit 50)
+    $0 --offset 50 --limit 50
+
+    # Build and upload with custom dataset
+    $0 --dataset /path/to/dataset.csv --version v2.0
+
+    # Parallel processing with 4 jobs
+    $0 --jobs 4 --skip-existing
+
+EOF
+}
+
+# Parse command line arguments
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -d|--dataset)
+                DATASET_PATH="$2"
+                shift 2
+                ;;
+            -r|--repo-path)
+                REPO_PATH="$2"
+                shift 2
+                ;;
+            -v|--version)
+                VERSION="$2"
+                shift 2
+                ;;
+            -j|--jobs)
+                PARALLEL_JOBS="$2"
+                shift 2
+                ;;
+            -l|--limit)
+                LIMIT="$2"
+                shift 2
+                ;;
+            -o|--offset)
+                OFFSET="$2"
+                shift 2
+                ;;
+            -s|--skip-existing)
+                SKIP_EXISTING=true
+                shift
+                ;;
+            --dry-run)
+                DRY_RUN=true
+                shift
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                log_error "Unknown option: $1"
+                usage
+                exit 1
+                ;;
+        esac
+    done
+}
+
+# Check prerequisites
+check_prerequisites() {
+    log_info "Checking prerequisites..."
+    
+    # Check if GH_USERNAME is set
+    if [[ -z "${GH_USERNAME:-}" ]]; then
+        log_error "GH_USERNAME environment variable is not set"
+        log_error "Please set it with: export GH_USERNAME=<your_github_username>"
+        exit 1
+    fi
+    
+    # Set GHCR registry based on username
+    GHCR_REGISTRY="ghcr.io/${GH_USERNAME}/swe-polybench.eval.x86_64"
+    log_info "Using registry: $GHCR_REGISTRY"
+    
+    # Check if docker is installed and running
+    if ! command -v docker &> /dev/null; then
+        log_error "Docker is not installed or not in PATH"
+        exit 1
+    fi
+    
+    if ! docker info &> /dev/null; then
+        log_error "Docker daemon is not running"
+        exit 1
+    fi
+    
+    # Check if GH_PAT is set (required for both Docker login and API calls)
+    if [[ -z "${GH_PAT:-}" ]]; then
+        log_error "GH_PAT environment variable is not set"
+        log_error "This is required for Docker login and setting package visibility to public"
+        log_error "Please set it with: export GH_PAT=<your_github_token>"
+        exit 1
+    fi
+    
+    # Automatically login to GHCR
+    log_info "Logging into GHCR..."
+    if ! echo "$GH_PAT" | docker login ghcr.io -u "$GH_USERNAME" --password-stdin &> /dev/null; then
+        log_error "Failed to login to GHCR. Please check your GH_PAT token has the required scopes (write:packages, repo)"
+        exit 1
+    fi
+    log_success "Successfully logged into GHCR"
+    
+    # Check if Python environment is set up
+    if ! python3 -c "import poly_bench_evaluation" &> /dev/null; then
+        log_error "poly_bench_evaluation package not found. Please install with: pip install -e ."
+        exit 1
+    fi
+    
+    log_success "Prerequisites check passed"
+}
+
+# Check if image exists in registry
+image_exists_in_registry() {
+    local instance_id="$1"
+    local image_name="${GHCR_REGISTRY}.${instance_id}:${VERSION}"
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        return 1  # In dry run, assume images don't exist
+    fi
+    
+    # Try to pull the manifest without downloading the image
+    if docker manifest inspect "$image_name" &> /dev/null; then
+        return 0  # Image exists
+    else
+        return 1  # Image doesn't exist
+    fi
+}
+
+
+# Build and upload a single instance image
+process_instance() {
+    local instance_data="$1"
+    
+    # Parse instance data (JSON format)
+    local instance_id=$(echo "$instance_data" | jq -r '.instance_id')
+    local language=$(echo "$instance_data" | jq -r '.language')
+    local repo=$(echo "$instance_data" | jq -r '.repo')
+    local base_commit=$(echo "$instance_data" | jq -r '.base_commit')
+    local dockerfile=$(echo "$instance_data" | jq -r '.Dockerfile')
+    
+    log_info "Processing instance: $instance_id ($language)"
+    
+    # Check if image already exists and skip if requested
+    if [[ "$SKIP_EXISTING" == "true" ]] && image_exists_in_registry "$instance_id"; then
+        log_info "Skipping $instance_id - image already exists in registry"
+        return 0
+    fi
+    
+    local local_image_name="polybench_${language,,}_${instance_id,,}"
+    local remote_image_name="${GHCR_REGISTRY}.${instance_id}"
+    
+    # Create temporary directory for this instance
+    local temp_dir=$(mktemp -d)
+    local build_log_file="${temp_dir}/build.log"
+    
+    trap "rm -rf $temp_dir" EXIT
+    
+    log_info "Building image for $instance_id..."
+    
+    # Get the directory where this script is located
+    local script_dir="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+    local build_script="${script_dir}/build_instance_image.py"
+    
+    # Check if the build script exists
+    if [[ ! -f "$build_script" ]]; then
+        log_error "Build script not found: $build_script"
+        return 1
+    fi
+    
+    # Run the build script
+    python3 "$build_script" "$instance_id" "$language" "$repo" "$base_commit" "$dockerfile" "$REPO_PATH" 2>&1 | tee "$build_log_file"
+    local build_result=${PIPESTATUS[0]}
+    
+    if [[ $build_result -ne 0 ]]; then
+        log_error "Failed to build image for $instance_id"
+        cat "$build_log_file"
+        return 1
+    fi
+    
+    log_success "Built image for $instance_id"
+    
+    # Tag and push image (unless dry run)
+    if [[ "$DRY_RUN" == "false" ]]; then
+        log_info "Tagging and pushing $instance_id..."
+        
+        # Tag with version and latest
+        docker tag "$local_image_name" "${remote_image_name}:${VERSION}"
+        docker tag "$local_image_name" "${remote_image_name}:latest"
+        
+        # Push both tags
+        if ! docker push "${remote_image_name}:${VERSION}"; then
+            log_error "Failed to push ${remote_image_name}:${VERSION}"
+            return 1
+        fi
+        
+        if ! docker push "${remote_image_name}:latest"; then
+            log_error "Failed to push ${remote_image_name}:latest"
+            return 1
+        fi
+        
+        log_success "Pushed $instance_id to registry"
+        
+        # Add URL to package settings file for batch processing
+        local settings_url="https://github.com/users/${GH_USERNAME}/packages/container/swe-polybench.eval.x86_64.${instance_id}/settings"
+        echo "$settings_url" >> package_settings_urls.txt
+        
+        # Note about manual visibility setting
+        log_warning "Package uploaded as private. To make it public, visit:"
+        log_warning "https://github.com/users/${GH_USERNAME}/packages/container/swe-polybench.eval.x86_64.${instance_id}/settings"
+    else
+        log_info "DRY RUN: Would tag and push $instance_id"
+    fi
+    
+    # Clean up local images to save disk space
+    log_info "Cleaning up local images for $instance_id..."
+    
+    # Remove the original local image
+    docker rmi "$local_image_name" &> /dev/null || log_warning "Failed to remove local image $local_image_name"
+    
+    # Remove the tagged GHCR images (both version and latest)
+    docker rmi "${remote_image_name}:${VERSION}" &> /dev/null || log_warning "Failed to remove ${remote_image_name}:${VERSION}"
+    docker rmi "${remote_image_name}:latest" &> /dev/null || log_warning "Failed to remove ${remote_image_name}:latest"
+    
+    # Also clean up base image if it exists and we're not processing more instances
+    # (This is a simple cleanup - in practice you might want to keep base images)
+    
+    log_success "Completed processing $instance_id"
+    return 0
+}
+
+# Export the function so it can be used by parallel
+export -f process_instance
+export -f log_info
+export -f log_success
+export -f log_warning
+export -f log_error
+export -f image_exists_in_registry
+export GHCR_REGISTRY VERSION DRY_RUN REPO_PATH SKIP_EXISTING GH_PAT
+export RED GREEN YELLOW BLUE NC
+export SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Main function
+main() {
+    parse_args "$@"
+    
+    log_info "Starting SWE-PolyBench image upload script"
+    log_info "Dataset: $DATASET_PATH"
+    log_info "Version: $VERSION"
+    log_info "Parallel jobs: $PARALLEL_JOBS"
+    log_info "Dry run: $DRY_RUN"
+    
+    check_prerequisites
+    
+    log_info "Registry: $GHCR_REGISTRY"
+    
+    # Create temporary file for dataset processing
+    local temp_dataset=$(mktemp)
+    trap "rm -f $temp_dataset" EXIT
+    
+    log_info "Loading dataset..."
+    
+    # Get the directory where this script is located
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local dataset_script="${script_dir}/load_dataset.py"
+    
+    # Check if the dataset script exists
+    if [[ ! -f "$dataset_script" ]]; then
+        log_error "Dataset script not found: $dataset_script"
+        exit 1
+    fi
+    
+    # Use Python script to load and convert dataset to JSON lines
+    local dataset_cmd="python3 $dataset_script $DATASET_PATH"
+    if [[ -n "$OFFSET" ]]; then
+        dataset_cmd="$dataset_cmd --offset $OFFSET"
+        log_info "Skipping first $OFFSET instances"
+    fi
+    if [[ -n "$LIMIT" ]]; then
+        dataset_cmd="$dataset_cmd --limit $LIMIT"
+        log_info "Limiting to $LIMIT instances"
+    fi
+    
+    $dataset_cmd > "$temp_dataset"
+    
+    if [[ $? -ne 0 ]]; then
+        log_error "Failed to load dataset"
+        exit 1
+    fi
+    
+    local total_instances=$(wc -l < "$temp_dataset")
+    log_info "Found $total_instances instances to process"
+    
+    if [[ $total_instances -eq 0 ]]; then
+        log_warning "No instances found in dataset"
+        exit 0
+    fi
+    
+    # Process instances
+    log_info "Starting image processing..."
+    
+    if [[ $PARALLEL_JOBS -eq 1 ]]; then
+        # Sequential processing
+        local processed=0
+        local failed=0
+        
+        while IFS= read -r instance_data; do
+            processed=$((processed + 1))
+            local instance_id=$(echo "$instance_data" | jq -r '.instance_id')
+            
+            log_info "Processing $processed/$total_instances: $instance_id"
+            
+            if ! process_instance "$instance_data"; then
+                failed=$((failed + 1))
+                log_error "Failed to process $instance_id"
+            fi
+        done < "$temp_dataset"
+        
+        log_info "Processing complete. Processed: $processed, Failed: $failed"
+    else
+        # Parallel processing using GNU parallel if available
+        if command -v parallel &> /dev/null; then
+            log_info "Using GNU parallel for processing"
+            
+            # Create a wrapper script that reads instance data from a file
+            local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+            local wrapper_script=$(mktemp)
+            cat > "$wrapper_script" << EOF
+#!/bin/bash
+# Import all the exported functions and variables
+$(declare -f process_instance)
+$(declare -f log_info)
+$(declare -f log_success)
+$(declare -f log_warning)
+$(declare -f log_error)
+$(declare -f image_exists_in_registry)
+export GHCR_REGISTRY="$GHCR_REGISTRY"
+export VERSION="$VERSION"
+export DRY_RUN="$DRY_RUN"
+export REPO_PATH="$REPO_PATH"
+export SKIP_EXISTING="$SKIP_EXISTING"
+export GH_PAT="$GH_PAT"
+export RED="$RED"
+export GREEN="$GREEN"
+export YELLOW="$YELLOW"
+export BLUE="$BLUE"
+export NC="$NC"
+export SCRIPT_DIR="$script_dir"
+
+instance_file="\$1"
+if [[ -f "\$instance_file" ]]; then
+    instance_data=\$(cat "\$instance_file")
+    process_instance "\$instance_data"
+    rm -f "\$instance_file"
+fi
+EOF
+            chmod +x "$wrapper_script"
+            
+            # Create individual files for each instance and process them
+            local temp_dir=$(mktemp -d)
+            local file_list=$(mktemp)
+            
+            local counter=0
+            while IFS= read -r instance_data; do
+                local instance_file="$temp_dir/instance_$counter.json"
+                echo "$instance_data" > "$instance_file"
+                echo "$instance_file" >> "$file_list"
+                counter=$((counter + 1))
+            done < "$temp_dataset"
+            
+            # Process files in parallel
+            cat "$file_list" | parallel -j "$PARALLEL_JOBS" "$wrapper_script"
+            
+            # Cleanup
+            rm -f "$wrapper_script" "$file_list"
+            rm -rf "$temp_dir"
+        else
+            log_warning "GNU parallel not found, falling back to sequential processing"
+            # Fall back to sequential processing
+            local processed=0
+            local failed=0
+            
+            while IFS= read -r instance_data; do
+                processed=$((processed + 1))
+                local instance_id=$(echo "$instance_data" | jq -r '.instance_id')
+                
+                log_info "Processing $processed/$total_instances: $instance_id"
+                
+                if ! process_instance "$instance_data"; then
+                    failed=$((failed + 1))
+                    log_error "Failed to process $instance_id"
+                fi
+            done < "$temp_dataset"
+            
+            log_info "Processing complete. Processed: $processed, Failed: $failed"
+        fi
+    fi
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_success "Dry run completed successfully!"
+        log_info "To actually upload images, run without --dry-run flag"
+    else
+        log_success "Image upload completed successfully!"
+        if [[ -f "package_settings_urls.txt" ]]; then
+            local url_count=$(wc -l < package_settings_urls.txt)
+            log_info "Generated package_settings_urls.txt with $url_count URLs for batch visibility changes"
+            log_info "Open each URL and change visibility from 'Private' to 'Public'"
+        fi
+    fi
+}
+
+# Run main function with all arguments
+main "$@"
