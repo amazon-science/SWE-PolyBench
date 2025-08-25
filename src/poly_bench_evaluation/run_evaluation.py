@@ -115,12 +115,18 @@ def evaluate_instance(
 
     image_id = f"polybench_{language.lower()}_{instance_id.lower()}"
 
-    # build docker if image id is not available in local or public.ecr
+    # Check if image is available locally, in GHCR, or needs to be built
     docker_manager = DockerManager(image_id=image_id, delete_image=delete_image, client=client)
 
     repo_manager = None
-    if not docker_manager.check_image_local(local_image_name=image_id):
-        logger.info("Image not found locally, building docker images...")
+    
+    if docker_manager.check_image_local(local_image_name=image_id):
+        logger.info(f"Using existing local image: {image_id}")
+    elif docker_manager.try_pull_prebuilt_image(instance_id):
+        logger.info(f"Successfully pulled pre-built image from GHCR: {image_id}")
+    else:
+        # Fall back to building locally
+        logger.info("Pre-built image not available, building docker image locally...")
         # clone the repo and build docker image
         repo_manager = RepoManager(repo_name=repo, repo_path=repo_path)
         repo_manager.clone_repo()
