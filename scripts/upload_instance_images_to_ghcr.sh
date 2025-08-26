@@ -209,7 +209,7 @@ check_prerequisites() {
 # Check if image exists in registry
 image_exists_in_registry() {
     local instance_id="$1"
-    local image_name="${GHCR_REGISTRY}.${instance_id}:${VERSION}"
+    local image_name="${GHCR_REGISTRY}.${instance_id,,}:${VERSION}"
     
     if [[ "$DRY_RUN" == "true" ]]; then
         return 1  # In dry run, assume images don't exist
@@ -223,6 +223,138 @@ image_exists_in_registry() {
     fi
 }
 
+# Fix poetry version in langchain instances
+fix_poetry_version() {
+    local dockerfile="$1"
+    local instance_id="$2"
+
+    local langchain_instances=(
+        "langchain-ai__langchain-6456"
+        "langchain-ai__langchain-6483"
+        "langchain-ai__langchain-6765"
+    )
+
+    if [[ " ${langchain_instances[@]} " =~ " ${instance_id} " ]]; then
+        log_info "Applying poetry version fix for $instance_id" >&2 
+        # Update the dockerfile to replace "https://install.python-poetry.org |" with "https://install.python-poetry.org | POETRY_VERSION=1.8.3"
+        dockerfile=$(echo "$dockerfile" | sed 's|https://install.python-poetry.org \||https://install.python-poetry.org \| POETRY_VERSION=1.8.3|')
+    fi
+
+    echo "$dockerfile"
+}
+
+# Fix poetry version in langchain instances
+fix_huggingface_model_downloads() {
+    local dockerfile="$1"
+    local instance_id="$2"
+
+    local hf_instances=(
+        "huggingface__transformers-16661"
+        "huggingface__transformers-17082"
+    )
+
+    if [[ " ${hf_instances[@]} " =~ " ${instance_id} " ]]; then
+        log_info "Applying Hugging Face model download fix for $instance_id" >&2
+        # Update the dockerfile to add URL fix
+        dockerfile=$(echo "$dockerfile" | sed '/COPY . ./a\RUN sed -i '\''s|http_get(url_to_download|http_get("https://huggingface.co" + url_to_download|'\'' src/transformers/utils/hub.py')
+    fi
+
+    echo "$dockerfile"
+}
+
+# Fix pkg-config missing issue for PyAV build in transformers instances
+fix_pkg_config_dockerfile() {
+    local dockerfile="$1"
+    local instance_id="$2"
+    
+    # List of instance IDs that need pkg-config fix (from failed_instances.txt)
+    local pkg_config_instances=(
+        "huggingface__transformers-25358"
+        "huggingface__transformers-25765"
+        "huggingface__transformers-25884"
+        "huggingface__transformers-26164"
+        "huggingface__transformers-27463"
+        "huggingface__transformers-27561"
+        "huggingface__transformers-27717"
+        "huggingface__transformers-28010"
+        "huggingface__transformers-28517"
+        "huggingface__transformers-28522"
+        "huggingface__transformers-28535"
+        "huggingface__transformers-28563"
+        "huggingface__transformers-28940"
+    )
+    
+    # Check if this instance needs the fix
+    local needs_fix=false
+    for pkg_config_instance in "${pkg_config_instances[@]}"; do
+        if [[ "$instance_id" == "$pkg_config_instance" ]]; then
+            needs_fix=true
+            break
+        fi
+    done
+    
+    if [[ "$needs_fix" == "true" ]]; then
+        log_info "Applying av version fix for $instance_id" >&2
+        # Add pkg-config and pyav dependencies
+        dockerfile=$(echo "$dockerfile" | sed 's/build-essential/build-essential pkg-config libavformat-dev libavcodec-dev libavdevice-dev libavutil-dev libswscale-dev libswresample-dev libavfilter-dev/')
+        # Pre-install av==10.0.0 and modify setup.py to use compatible version
+        dockerfile=$(echo "$dockerfile" | sed '/# Install PyTorch and other dependencies/i\
+# Temporarily modify setup.py to replace the problematic av==9.2.0 requirement with av==10.0.0\
+RUN sed -i '\''s/\"av==9.2.0\",/\"av==10.0.0\",/g'\'' setup.py\
+')
+    fi
+
+    echo "$dockerfile"
+}
+
+# Fix Debian Buster EOL issues for specific instances
+fix_debian_buster_dockerfile() {
+    local dockerfile="$1"
+    local instance_id="$2"
+    
+    # List of instance IDs that need Debian Buster archive fix
+    local buster_instances=(
+        "angular__angular-37561"
+        "coder__code-server-4597"
+        "coder__code-server-4678"
+        "coder__code-server-4923"
+        "coder__code-server-5633"
+        "coder__code-server-6115"
+        "coder__code-server-6225"
+        "coder__code-server-6423"
+        "huggingface__transformers-6744"
+        "huggingface__transformers-7075"
+        "huggingface__transformers-7272"
+        "huggingface__transformers-7562"
+        "huggingface__transformers-8435"
+        "microsoft__vscode-118226"
+        "microsoft__vscode-122796" 
+        "microsoft__vscode-123112"
+        "microsoft__vscode-124621"
+        "microsoft__vscode-127257"
+        "microsoft__vscode-128931"
+        "microsoft__vscode-130088"
+        "microsoft__vscode-132041"
+        "microsoft__vscode-178291"
+    )
+    
+    # Check if this instance needs the fix
+    local needs_fix=false
+    for buster_instance in "${buster_instances[@]}"; do
+        if [[ "$instance_id" == "$buster_instance" ]]; then
+            needs_fix=true
+            break
+        fi
+    done
+    
+    if [[ "$needs_fix" == "true" ]]; then
+        log_info "Applying Debian Buster archive fix for $instance_id" >&2
+        # Replace debian repositories with archive repositories before apt-get commands
+        echo "$dockerfile" | sed 's|RUN apt-get update|RUN sed -i "s/deb.debian.org/archive.debian.org/g" /etc/apt/sources.list \&\& sed -i "s/security.debian.org/archive.debian.org/g" /etc/apt/sources.list \&\& apt-get update|g'
+    else
+        echo "$dockerfile"
+    fi
+}
 
 # Build and upload a single instance image
 process_instance() {
@@ -235,6 +367,18 @@ process_instance() {
     local base_commit=$(echo "$instance_data" | jq -r '.base_commit')
     local dockerfile=$(echo "$instance_data" | jq -r '.Dockerfile')
     
+    # Apply pkg-config fix if needed
+    dockerfile=$(fix_pkg_config_dockerfile "$dockerfile" "$instance_id")
+    
+    # Apply Debian Buster fix if needed
+    dockerfile=$(fix_debian_buster_dockerfile "$dockerfile" "$instance_id")
+
+    # Apply poetry lock file fix if needed
+    dockerfile=$(fix_poetry_version "$dockerfile" "$instance_id")
+
+    # Apply HF URL fix
+    dockerfile=$(fix_huggingface_model_downloads "$dockerfile" "$instance_id")
+    
     log_info "Processing instance: $instance_id ($language)"
     
     # Check if image already exists and skip if requested
@@ -244,7 +388,7 @@ process_instance() {
     fi
     
     local local_image_name="polybench_${language,,}_${instance_id,,}"
-    local remote_image_name="${GHCR_REGISTRY}.${instance_id}"
+    local remote_image_name="${GHCR_REGISTRY}.${instance_id,,}"
     
     # Create temporary directory for this instance
     local temp_dir=$(mktemp -d)
@@ -298,12 +442,12 @@ process_instance() {
         log_success "Pushed $instance_id to registry"
         
         # Add URL to package settings file for batch processing
-        local settings_url="https://github.com/users/${GH_USERNAME}/packages/container/swe-polybench.eval.x86_64.${instance_id}/settings"
+        local settings_url="https://github.com/users/${GH_USERNAME}/packages/container/swe-polybench.eval.x86_64.${instance_id,,}/settings"
         echo "$settings_url" >> package_settings_urls.txt
         
         # Note about manual visibility setting
         log_warning "Package uploaded as private. To make it public, visit:"
-        log_warning "https://github.com/users/${GH_USERNAME}/packages/container/swe-polybench.eval.x86_64.${instance_id}/settings"
+        log_warning "https://github.com/users/${GH_USERNAME}/packages/container/swe-polybench.eval.x86_64.${instance_id,,}/settings"
     else
         log_info "DRY RUN: Would tag and push $instance_id"
     fi
@@ -332,6 +476,10 @@ export -f log_success
 export -f log_warning
 export -f log_error
 export -f image_exists_in_registry
+export -f fix_pkg_config_dockerfile
+export -f fix_debian_buster_dockerfile
+export -f fix_poetry_version
+export -f fix_huggingface_model_downloads
 export GHCR_REGISTRY VERSION DRY_RUN REPO_PATH SKIP_EXISTING GH_PAT
 export RED GREEN YELLOW BLUE NC
 export SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -430,6 +578,10 @@ $(declare -f log_success)
 $(declare -f log_warning)
 $(declare -f log_error)
 $(declare -f image_exists_in_registry)
+$(declare -f fix_pkg_config_dockerfile)
+$(declare -f fix_debian_buster_dockerfile)
+$(declare -f fix_poetry_version)
+$(declare -f fix_huggingface_model_downloads)
 export GHCR_REGISTRY="$GHCR_REGISTRY"
 export VERSION="$VERSION"
 export DRY_RUN="$DRY_RUN"
