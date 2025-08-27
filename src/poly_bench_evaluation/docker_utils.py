@@ -47,7 +47,7 @@ class DockerManager:
         Returns:
             bool: True if image was successfully pulled, False otherwise
         """
-        ghcr_image_name = f"ghcr.io/timesler/swe-polybench.eval.x86_64.{instance_id}:{version}"
+        ghcr_image_name = f"ghcr.io/timesler/swe-polybench.eval.x86_64.{instance_id.lower()}:{version}"
         
         try:
             logger.info(f"Attempting to pull pre-built image: {ghcr_image_name}")
