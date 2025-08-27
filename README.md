@@ -10,6 +10,12 @@
 
 Hello! We are delighted to announce SWE-PolyBench! A multi language repo level software engineering benchmark. It contains 2110 curated issues in four languages (Java, JavaScript, TypeScript, and Python). In addition, it contains a stratified subset of 500 issues (SWE-PolyBench500) for the purpose of rapid experimentation. Please find more details below.
 
+## 🚀 Updates (08/27/2025) 🚀
+
+- **SWE-PolyBench Verified Split Released** - We have released the SWE-PolyBench Verified split with curated annotations containing 394 samples (72 Java, 100 JavaScript, 122 Python, and 100 TypeScript instances). The annotations are available in `data/annotations.jsonl` for enhanced evaluation and analysis. Check out the updated [leaderboard](https://amazon-science.github.io/SWE-PolyBench/).
+
+- **Pre-built Docker Images Support** - We merged [PR #8](https://github.com/amazon-science/SWE-PolyBench/pull/8) which enables instant use of pre-built Docker images, significantly reducing setup time and improving the evaluation experience.
+
 ## Datasets
 The datasets are available on Huggingface. We have the full dataset (PB) (`AmazonScience/SWE-PolyBench`) with 2110 instances and a sampled dataset (total 500 instances) called `PB500` (`AmazonScience/SWE-PolyBench_500`) where we have 125 instances from each language and a good distribution of task categories, i.e. Bug Fix, Feature, and Refactoring (40-40-20 split). We also ensured we have representation from all repos.
 
