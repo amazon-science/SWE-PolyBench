@@ -356,6 +356,90 @@ fix_debian_buster_dockerfile() {
     fi
 }
 
+# Fix custom-reporter.js path issues for material-ui instances
+fix_custom_reporter_path() {
+    local dockerfile="$1"
+    local instance_id="$2"
+    
+    # List of specific material-ui instances that need the custom-reporter.js fix
+    # These are the 55 instances with resolved=false (excluding the 6 that already work)
+    local mui_instances=(
+        "mui__material-ui-7444"
+        "mui__material-ui-11446"
+        "mui__material-ui-11825"
+        "mui__material-ui-12389"
+        "mui__material-ui-13582"
+        "mui__material-ui-13743"
+        "mui__material-ui-13789"
+        "mui__material-ui-13828"
+        "mui__material-ui-14023"
+        "mui__material-ui-14036"
+        "mui__material-ui-14266"
+        "mui__material-ui-14465"
+        "mui__material-ui-15097"
+        "mui__material-ui-15430"
+        "mui__material-ui-15495"
+        "mui__material-ui-16137"
+        "mui__material-ui-16882"
+        "mui__material-ui-17005"
+        "mui__material-ui-17301"
+        "mui__material-ui-17640"
+        "mui__material-ui-17691"
+        "mui__material-ui-17829"
+        "mui__material-ui-18744"
+        "mui__material-ui-19612"
+        "mui__material-ui-19794"
+        "mui__material-ui-20133"
+        "mui__material-ui-20247"
+        "mui__material-ui-20781"
+        "mui__material-ui-20851"
+        "mui__material-ui-21192"
+        "mui__material-ui-21226"
+        "mui__material-ui-23174"
+        "mui__material-ui-23364"
+        "mui__material-ui-25784"
+        "mui__material-ui-26173"
+        "mui__material-ui-26231"
+        "mui__material-ui-26323"
+        "mui__material-ui-26460"
+        "mui__material-ui-26600"
+        "mui__material-ui-26746"
+        "mui__material-ui-28813"
+        "mui__material-ui-33312"
+        "mui__material-ui-34138"
+        "mui__material-ui-34158"
+        "mui__material-ui-34207"
+        "mui__material-ui-34478"
+        "mui__material-ui-34548"
+        "mui__material-ui-36426"
+        "mui__material-ui-37118"
+        "mui__material-ui-37845"
+        "mui__material-ui-37908"
+        "mui__material-ui-38167"
+        "mui__material-ui-38788"
+        "mui__material-ui-39071"
+        "mui__material-ui-40180"
+    )
+    
+    # Check if this instance needs the fix
+    local needs_fix=false
+    for mui_instance in "${mui_instances[@]}"; do
+        if [[ "$instance_id" == "$mui_instance" ]]; then
+            needs_fix=true
+            break
+        fi
+    done
+    
+    # Only apply fix to specific material-ui instances that have custom-reporter.js
+    if [[ "$needs_fix" == "true" ]] && [[ "$dockerfile" == *"custom-reporter.js"* ]]; then
+        log_info "Applying custom-reporter.js path fix for $instance_id" >&2
+
+        python scripts/fix_custom_reporter_path.py "$dockerfile"
+    else
+        echo "$dockerfile"
+    fi
+}
+
 # Build and upload a single instance image
 process_instance() {
     local instance_data="$1"
@@ -378,6 +462,9 @@ process_instance() {
 
     # Apply HF URL fix
     dockerfile=$(fix_huggingface_model_downloads "$dockerfile" "$instance_id")
+    
+    # Apply custom-reporter.js path fix if needed
+    dockerfile=$(fix_custom_reporter_path "$dockerfile" "$instance_id")
     
     log_info "Processing instance: $instance_id ($language)"
     
@@ -480,6 +567,7 @@ export -f fix_pkg_config_dockerfile
 export -f fix_debian_buster_dockerfile
 export -f fix_poetry_version
 export -f fix_huggingface_model_downloads
+export -f fix_custom_reporter_path
 export GHCR_REGISTRY VERSION DRY_RUN REPO_PATH SKIP_EXISTING GH_PAT
 export RED GREEN YELLOW BLUE NC
 export SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -582,6 +670,7 @@ $(declare -f fix_pkg_config_dockerfile)
 $(declare -f fix_debian_buster_dockerfile)
 $(declare -f fix_poetry_version)
 $(declare -f fix_huggingface_model_downloads)
+$(declare -f fix_custom_reporter_path)
 export GHCR_REGISTRY="$GHCR_REGISTRY"
 export VERSION="$VERSION"
 export DRY_RUN="$DRY_RUN"
