@@ -400,5 +400,4 @@ EOF"""
 
     def __del__(self):
         """Stop and remove the container, and delete the image if provided."""
-        # Stop and remove the container, and delete the image if provided
         self._cleanup()
