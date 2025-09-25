@@ -8,7 +8,7 @@
 
 </div>
 
-Hello! We are delighted to announce SWE-PolyBench! A multi language repo level software engineering benchmark. It contains 2110 curated issues in four languages (Java, JavaScript, TypeScript, and Python). In addition, it contains a stratified subset of 500 issues (SWE-PolyBench500) for the purpose of rapid experimentation. Please find more details below.
+Hello! We are delighted to announce SWE-PolyBench! A multi language repo level software engineering benchmark. It contains 2110 curated issues in four languages (Java, JavaScript, TypeScript, and Python). In addition, it contains a stratified subset of 500 issues (SWE-PolyBench500) and a Verified subset of 382 issues (SWE-PolyBench_Verified) for the purpose of rapid experimentation. Please find more details below.
 
 ## 🚀 Updates 🚀
 * **09/18/2025**
@@ -20,7 +20,7 @@ Hello! We are delighted to announce SWE-PolyBench! A multi language repo level s
   - **Pre-built Docker Images Support** - We merged [PR #8](https://github.com/amazon-science/SWE-PolyBench/pull/8) which enables instant use of pre-built Docker images, significantly reducing setup time and improving the evaluation experience.
 
 ## Datasets
-The datasets are available on Huggingface. We have the full dataset (PB) (`AmazonScience/SWE-PolyBench`) with 2110 instances and a sampled dataset (total 500 instances) called `PB500` (`AmazonScience/SWE-PolyBench_500`) where we have 125 instances from each language and a good distribution of task categories, i.e. Bug Fix, Feature, and Refactoring (40-40-20 split). We also ensured we have representation from all repos.
+The datasets are available on Huggingface. We have the full dataset (PB) (`AmazonScience/SWE-PolyBench`) with 2110 instances, a sampled dataset (total 500 instances) called `PB500` (`AmazonScience/SWE-PolyBench_500`) where we have 125 instances from each language and a good distribution of task categories, i.e. Bug Fix, Feature, and Refactoring (40-40-20 split), and a verified dataset (total 382 instances) called `PBv` (`AmazonScience/SWE-PolyBench_Verified`).
 
 ## Evaluation
 The main file to run is `src/poly_bench_evaluation/run_evaluation.py`. These are the following parameters it takes:
