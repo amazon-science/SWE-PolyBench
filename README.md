@@ -15,7 +15,7 @@ Hello! We are delighted to announce SWE-PolyBench! A multi language repo level s
   - After receiving valuable feedback about our verified split, we updated the `Dockerfile` column for some instances and ensured that the pre-built images result in a 100% pass rate on the gold patch. 
   - We removed two duplicate-like entries from the Java split of SWE-PolyBench_Verified
 * **08/27/2025**
-  - **SWE-PolyBench Verified Split Released** - We have released the SWE-PolyBench Verified split with curated annotations containing 394 samples (72 Java, 100 JavaScript, 122 Python, and 100 TypeScript instances). The annotations are available in `data/annotations.jsonl` for enhanced evaluation and analysis. Check out the updated [leaderboard](https://amazon-science.github.io/SWE-PolyBench/).
+  - **SWE-PolyBench Verified Split Released** - We have released the SWE-PolyBench Verified split with curated annotations containing 382 samples (72 Java, 100 JavaScript, 113 Python, and 100 TypeScript instances). The annotations are available in `data/annotations.jsonl` for enhanced evaluation and analysis. Check out the updated [leaderboard](https://amazon-science.github.io/SWE-PolyBench/).
 
   - **Pre-built Docker Images Support** - We merged [PR #8](https://github.com/amazon-science/SWE-PolyBench/pull/8) which enables instant use of pre-built Docker images, significantly reducing setup time and improving the evaluation experience.
 
