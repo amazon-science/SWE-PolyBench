@@ -1,6 +1,6 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: CC-BY-NC-4.0
-JAVA_TIMEOUT = 1200
+JAVA_TIMEOUT = 1800
 DEFAULT_TIMEOUT = 1200
 
 REPO_TO_PARSER_CLASS = {
