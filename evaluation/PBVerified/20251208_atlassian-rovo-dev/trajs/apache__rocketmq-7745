@@ -1,0 +1,928 @@
+########################################################################################################################
+PHASE 1
+########################################################################################################################
+========================================================================================================================
+AGENT:
+I will start by viewing the workspace to understand its structure and contents. This will help me identify key files and locations that may be relevant to the task.
+========================================================================================================================
+USER PROMPT:
+Resolve the following problem statement:
+
+<problem_statement>
+[Bug] BROADCASTING DefaultMQPushConsumer can't fix illegal pull offset
+### Before Creating the Bug Report
+
+- [X] I found a bug, not just asking a question, which should be created in [GitHub Discussions](https://github.com/apache/rocketmq/discussions).
+
+- [X] I have searched the [GitHub Issues](https://github.com/apache/rocketmq/issues) and [GitHub Discussions](https://github.com/apache/rocketmq/discussions)  of this repository and believe that this is not a duplicate.
+
+- [X] I have confirmed that this bug belongs to the current repository, not other repositories of RocketMQ.
+
+
+### Runtime platform environment
+
+centos7
+
+### RocketMQ version
+
+4.9.x | 5.1.x
+
+### JDK Version
+
+JDK 1.8
+
+### Describe the Bug
+
+<img width="2409" alt="image" src="https://github.com/apache/rocketmq/assets/103550934/d2f1a0bb-b7b6-4af4-b6ce-71b6281b4a8a">
+
+We encountered a issue that the BROADCASTING DefaultMQPushConsumer was unable to consume: As shown in the log, the client received the OFFSET_ILLEGAL response returned by the broker and kept trying to fix nextOffset but failed, resulting in the inability to consume messages.
+
+我们遇到了一个 Push 消费者广播模式无法消费的问题：如日志所显示，客户端收到了服务端返回的 OFFSET_ILLEGAL，一直在尝试纠正 nextOffset 但始终不能成功，导致无法消费。
+
+### Steps to Reproduce
+
+1. Create a topic and produce certain messages.
+2. Wait for message to expire (queue minOffset >0).
+3. Create a subscription group and start a DefaultMQPushConsumer (MessageModel=BROADCASTING, ConsumeFromWhere=CONSUME_FROM_FIRST_OFFSET).
+4. Produce more messages.
+
+### What Did You Expect to See?
+
+Normal message consumption.
+
+### What Did You See Instead?
+
+The consumer is unable to consume any messages.
+
+### Additional Context
+
+<img width="1670" alt="image" src="https://github.com/apache/rocketmq/assets/103550934/471d7b87-6552-4ea9-9b11-9a2002e9e7e1">
+<img width="780" alt="image" src="https://github.com/apache/rocketmq/assets/103550934/faa1b6cc-d6f2-48c6-bdc7-e153b00374d7">
+<img width="1261" alt="image" src="https://github.com/apache/rocketmq/assets/103550934/a29222d4-bf7e-407d-a191-61ce3b5fa35e">
+
+Possible cause we located after reviewing code:
+
+When the consumer handles OFFSET_ILLEGAL error, it will first set the correct nextOffset returned by the broker as the consumerOffset (in memory), and then delete the PQ corresponding to the MQ. When the next time the rebalance is triggered, it is expected to set the new consumerOffset as the nextOffset, reinitialize PQ and start pulling messages. But at this time the consumerOffset is read from the store (ReadOffsetType=READ_FROM_STORE), so it will always  get -1. As a result, the client will fall into an infinite loop of the above process.
+
+消费端在处理 OFFSET_ILLEGAL 时，首先会将服务端返回的正确的 nextOffset 更新为消费位点（内存），接着删除 MQ 对应的 PQ。下次重平衡触发时，预期是将新的消费位点作为 nextOffset 重新初始化 PQ 并开始拉取消息。但此时是从持久化介质读取消费位点 (ReadOffsetType=READ_FROM_STORE)，因此永远只会读到 -1。于是，客户端会陷入上述过程的无限循环中。
+
+</problem_statement>
+
+Do not stop until you have made code changes that resolve the problem statement. Do not ask for clarifications.
+========================================================================================================================
+AGENT:
+Starting to analyze the bug report about BROADCASTING DefaultMQPushConsumer unable to fix illegal pull offset. I need to understand the code flow and identify the root cause.
+========================================================================================================================
+AGENT:
+STEP 1: ANALYZE THE PROBLEM AND EXPLORE RELEVANT CODE
+
+<thinking>
+Based on the problem statement, the issue is:
+
+1. When a BROADCASTING DefaultMQPushConsumer receives an OFFSET_ILLEGAL response from the broker
+2. The consumer tries to fix the offset by:
+   - Setting the correct nextOffset returned by the broker as the consumerOffset (in memory)
+   - Deleting the ProcessQueue (PQ) corresponding to the MessageQueue (MQ)
+3. When rebalance is triggered, it should use the new consumerOffset as the nextOffset
+4. However, the consumerOffset is read from the store (ReadOffsetType=READ_FROM_STORE), which always returns -1 for BROADCASTING mode
+5. This causes an infinite loop
+
+I need to look at:
+1. How OFFSET_ILLEGAL is handled in the pull message flow
+2. How the rebalance process reads the offset for BROADCASTING mode
+3. The LocalFileOffsetStore implementation (used for BROADCASTING mode)
+
+Let me start by exploring the relevant files:
+- `client/src/main/java/org/apache/rocketmq/client/impl/consumer/PullAPIWrapper.java` - handles pull responses
+- `client/src/main/java/org/apache/rocketmq/client/impl/consumer/DefaultMQPushConsumerImpl.java` - main consumer implementation
+- `client/src/main/java/org/apache/rocketmq/client/impl/consumer/RebalancePushImpl.java` - rebalance implementation
+- `client/src/main/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStore.java` - local offset store for BROADCASTING
+</thinking>
+
+Let me explore the relevant code files to understand the issue better.
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- client/src/main/java/org/apache/rocketmq/client/impl/consumer/DefaultMQPushConsumerImpl.java
+- client/src/main/java/org/apache/rocketmq/client/impl/consumer/RebalancePushImpl.java
+- client/src/main/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStore.java
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened client/src/main/java/org/apache/rocketmq/client/impl/consumer/DefaultMQPushConsumerImpl.java:\n\n````java\n   0 /*\n...\n  83 public class DefaultMQPushConsumerImpl implements MQConsumerInner {\n...\n  87     private long pullTimeDelayMillsWhenException = 3000;\n...\n  91     private static final long PULL_TIME_DELAY_MILLS_WHEN_CACHE_FLOW_CONTROL = 50;\n...\n  95     private static final long PULL_TIME_DELAY_MILLS_WHEN_BROKER_FLOW_CONTROL = 20;\n...\n  99     private static...
+```
+========================================================================================================================
+AGENT:
+Let me expand the key methods in these files to understand the issue better:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: client/src/main/java/org/apache/rocketmq/client/impl/consumer/DefaultMQPushConsumerImpl.java
+patterns:
+- pullMessage
+- OFFSET_ILLEGAL
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in client/src/main/java/org/apache/rocketmq/client/impl/consumer/DefaultMQPushConsumerImpl.java:
+
+````java
+   0 /*
+...
+  83 public class DefaultMQPushConsumerImpl implements MQConsumerInner {
+...
+  87     private long pullTimeDelayMillsWhenException = 3000;
+...
+ 120     public DefaultMQPushConsumerImpl(DefaultMQPushConsumer defaultMQPushConsumer, RPCHook rpcHook) {
+...
+ 126     public void registerFilterMessageHook(final FilterMessageHook hook) {
+...
+ 131     pu...
+```
+========================================================================================================================
+AGENT:
+Now I can see the OFFSET_ILLEGAL handling code. When OFFSET_ILLEGAL is received:
+1. It updates the offset in memory (line 381-382)
+2. It persists the offset (line 384)
+3. It removes the ProcessQueue (line 386)
+
+Now let me look at the `computePullFromWhereWithException` method in `RebalancePushImpl` to see how the offset is read during rebalance:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: client/src/main/java/org/apache/rocketmq/client/impl/consumer/RebalancePushImpl.java
+patterns:
+- computePullFromWhereWithException
+- computePullFromWhere
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in client/src/main/java/org/apache/rocketmq/client/impl/consumer/RebalancePushImpl.java:
+
+````java
+   0 /*
+...
+  34 public class RebalancePushImpl extends RebalanceImpl {
+  35     private final static long UNLOCK_DELAY_TIME_MILLS = Long.parseLong(System.getProperty("rocketmq.client.unlockDelayTimeMills", "20000"));
+...
+  38     public RebalancePushImpl(DefaultMQPushConsumerImpl defaultMQPushConsumerImpl) {
+...
+  42     public RebalancePushImpl(String consumerGro...
+```
+========================================================================================================================
+AGENT:
+Now I can see the issue clearly. In `computePullFromWhereWithException`, the offset is read using `ReadOffsetType.READ_FROM_STORE` (line 161, 183, 194). Let me look at the `LocalFileOffsetStore.readOffset` method to understand how it handles `READ_FROM_STORE`:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: client/src/main/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStore.java
+patterns:
+- readOffset
+- persist
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in client/src/main/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStore.java:
+
+````java
+   0 /*
+...
+  41 public class LocalFileOffsetStore implements OffsetStore {
+  42     public final static String LOCAL_OFFSET_STORE_DIR = System.getProperty(
+  43         "rocketmq.client.localOffsetStoreDir",
+  44         System.getProperty("user.home") + File.separator + ".rocketmq_offsets");
+  45     private final static InternalLogger log = ClientLogger.getL...
+```
+========================================================================================================================
+AGENT:
+Now I understand the issue completely:
+
+1. When `OFFSET_ILLEGAL` is received, the code in `DefaultMQPushConsumerImpl.pullMessage()` (lines 381-386) does:
+   - `offsetStore.updateOffset(mq, nextOffset, false)` - updates the offset in memory
+   - `offsetStore.persist(mq)` - calls persist for the specific MQ
+   - `rebalanceImpl.removeProcessQueue(mq)` - removes the ProcessQueue
+
+2. The problem is that `LocalFileOffsetStore.persist(MessageQueue mq)` is **empty** (line 155-156)! It does nothing!
+
+3. When rebalance happens, `computePullFromWhereWithException` reads the offset using `READ_FROM_STORE`, which reads from the local file. Since the file was never updated (because `persist(mq)` is empty), it returns -1.
+
+4. This causes the consumer to fall into an infinite loop.
+
+The fix should be to implement the `persist(MessageQueue mq)` method in `LocalFileOffsetStore` to actually persist the offset for that specific MessageQueue.
+
+Let me also check the `RemoteBrokerOffsetStore` to see how it implements `persist`:
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- client/src/main/java/org/apache/rocketmq/client/consumer/store/RemoteBrokerOffsetStore.java
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened client/src/main/java/org/apache/rocketmq/client/consumer/store/RemoteBrokerOffsetStore.java:\n\n````java\n   0 /*\n...\n  41 public class RemoteBrokerOffsetStore implements OffsetStore {\n  42     private final static InternalLogger log = ClientLogger.getLog();\n...\n  45     private ConcurrentMap<MessageQueue, AtomicLong> offsetTable =\n...\n  48     public RemoteBrokerOffsetStore(MQClientInstance mQClientFactory, String groupName) {\n...\n  53     @Override\n  54     publ...
+```
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: client/src/main/java/org/apache/rocketmq/client/consumer/store/RemoteBrokerOffsetStore.java
+patterns:
+- persist
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in client/src/main/java/org/apache/rocketmq/client/consumer/store/RemoteBrokerOffsetStore.java:
+
+````java
+   0 /*
+...
+  41 public class RemoteBrokerOffsetStore implements OffsetStore {
+  42     private final static InternalLogger log = ClientLogger.getLog();
+...
+  45     private ConcurrentMap<MessageQueue, AtomicLong> offsetTable =
+...
+  48     public RemoteBrokerOffsetStore(MQClientInstance mQClientFactory, String groupName) {
+...
+  53     @Override
+  54     pu...
+```
+========================================================================================================================
+AGENT:
+Now I can see that `RemoteBrokerOffsetStore.persist(MessageQueue mq)` (lines 150-164) is properly implemented - it updates the offset to the broker. However, `LocalFileOffsetStore.persist(MessageQueue mq)` is empty.
+
+Now let me implement the fix. The `LocalFileOffsetStore.persist(MessageQueue mq)` method should persist the offset for the specific MessageQueue to the local file.
+
+Looking at `persistAll`, I can see how it persists offsets. The fix should be similar but for a single MessageQueue.
+========================================================================================================================
+AGENT:
+I've identified the root cause: LocalFileOffsetStore.persist(MessageQueue mq) is empty, so when OFFSET_ILLEGAL is handled, the corrected offset is never persisted to the local file. I will now implement the fix.
+========================================================================================================================
+AGENT:
+STEP 2: IMPLEMENT THE FIX
+
+<thinking>
+Now I need to implement the `persist(MessageQueue mq)` method in `LocalFileOffsetStore`. Looking at the `persistAll` method, I can see that it:
+1. Creates an `OffsetSerializeWrapper`
+2. Adds all offsets from `offsetTable` that are in the provided set
+3. Converts to JSON and writes to file
+
+For `persist(MessageQueue mq)`, I should:
+1. Read the current offsets from the file (to preserve other MQ offsets)
+2. Update the offset for the specific MQ
+3. Write back to the file
+
+Actually, looking more carefully at `persistAll`, it only persists offsets that are in the `mqs` set. For `persist(MessageQueue mq)`, I should persist all offsets in the `offsetTable` (similar to what `persistAll` does when the MQ is in the set).
+
+Wait, let me reconsider. The issue is that when `persist(mq)` is called, we need to persist the offset for that specific MQ. The simplest approach is to persist all offsets in the `offsetTable` to the file, which is what `persistAll` does but without filtering.
+
+Actually, looking at `persistAll` more carefully:
+- It only persists offsets for MQs that are in the provided `mqs` set
+- This is because during rebalance, some MQs might be removed
+
+For `persist(MessageQueue mq)`, we should persist all offsets in the `offsetTable` to ensure the specific MQ's offset is saved. This is safe because the `offsetTable` should only contain valid MQs.
+
+Let me implement this:
+</thinking>
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: client/src/main/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStore.java
+find: "    @Override\n    public void persist(MessageQueue mq) {\n    }"
+replace: "    @Override\n    public void persist(MessageQueue mq) {\n        AtomicLong\
+  \ offset = this.offsetTable.get(mq);\n        if (offset != null) {\n          \
+  \  OffsetSerializeWrapper offsetSerializeWrapper = new OffsetSerializeWrapper();\n\
+  \            for (Map.Entry<MessageQueue, AtomicLong> entry : this.offsetTable.entrySet())\
+  \ {\n                offsetSerializeWrapper.getOffsetTable().put(entry.getKey(),\
+  \ entry.getValue());\n            }\n\n            String jsonString = offsetSerializeWrapper.toJson(true);\n\
+  \            if (jsonString != null) {\n                try {\n                \
+  \    MixAll.string2File(jsonString, this.storePath);\n                } catch (IOException\
+  \ e) {\n                    log.error(\"persist consumer offset Exception, \" +\
+  \ this.storePath, e);\n                }\n            }\n        }\n    }"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in client/src/main/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStore.java:
+
+--- client/src/main/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStore.java
++++ client/src/main/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStore.java
+@@ -154,6 +154,22 @@
+ 
+     @Override
+     public void persist(MessageQueue mq) {
++        AtomicLong offset = this.offsetTable.get(mq);
++        if (offset != null) {
++            OffsetSerial...
+```
+========================================================================================================================
+AGENT:
+Now let me also implement the `removeOffset` method which is also empty. Looking at the code flow, when `removeProcessQueue` is called, it might also call `removeOffset`. Let me check:
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: removeOffset
+path_glob: '**/client/**/*.java'
+
+========================================================================================================================
+TOOL RETURN (grep)
+```
+client/src/main/java/org/apache/rocketmq/client/consumer/store/OffsetStore.java:60:    void removeOffset(MessageQueue mq);
+client/src/main/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStore.java:176:    public void removeOffset(MessageQueue mq) {
+client/src/main/java/org/apache/rocketmq/client/consumer/store/RemoteBrokerOffsetStore.java:167:    public void removeOffset(MessageQueue mq) {
+client/src/test/java/org/apache/rocketmq/client/consumer/store/RemoteBrokerOffsetStoreTest.j...
+```
+========================================================================================================================
+AGENT:
+Let me check the `RebalancePushImpl` to see when `removeOffset` is called:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: client/src/main/java/org/apache/rocketmq/client/impl/consumer/RebalancePushImpl.java
+patterns:
+- removeUnnecessaryMessageQueue
+- removeDirtyOffset
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in client/src/main/java/org/apache/rocketmq/client/impl/consumer/RebalancePushImpl.java:
+
+````java
+   0 /*
+...
+  34 public class RebalancePushImpl extends RebalanceImpl {
+  35     private final static long UNLOCK_DELAY_TIME_MILLS = Long.parseLong(System.getProperty("rocketmq.client.unlockDelayTimeMills", "20000"));
+...
+  38     public RebalancePushImpl(DefaultMQPushConsumerImpl defaultMQPushConsumerImpl) {
+...
+  42     public RebalancePushImpl(String consumerGro...
+```
+========================================================================================================================
+AGENT:
+I see that in `removeUnnecessaryMessageQueue` (line 84-110), it calls:
+1. `persist(mq)` - to persist the offset before removing
+2. `removeOffset(mq)` - to remove the offset from memory
+
+The `removeOffset` method in `LocalFileOffsetStore` is also empty. Let me check what `RemoteBrokerOffsetStore.removeOffset` does:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: client/src/main/java/org/apache/rocketmq/client/consumer/store/RemoteBrokerOffsetStore.java
+patterns:
+- removeOffset
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in client/src/main/java/org/apache/rocketmq/client/consumer/store/RemoteBrokerOffsetStore.java:
+
+````java
+   0 /*
+...
+  41 public class RemoteBrokerOffsetStore implements OffsetStore {
+  42     private final static InternalLogger log = ClientLogger.getLog();
+...
+  45     private ConcurrentMap<MessageQueue, AtomicLong> offsetTable =
+...
+  48     public RemoteBrokerOffsetStore(MQClientInstance mQClientFactory, String groupName) {
+...
+  53     @Override
+  54     pu...
+```
+========================================================================================================================
+AGENT:
+I see that `RemoteBrokerOffsetStore.removeOffset` removes the MQ from the `offsetTable`. Let me also implement this for `LocalFileOffsetStore`:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: client/src/main/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStore.java
+find: "    @Override\n    public void removeOffset(MessageQueue mq) {\n\n    }"
+replace: "    @Override\n    public void removeOffset(MessageQueue mq) {\n       \
+  \ if (mq != null) {\n            this.offsetTable.remove(mq);\n            log.info(\"\
+  remove unnecessary messageQueue offset. group={}, mq={}, offsetTableSize={}\", this.groupName,\
+  \ mq,\n                offsetTable.size());\n        }\n    }"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in client/src/main/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStore.java:
+
+--- client/src/main/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStore.java
++++ client/src/main/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStore.java
+@@ -174,7 +174,11 @@
+ 
+     @Override
+     public void removeOffset(MessageQueue mq) {
+-
++        if (mq != null) {
++            this.offsetTable.remove(mq);
++            log.info("remove unnec...
+```
+========================================================================================================================
+AGENT:
+Now let me verify the changes by opening the file:
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- client/src/main/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStore.java
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened client/src/main/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStore.java:\n\n````java\n   0 /*\n...\n  41 public class LocalFileOffsetStore implements OffsetStore {\n  42     public final static String LOCAL_OFFSET_STORE_DIR = System.getProperty(\n  43         "rocketmq.client.localOffsetStoreDir",\n  44         System.getProperty("user.home") + File.separator + ".rocketmq_offsets");\n  45     private final static InternalLogger log = ClientLogger.getLog();\...
+```
+========================================================================================================================
+AGENT:
+STEP 3: VERIFY THE CHANGES AND RUN TESTS
+
+<thinking>
+The changes look good. Now let me verify that the code compiles and run any existing tests for `LocalFileOffsetStore` to make sure the changes don't break anything.
+
+Let me first check if there are any tests for `LocalFileOffsetStore`:
+</thinking>
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- client/src/test/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStoreTest.java
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened client/src/test/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStoreTest.java:\n\n````java\n   0 /*\n   1  * Licensed to the Apache Software Foundation (ASF) under one or more\n   2  * contributor license agreements.  See the NOTICE file distributed with\n   3  * this work for additional information regarding copyright ownership.\n   4  * The ASF licenses this file to You under the Apache License, Version 2.0\n   5  * (the "License"); you may not use this fil...
+```
+========================================================================================================================
+AGENT:
+Now let me run the existing tests to make sure they pass:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && mvn test -pl client -Dtest=LocalFileOffsetStoreTest -DfailIfNoTests=false
+  -q 2>&1 | tail -50
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+tmp_code_20370f2f84038dfc6c1d34f10b73df92a31adce73b86c09ca81e61f61038a09a.bash: line 1: mvn: command not found...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: which mvn || (apt-get update && apt-get install -y maven) 2>&1 | tail -20
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Setting up libwagon-http-shaded-java (3.5.3-1) ...
+Setting up libcdi-api-java (1.2-3) ...
+Setting up libwagon-provider-api-java (3.5.3-1) ...
+Setting up libmaven-parent-java (35-1) ...
+Setting up libcommons-parent-java (56-1) ...
+Setting up libsisu-inject-java (0.3.4-2) ...
+Setting up libplexus-cipher-java (2.0-1) ...
+Setting up libsisu-plexus-java (0.3.4-3) ...
+Setting up libcommons-lang3-java (3.14.0-1) ...
+Setting up libplexus-sec-dispatcher-java (2.0-3) ...
+Setting up libwagon-file...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && mvn test -pl client -Dtest=LocalFileOffsetStoreTest -DfailIfNoTests=false
+  -q 2>&1 | tail -100
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+OpenJDK 64-Bit Server VM warning: Unable to get SVE vector length on this system. Disabling SVE. Specify -XX:UseSVE=0 to shun this warning.
+[[1;31mERROR[m] Failed to execute goal on project [36mrocketmq-client[m: [1;31mCould not resolve dependencies for project org.apache.rocketmq:rocketmq-client:jar:4.9.8-SNAPSHOT: Could not find artifact org.apache.rocketmq:rocketmq-common:jar:4.9.8-SNAPSHOT in apache.snapshots (https://repository.apache.org/snapshots)[m -> [1m[Help 1][m
+[[1;31mERROR...
+```
+========================================================================================================================
+AGENT:
+I need to build the project first:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && mvn install -DskipTests -q 2>&1 | tail -50
+timeout: 600
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+OpenJDK 64-Bit Server VM warning: Unable to get SVE vector length on this system. Disabling SVE. Specify -XX:UseSVE=0 to shun this warning.
+[[1;31mERROR[m] COMPILATION ERROR : 
+[[1;31mERROR[m] Source option 6 is no longer supported. Use 8 or later.
+[[1;31mERROR[m] Target option 6 is no longer supported. Use 8 or later.
+[[1;31mERROR[m] Failed to execute goal [32morg.apache.maven.plugins:maven-compiler-plugin:3.5.1:compile[m [1m(default-compile)[m on project [36mrocketmq-client[m: [...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: java -version 2>&1
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+OpenJDK 64-Bit Server VM warning: Unable to get SVE vector length on this system. Disabling SVE. Specify -XX:UseSVE=0 to shun this warning.
+openjdk version "21.0.8" 2025-07-15
+OpenJDK Runtime Environment (build 21.0.8+9-Ubuntu-0ubuntu124.04.1)
+OpenJDK 64-Bit Server VM (build 21.0.8+9-Ubuntu-0ubuntu124.04.1, mixed mode, sharing)...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && mvn install -DskipTests -q -Dmaven.compiler.source=8 -Dmaven.compiler.target=8
+  2>&1 | tail -50
+timeout: 600
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+OpenJDK 64-Bit Server VM warning: Unable to get SVE vector length on this system. Disabling SVE. Specify -XX:UseSVE=0 to shun this warning....
+```
+========================================================================================================================
+AGENT:
+The build succeeded. Now let me run the tests:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && mvn test -pl client -Dtest=LocalFileOffsetStoreTest -DfailIfNoTests=false
+  -Dmaven.compiler.source=8 -Dmaven.compiler.target=8 2>&1 | tail -50
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+	at org.junit.internal.runners.statements.RunBefores.evaluate(RunBefores.java:26)
+	at org.mockito.internal.runners.DefaultInternalRunner$1$1.evaluate(DefaultInternalRunner.java:55)
+	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+	at org.junit.runners.BlockJUnit4ClassRunner$1.evaluate(BlockJUnit4ClassRunner.java:100)
+	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:366)
+	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:103)
+	at org....
+```
+========================================================================================================================
+AGENT:
+All 3 tests passed. Now let me add a test specifically for the `persist(MessageQueue mq)` method to verify the fix:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: client/src/test/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStoreTest.java
+line_ranges:
+- - 0
+  - -1
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in client/src/test/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStoreTest.java:
+
+````java
+   0 /*
+   1  * Licensed to the Apache Software Foundation (ASF) under one or more
+   2  * contributor license agreements.  See the NOTICE file distributed with
+   3  * this work for additional information regarding copyright ownership.
+   4  * The ASF licenses this file to You under the Apache License, Version 2.0
+   5  * (the "License"); you may not use t...
+```
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: client/src/test/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStoreTest.java
+find: "    @Test\n    public void testCloneOffset() throws Exception {\n        OffsetStore\
+  \ offsetStore = new LocalFileOffsetStore(mQClientFactory, group);\n        MessageQueue\
+  \ messageQueue = new MessageQueue(topic, brokerName, 3);\n        offsetStore.updateOffset(messageQueue,\
+  \ 1024, false);\n        Map<MessageQueue, Long> cloneOffsetTable = offsetStore.cloneOffsetTable(topic);\n\
+  \n        assertThat(cloneOffsetTable.size()).isEqualTo(1);\n        assertThat(cloneOffsetTable.get(messageQueue)).isEqualTo(1024);\n\
+  \    }\n}"
+replace: "    @Test\n    public void testCloneOffset() throws Exception {\n      \
+  \  OffsetStore offsetStore = new LocalFileOffsetStore(mQClientFactory, group);\n\
+  \        MessageQueue messageQueue = new MessageQueue(topic, brokerName, 3);\n \
+  \       offsetStore.updateOffset(messageQueue, 1024, false);\n        Map<MessageQueue,\
+  \ Long> cloneOffsetTable = offsetStore.cloneOffsetTable(topic);\n\n        assertThat(cloneOffsetTable.size()).isEqualTo(1);\n\
+  \        assertThat(cloneOffsetTable.get(messageQueue)).isEqualTo(1024);\n    }\n\
+  \n    @Test\n    public void testPersist() throws Exception {\n        OffsetStore\
+  \ offsetStore = new LocalFileOffsetStore(mQClientFactory, group);\n        MessageQueue\
+  \ messageQueue = new MessageQueue(topic, brokerName, 4);\n\n        offsetStore.updateOffset(messageQueue,\
+  \ 1024, false);\n        // Before persist, READ_FROM_STORE should return -1\n \
+  \       assertThat(offsetStore.readOffset(messageQueue, ReadOffsetType.READ_FROM_STORE)).isEqualTo(-1);\n\
+  \n        // After persist(mq), READ_FROM_STORE should return the persisted offset\n\
+  \        offsetStore.persist(messageQueue);\n        assertThat(offsetStore.readOffset(messageQueue,\
+  \ ReadOffsetType.READ_FROM_STORE)).isEqualTo(1024);\n\n        // Update offset\
+  \ and persist again\n        offsetStore.updateOffset(messageQueue, 2048, false);\n\
+  \        offsetStore.persist(messageQueue);\n        assertThat(offsetStore.readOffset(messageQueue,\
+  \ ReadOffsetType.READ_FROM_STORE)).isEqualTo(2048);\n    }\n\n    @Test\n    public\
+  \ void testRemoveOffset() throws Exception {\n        OffsetStore offsetStore =\
+  \ new LocalFileOffsetStore(mQClientFactory, group);\n        MessageQueue messageQueue\
+  \ = new MessageQueue(topic, brokerName, 5);\n\n        offsetStore.updateOffset(messageQueue,\
+  \ 1024, false);\n        assertThat(offsetStore.readOffset(messageQueue, ReadOffsetType.READ_FROM_MEMORY)).isEqualTo(1024);\n\
+  \n        // After removeOffset, READ_FROM_MEMORY should return -1\n        offsetStore.removeOffset(messageQueue);\n\
+  \        assertThat(offsetStore.readOffset(messageQueue, ReadOffsetType.READ_FROM_MEMORY)).isEqualTo(-1);\n\
+  \    }\n}"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in client/src/test/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStoreTest.java:
+
+--- client/src/test/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStoreTest.java
++++ client/src/test/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStoreTest.java
+@@ -85,4 +85,36 @@
+         assertThat(cloneOffsetTable.size()).isEqualTo(1);
+         assertThat(cloneOffsetTable.get(messageQueue)).isEqualTo(1024);
+     }
++
++    @Test
++    publi...
+```
+========================================================================================================================
+AGENT:
+Now let me run the tests again to verify the new tests pass:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && mvn test -pl client -Dtest=LocalFileOffsetStoreTest -DfailIfNoTests=false
+  -Dmaven.compiler.source=8 -Dmaven.compiler.target=8 2>&1 | tail -50
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+	at org.junit.internal.runners.statements.RunBefores.evaluate(RunBefores.java:26)
+	at org.mockito.internal.runners.DefaultInternalRunner$1$1.evaluate(DefaultInternalRunner.java:55)
+	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+	at org.junit.runners.BlockJUnit4ClassRunner$1.evaluate(BlockJUnit4ClassRunner.java:100)
+	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:366)
+	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:103)
+	at org....
+```
+========================================================================================================================
+AGENT:
+All 5 tests passed (3 original + 2 new tests). The JaCoCo warning is just a compatibility issue with Java 21 and doesn't affect the test results.
+
+STEP 4: REVIEW THE CHANGES
+
+<thinking>
+Let me review the changes I made to ensure they are correct and complete:
+
+1. **`LocalFileOffsetStore.persist(MessageQueue mq)`**: I implemented this method to persist the offset for a specific MessageQueue to the local file. The implementation:
+   - Checks if the offset exists in the `offsetTable`
+   - If it exists, creates an `OffsetSerializeWrapper` with all offsets from `offsetTable`
+   - Writes the JSON to the local file
+
+2. **`LocalFileOffsetStore.removeOffset(MessageQueue mq)`**: I implemented this method to remove the offset from the `offsetTable`. This is consistent with `RemoteBrokerOffsetStore.removeOffset`.
+
+3. **Tests**: I added two new tests:
+   - `testPersist()`: Tests that `persist(mq)` correctly persists the offset to the file
+   - `testRemoveOffset()`: Tests that `removeOffset(mq)` correctly removes the offset from memory
+
+Now let me trace through the bug scenario to verify the fix:
+
+1. Consumer receives `OFFSET_ILLEGAL` response
+2. `DefaultMQPushConsumerImpl.pullMessage()` handles it:
+   - `offsetStore.updateOffset(mq, nextOffset, false)` - updates offset in memory
+   - `offsetStore.persist(mq)` - NOW this persists to file (was empty before)
+   - `rebalanceImpl.removeProcessQueue(mq)` - removes the ProcessQueue
+3. When rebalance happens, `computePullFromWhereWithException` is called:
+   - `offsetStore.readOffset(mq, ReadOffsetType.READ_FROM_STORE)` - reads from file
+   - NOW this returns the correct offset (was returning -1 before because file wasn't updated)
+4. Consumer can now continue consuming from the correct offset
+
+The fix is correct and addresses the root cause of the issue.
+
+Let me also verify that the code flow is correct by checking the `removeProcessQueue` method:
+</thinking>
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: removeProcessQueue
+path_glob: '**/client/**/*.java'
+
+========================================================================================================================
+TOOL RETURN (grep)
+```
+client/src/main/java/org/apache/rocketmq/client/impl/consumer/RebalanceImpl.java:434:    public void removeProcessQueue(final MessageQueue mq) {
+client/src/main/java/org/apache/rocketmq/client/impl/consumer/DefaultMQPushConsumerImpl.java:387:                                        DefaultMQPushConsumerImpl.this.rebalanceImpl.removeProcessQueue(pullRequest.getMessageQueue());...
+```
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- client/src/main/java/org/apache/rocketmq/client/impl/consumer/RebalanceImpl.java
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened client/src/main/java/org/apache/rocketmq/client/impl/consumer/RebalanceImpl.java:\n\n````java\n   0 /*\n...\n  43 public abstract class RebalanceImpl {\n  44     protected static final InternalLogger log = ClientLogger.getLog();\n  45     protected final ConcurrentMap<MessageQueue, ProcessQueue> processQueueTable = new ConcurrentHashMap<MessageQueue, ProcessQueue>(64);\n  46     protected final ConcurrentMap<String/* topic */, Set<MessageQueue>> topicSubscribeInfoTable =\n ...
+```
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: client/src/main/java/org/apache/rocketmq/client/impl/consumer/RebalanceImpl.java
+patterns:
+- removeProcessQueue
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in client/src/main/java/org/apache/rocketmq/client/impl/consumer/RebalanceImpl.java:
+
+````java
+   0 /*
+...
+  43 public abstract class RebalanceImpl {
+  44     protected static final InternalLogger log = ClientLogger.getLog();
+  45     protected final ConcurrentMap<MessageQueue, ProcessQueue> processQueueTable = new ConcurrentHashMap<MessageQueue, ProcessQueue>(64);
+  46     protected final ConcurrentMap<String/* topic */, Set<MessageQueue>> topicSubscribeInfoTab...
+```
+========================================================================================================================
+AGENT:
+I see that `removeProcessQueue` calls `removeUnnecessaryMessageQueue`, which in `RebalancePushImpl` calls:
+1. `persist(mq)` - to persist the offset
+2. `removeOffset(mq)` - to remove from memory
+
+Wait, let me re-check the flow. Looking at the OFFSET_ILLEGAL handling code again:
+
+```java
+case OFFSET_ILLEGAL:
+    log.warn("the pull request offset illegal, {} {}",
+        pullRequest.toString(), pullResult.toString());
+    pullRequest.setNextOffset(pullResult.getNextBeginOffset());
+
+    pullRequest.getProcessQueue().setDropped(true);
+    DefaultMQPushConsumerImpl.this.executeTaskLater(new Runnable() {
+
+        @Override
+        public void run() {
+            try {
+                DefaultMQPushConsumerImpl.this.offsetStore.updateOffset(pullRequest.getMessageQueue(),
+                    pullRequest.getNextOffset(), false);
+
+                DefaultMQPushConsumerImpl.this.offsetStore.persist(pullRequest.getMessageQueue());
+
+                DefaultMQPushConsumerImpl.this.rebalanceImpl.removeProcessQueue(pullRequest.getMessageQueue());
+
+                log.warn("fix the pull request offset, {}", pullRequest);
+            } catch (Throwable e) {
+                log.error("executeTaskLater Exception", e);
+            }
+        }
+    }, 10000);
+    break;
+```
+
+The flow is:
+1. `updateOffset(mq, nextOffset, false)` - updates offset in memory
+2. `persist(mq)` - persists to file (this was empty before, now it works)
+3. `removeProcessQueue(mq)` - which calls `removeUnnecessaryMessageQueue(mq, pq)` which calls `persist(mq)` again and then `removeOffset(mq)`
+
+So the offset is persisted twice, which is fine. The important thing is that the offset is persisted before `removeOffset` is called.
+
+Let me also verify that the `updateProcessQueueTableInRebalance` method correctly handles the case when the MQ is added back:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: client/src/main/java/org/apache/rocketmq/client/impl/consumer/RebalanceImpl.java
+patterns:
+- updateProcessQueueTableInRebalance
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in client/src/main/java/org/apache/rocketmq/client/impl/consumer/RebalanceImpl.java:
+
+````java
+   0 /*
+...
+  43 public abstract class RebalanceImpl {
+  44     protected static final InternalLogger log = ClientLogger.getLog();
+  45     protected final ConcurrentMap<MessageQueue, ProcessQueue> processQueueTable = new ConcurrentHashMap<MessageQueue, ProcessQueue>(64);
+  46     protected final ConcurrentMap<String/* topic */, Set<MessageQueue>> topicSubscribeInfoTab...
+```
+========================================================================================================================
+AGENT:
+Now I understand the complete flow:
+
+1. When `OFFSET_ILLEGAL` is received:
+   - `updateOffset(mq, nextOffset, false)` - updates offset in memory
+   - `persist(mq)` - persists to file (NOW WORKS with my fix)
+   - `removeProcessQueue(mq)` - removes from `processQueueTable` and calls `removeUnnecessaryMessageQueue`
+
+2. `removeUnnecessaryMessageQueue` in `RebalancePushImpl`:
+   - `persist(mq)` - persists again (redundant but harmless)
+   - `removeOffset(mq)` - removes from memory (NOW WORKS with my fix)
+
+3. When rebalance happens (in `updateProcessQueueTableInRebalance`):
+   - For MQs not in `processQueueTable`, it calls `removeDirtyOffset(mq)` which calls `removeOffset(mq)`
+   - Then calls `computePullFromWhereWithException(mq)` which reads from store
+   - NOW this returns the correct offset because it was persisted to file
+
+Wait, I see a potential issue. Let me trace through more carefully:
+
+1. OFFSET_ILLEGAL handling:
+   - `updateOffset(mq, nextOffset, false)` - offset is in memory
+   - `persist(mq)` - offset is persisted to file
+   - `removeProcessQueue(mq)` calls `removeUnnecessaryMessageQueue(mq, pq)`:
+     - `persist(mq)` - persists again
+     - `removeOffset(mq)` - removes from memory
+
+2. Rebalance:
+   - MQ is not in `processQueueTable` (was removed)
+   - `removeDirtyOffset(mq)` calls `removeOffset(mq)` - but offset is already removed from memory
+   - `computePullFromWhereWithException(mq)` reads from store using `READ_FROM_STORE`
+   - NOW this returns the correct offset from file
+
+The fix is correct. The key insight is that `persist(mq)` now actually persists to the file, so when `readOffset(mq, READ_FROM_STORE)` is called, it can read the correct offset from the file.
+
+Let me also verify that the `readOffset` method with `READ_FROM_STORE` correctly reads from the file:
+
+Looking at the `readOffset` method in `LocalFileOffsetStore`:
+
+```java
+case READ_FROM_STORE: {
+    OffsetSerializeWrapper offsetSerializeWrapper;
+    try {
+        offsetSerializeWrapper = this.readLocalOffset();
+    } catch (MQClientException e) {
+        return -1;
+    }
+    if (offsetSerializeWrapper != null && offsetSerializeWrapper.getOffsetTable() != null) {
+        AtomicLong offset = offsetSerializeWrapper.getOffsetTable().get(mq);
+        if (offset != null) {
+            this.updateOffset(mq, offset.get(), false);
+            return offset.get();
+        }
+    }
+}
+```
+
+This reads from the local file and returns the offset if found. With my fix, the offset is now correctly persisted to the file, so this will return the correct offset.
+
+STEP 5: FINAL VERIFICATION
+========================================================================================================================
+AGENT:
+Verifying the changes by reviewing the complete fix and running all related tests.
+========================================================================================================================
+AGENT:
+Let me run a broader set of tests to ensure the changes don't break anything:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && mvn test -pl client -Dtest=*OffsetStore* -DfailIfNoTests=false
+  -Dmaven.compiler.source=8 -Dmaven.compiler.target=8 2>&1 | tail -80
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+	at java.base/jdk.internal.loader.BuiltinClassLoader.findClassInModuleOrNull(BuiltinClassLoader.java:741)
+	at java.base/jdk.internal.loader.BuiltinClassLoader.loadClassOrNull(BuiltinClassLoader.java:665)
+	at java.base/jdk.internal.loader.BuiltinClassLoader.loadClassOrNull(BuiltinClassLoader.java:700)
+	at java.base/jdk.internal.loader.BuiltinClassLoader.loadClassOrNull(BuiltinClassLoader.java:669)
+	at java.base/jdk.internal.loader.BuiltinClassLoader.loadClass(BuiltinClassLoader.java:639)
+	at java...
+```
+========================================================================================================================
+AGENT:
+All 9 tests passed (5 for LocalFileOffsetStore and 4 for RemoteBrokerOffsetStore). The JaCoCo warning is just a compatibility issue with Java 21 and doesn't affect the test results.
+
+Let me also view the final state of the modified file to confirm the changes:
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- client/src/main/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStore.java
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened client/src/main/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStore.java:\n\n````java\n   0 /*\n...\n  41 public class LocalFileOffsetStore implements OffsetStore {\n  42     public final static String LOCAL_OFFSET_STORE_DIR = System.getProperty(\n  43         "rocketmq.client.localOffsetStoreDir",\n  44         System.getProperty("user.home") + File.separator + ".rocketmq_offsets");\n  45     private final static InternalLogger log = ClientLogger.getLog();\...
+```
+========================================================================================================================
+AGENT:
+The changes look correct. Let me also view the test file to confirm the tests are properly added:
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- client/src/test/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStoreTest.java
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened client/src/test/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStoreTest.java:\n\n````java\n   0 /*\n   1  * Licensed to the Apache Software Foundation (ASF) under one or more\n   2  * contributor license agreements.  See the NOTICE file distributed with\n   3  * this work for additional information regarding copyright ownership.\n   4  * The ASF licenses this file to You under the Apache License, Version 2.0\n   5  * (the "License"); you may not use this fil...
+```
+========================================================================================================================
+AGENT:
+All changes are in place. Let me provide a summary of the fix:
+========================================================================================================================
+AGENT:
+Successfully fixed the bug where BROADCASTING DefaultMQPushConsumer couldn't fix illegal pull offset.
+
+## Root Cause
+The `LocalFileOffsetStore.persist(MessageQueue mq)` method was empty, so when the consumer received an `OFFSET_ILLEGAL` response and tried to persist the corrected offset, nothing was actually written to the local file. When rebalance happened, `computePullFromWhereWithException` read the offset using `READ_FROM_STORE`, which always returned -1 because the file was never updated. This caused an infinite loop.
+
+## Changes Made
+
+### 1. `client/src/main/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStore.java`
+
+**`persist(MessageQueue mq)` method** (lines 155-172):
+- Previously empty, now implemented to persist all offsets in the `offsetTable` to the local file when the specified MessageQueue exists in the table.
+
+**`removeOffset(MessageQueue mq)` method** (lines 175-181):
+- Previously empty, now implemented to remove the MessageQueue from the `offsetTable` (consistent with `RemoteBrokerOffsetStore.removeOffset`).
+
+### 2. `client/src/test/java/org/apache/rocketmq/client/consumer/store/LocalFileOffsetStoreTest.java`
+
+Added two new test methods:
+- `testPersist()`: Verifies that `persist(mq)` correctly persists the offset to the file
+- `testRemoveOffset()`: Verifies that `removeOffset(mq)` correctly removes the offset from memory
+
+## How the Fix Works
+1. When `OFFSET_ILLEGAL` is received, the consumer updates the offset in memory and calls `persist(mq)`
+2. Now `persist(mq)` actually writes the offset to the local file
+3. When rebalance happens, `computePullFromWhereWithException` reads from the file using `READ_FROM_STORE`
+4. The correct offset is now found in the file, allowing the consumer to continue consuming from the correct position
+
+All 9 tests pass (5 for LocalFileOffsetStore, 4 for RemoteBrokerOffsetStore).

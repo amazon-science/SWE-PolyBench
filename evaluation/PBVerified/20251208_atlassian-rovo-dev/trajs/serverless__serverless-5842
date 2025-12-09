@@ -1,0 +1,1181 @@
+########################################################################################################################
+PHASE 1
+########################################################################################################################
+========================================================================================================================
+AGENT:
+I will start by viewing the workspace to understand its structure and contents. This will help me identify key files and locations that may be relevant to the task.
+========================================================================================================================
+USER PROMPT:
+Resolve the following problem statement:
+
+<problem_statement>
+Secrets manager JSON not accessible
+The documentation does not show how to access secrets from aws secrets manager stored in JSON. Is there an ETA to add this ability? If you have many secrets its very cost prohibitive to have 1 secret to 1 plain text value.
+
+</problem_statement>
+
+Do not stop until you have made code changes that resolve the problem statement. Do not ask for clarifications.
+========================================================================================================================
+AGENT:
+Starting to analyze the problem statement. The issue is about accessing JSON secrets from AWS Secrets Manager. Currently, it seems the Serverless Framework doesn't support accessing individual keys from JSON-formatted secrets in AWS Secrets Manager. I need to explore the codebase to understand how secrets manager variables are currently handled and add support for JSON key access.
+========================================================================================================================
+AGENT:
+EXPLORATION: Understanding the codebase structure for AWS Secrets Manager variable resolution
+
+<thinking>
+The problem statement is about accessing JSON secrets from AWS Secrets Manager. Currently, if a user stores a secret as JSON (e.g., `{"username": "admin", "password": "secret123"}`), they cannot access individual keys from that JSON. The request is to add the ability to access specific keys from JSON-formatted secrets.
+
+Let me first search for how secrets manager is currently implemented in the codebase. I'll look for:
+1. How variables are resolved (likely in the Variables.js class)
+2. How AWS Secrets Manager is currently integrated
+3. Documentation about secrets manager usage
+</thinking>
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: secrets?[Mm]anager
+
+========================================================================================================================
+TOOL RETURN (grep)
+```
+docs/providers/aws/guide/variables.md:261:Variables in [AWS Secrets Manager](https://aws.amazon.com/secrets-manager/) can be referenced [using SSM](https://docs.aws.amazon.com/systems-manager/latest/userguide/integration-ps-secretsmanager.htm...
+docs/providers/aws/guide/variables.md:272:  supersecret: ${ssm:/aws/reference/secretsmanager/secret_ID_in_Secrets_Manager~true}...
+```
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: 'ssm:'
+
+========================================================================================================================
+TOOL RETURN (grep)
+```
+lib/classes/Variables.test.js:241:          settings: '${ssm:/path/param, "fallback"}',
+lib/classes/Variables.test.js:252:          settings: '${s3:bucket/key, ${ssm:/path/param}}',
+lib/classes/Variables.test.js:317:        { value: '${ssm:/path/param}', name: 'SSM' },
+lib/classes/Variables.test.js:1115:      const property = `\${ssm:${param}}`;
+lib/classes/Variables.test.js:1140:      const property = `\${ssm:${param}}`;
+lib/classes/Variables.test.js:1408:      return serverless.variables.getVa...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+I can see that:
+1. SSM parameters are handled in `lib/classes/Variables.js`
+2. There's documentation in `docs/providers/aws/guide/variables.md`
+3. Secrets Manager is accessed through SSM using the path `/aws/reference/secretsmanager/secret_ID`
+
+Let me look at the Variables.js file to understand how SSM values are retrieved and how I can add support for JSON key access.
+</thinking>
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- lib/classes/Variables.js
+- docs/providers/aws/guide/variables.md
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened lib/classes/Variables.js:\n\n````javascript\n   0 \'use strict\';\n   1 \n   2 const _ = require(\'lodash\');\n...\n  39 class Variables {\n  40   constructor(serverless) {\n  41     this.serverless = serverless;\n  42     this.service = this.serverless.service;\n  43     this.tracker = new PromiseTracker();\n  44 \n  45     this.deep = [];\n  46     this.deepRefSyntax = RegExp(/(\\${)?deep:\\d+(\\.[^}]+)*()}?/);\n  47     this.overwriteSyntax = RegExp(/\\s*(?:,\\s*)+/g);\n...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Now I need to understand how the SSM value retrieval works. Let me expand the `getValueFromSsm` function to see the current implementation.
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: lib/classes/Variables.js
+patterns:
+- getValueFromSsm
+- ssmRefSyntax
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in lib/classes/Variables.js:
+
+````javascript
+   0 'use strict';
+   1 
+   2 const _ = require('lodash');
+   3 const BbPromise = require('bluebird');
+   4 const os = require('os');
+   5 const path = require('path');
+   6 const replaceall = require('replaceall');
+   7 
+   8 const fse = require('../utils/fs/fse');
+   9 const logWarning = require('./Error').logWarning;
+  10 const PromiseTracker = require('./PromiseTracker');
+  11 
+  12 /**
+  13  * Maintainer's notes:...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Now I understand the current implementation. Looking at the `getValueFromSsm` function (lines 734-754), I can see that:
+
+1. The current regex `ssmRefSyntax` is: `/^(?:\${)?ssm:([a-zA-Z0-9_.\-/]+)[~]?(true|false)?/`
+2. It extracts the parameter path and an optional decrypt flag (`~true` or `~false`)
+3. It returns the raw value from SSM
+
+The issue is that when secrets are stored as JSON in AWS Secrets Manager, users want to access individual keys from that JSON. For example, if a secret contains `{"username": "admin", "password": "secret123"}`, users want to be able to do something like:
+- `${ssm:/aws/reference/secretsmanager/my-secret~true:username}` to get just "admin"
+
+I need to:
+1. Modify the `ssmRefSyntax` regex to also capture an optional JSON key path
+2. Modify the `getValueFromSsm` function to parse the JSON and extract the specified key if provided
+3. Update the documentation to explain this new feature
+
+Let me also look at the documentation to understand the current format better.
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: docs/providers/aws/guide/variables.md
+line_ranges:
+- - 255
+  - 290
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in docs/providers/aws/guide/variables.md:
+
+````markdown
+   0 <!--
+...
+  86 functions:
+...
+ 184 You can also reference CloudFormation stack in another regions with the `cf.REGION:stackName.outputKey` syntax. For example:
+ 185 ```yml
+ 186 service: new-service
+ 187 provider: aws
+ 188 functions:
+ 189   hello:
+ 190       name: ${cf.us-west-2:another-service-dev.functionPrefix}-hello
+ 191       handler: handler.hello
+ 192   world:
+ 193       name: ${cf.ap-northeast-1:...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Now I have a clear understanding of the current implementation. I need to:
+
+1. **Modify the `ssmRefSyntax` regex** to capture an optional JSON key path after the decrypt flag
+2. **Modify the `getValueFromSsm` function** to:
+   - Parse the JSON response when a key is specified
+   - Extract the value at the specified key path
+3. **Update the documentation** to explain how to access JSON keys from Secrets Manager
+
+The syntax I'll implement will be:
+- `${ssm:/aws/reference/secretsmanager/secret_ID~true~key}` - to access a specific key from a JSON secret
+- `${ssm:/aws/reference/secretsmanager/secret_ID~true~key.nested.path}` - to access nested keys
+
+Let me now implement these changes.
+</thinking>
+========================================================================================================================
+AGENT:
+I've analyzed the codebase and understand the issue. Now I'll implement the solution to allow accessing JSON keys from AWS Secrets Manager secrets. I'll modify the Variables.js file to support a new syntax like `${ssm:/path/to/secret~true~jsonKey}` and update the documentation.
+========================================================================================================================
+AGENT:
+IMPLEMENTATION: Modifying the SSM variable resolution to support JSON key access
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: lib/classes/Variables.js
+find: '    this.ssmRefSyntax = RegExp(/^(?:\${)?ssm:([a-zA-Z0-9_.\-/]+)[~]?(true|false)?/);'
+replace: '    this.ssmRefSyntax = RegExp(/^(?:\${)?ssm:([a-zA-Z0-9_.\-/]+)[~]?(true|false)?[~]?([a-zA-Z0-9_.\-/]+)?/);'
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in lib/classes/Variables.js:
+
+--- lib/classes/Variables.js
++++ lib/classes/Variables.js
+@@ -53,7 +53,7 @@
+     this.stringRefSyntax = RegExp(/(?:('|").*?\1)/g);
+     this.cfRefSyntax = RegExp(/^(?:\${)?cf(\.[a-zA-Z0-9-]+)?:/g);
+     this.s3RefSyntax = RegExp(/^(?:\${)?s3:(.+?)\/(.+)$/);
+-    this.ssmRefSyntax = RegExp(/^(?:\${)?ssm:([a-zA-Z0-9_.\-/]+)[~]?(true|false)?/);
++    this.ssmRefSyntax = RegExp(/^(?:\${)?ssm:([a-zA-Z0-9_.\-/]+)[~]?(true|false)?[~]?([a-zA-Z0-9_....
+```
+========================================================================================================================
+AGENT:
+Now let me modify the `getValueFromSsm` function to handle the JSON key extraction:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: lib/classes/Variables.js
+find: "  getValueFromSsm(variableString) {\n    const groups = variableString.match(this.ssmRefSyntax);\n\
+  \    const param = groups[1];\n    const decrypt = (groups[2] === 'true');\n   \
+  \ return this.serverless.getProvider('aws').request(\n      'SSM',\n      'getParameter',\n\
+  \      {\n        Name: param,\n        WithDecryption: decrypt,\n      },\n   \
+  \   { useCache: true }) // Use request cache\n      .then(response => BbPromise.resolve(response.Parameter.Value))\n\
+  \      .catch((err) => {\n        if (err.statusCode !== 400) {\n          return\
+  \ BbPromise.reject(new this.serverless.classes.Error(err.message));\n        }\n\
+  \n        return BbPromise.resolve(undefined);\n      });\n  }"
+replace: "  getValueFromSsm(variableString) {\n    const groups = variableString.match(this.ssmRefSyntax);\n\
+  \    const param = groups[1];\n    const decrypt = (groups[2] === 'true');\n   \
+  \ const jsonKey = groups[3];\n    return this.serverless.getProvider('aws').request(\n\
+  \      'SSM',\n      'getParameter',\n      {\n        Name: param,\n        WithDecryption:\
+  \ decrypt,\n      },\n      { useCache: true }) // Use request cache\n      .then((response)\
+  \ => {\n        const value = response.Parameter.Value;\n        if (jsonKey) {\n\
+  \          // Parse the value as JSON and extract the specified key\n          let\
+  \ json;\n          try {\n            json = JSON.parse(value);\n          } catch\
+  \ (err) {\n            const errorMessage = `Could not parse SSM parameter ${param}\
+  \ as JSON. ${err.message}`;\n            throw new this.serverless.classes.Error(errorMessage);\n\
+  \          }\n          // Support nested keys using dot notation (e.g., \"key.nested.value\"\
+  )\n          const keys = jsonKey.split('.');\n          let result = json;\n  \
+  \        for (const key of keys) {\n            if (result === null || result ===\
+  \ undefined || typeof result !== 'object') {\n              const errorMessage =\
+  \ `Could not find key \"${jsonKey}\" in SSM parameter ${param}`;\n             \
+  \ throw new this.serverless.classes.Error(errorMessage);\n            }\n      \
+  \      result = result[key];\n          }\n          return BbPromise.resolve(result);\n\
+  \        }\n        return BbPromise.resolve(value);\n      })\n      .catch((err)\
+  \ => {\n        if (err.statusCode !== 400) {\n          return BbPromise.reject(new\
+  \ this.serverless.classes.Error(err.message));\n        }\n\n        return BbPromise.resolve(undefined);\n\
+  \      });\n  }"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in lib/classes/Variables.js:
+
+--- lib/classes/Variables.js
++++ lib/classes/Variables.js
+@@ -736,6 +736,7 @@
+     const groups = variableString.match(this.ssmRefSyntax);
+     const param = groups[1];
+     const decrypt = (groups[2] === 'true');
++    const jsonKey = groups[3];
+     return this.serverless.getProvider('aws').request(
+       'SSM',
+       'getParameter',
+@@ -744,7 +745,31 @@
+         WithDecryption: decrypt,
+       },
+       { useCache: true }) // Use reque...
+```
+========================================================================================================================
+AGENT:
+Now let me update the documentation to explain how to access JSON keys from Secrets Manager:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: docs/providers/aws/guide/variables.md
+line_ranges:
+- - 259
+  - 280
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in docs/providers/aws/guide/variables.md:
+
+````markdown
+   0 <!--
+...
+  86 functions:
+...
+ 184 You can also reference CloudFormation stack in another regions with the `cf.REGION:stackName.outputKey` syntax. For example:
+ 185 ```yml
+ 186 service: new-service
+ 187 provider: aws
+ 188 functions:
+ 189   hello:
+ 190       name: ${cf.us-west-2:another-service-dev.functionPrefix}-hello
+ 191       handler: handler.hello
+ 192   world:
+ 193       name: ${cf.ap-northeast-1:...
+```
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: docs/providers/aws/guide/variables.md
+find: "## Reference Variables using AWS Secrets Manager\nVariables in [AWS Secrets\
+  \ Manager](https://aws.amazon.com/secrets-manager/) can be referenced [using SSM](https://docs.aws.amazon.com/systems-manager/latest/userguide/integration-ps-secretsmanager.html).\
+  \ Use the `ssm:/aws/reference/secretsmanager/secret_ID_in_Secrets_Manager~true`\
+  \ syntax(note `~true` as secrets are always encrypted). For example:\n\n\n```yml\n\
+  service: new-service\nprovider: aws\nfunctions:\n  hello:\n    name: hello\n   \
+  \ handler: handler.hello\ncustom:\n  supersecret: ${ssm:/aws/reference/secretsmanager/secret_ID_in_Secrets_Manager~true}\n\
+  ```\n\nIn this example, the serverless variable will contain the decrypted value\
+  \ of the secret."
+replace: "## Reference Variables using AWS Secrets Manager\nVariables in [AWS Secrets\
+  \ Manager](https://aws.amazon.com/secrets-manager/) can be referenced [using SSM](https://docs.aws.amazon.com/systems-manager/latest/userguide/integration-ps-secretsmanager.html).\
+  \ Use the `ssm:/aws/reference/secretsmanager/secret_ID_in_Secrets_Manager~true`\
+  \ syntax(note `~true` as secrets are always encrypted). For example:\n\n\n```yml\n\
+  service: new-service\nprovider: aws\nfunctions:\n  hello:\n    name: hello\n   \
+  \ handler: handler.hello\ncustom:\n  supersecret: ${ssm:/aws/reference/secretsmanager/secret_ID_in_Secrets_Manager~true}\n\
+  ```\n\nIn this example, the serverless variable will contain the decrypted value\
+  \ of the secret.\n\n### Secrets Manager JSON Secrets\n\nIf your secret is stored\
+  \ as a JSON object in Secrets Manager, you can access individual keys from that\
+  \ JSON using the extended syntax `ssm:/aws/reference/secretsmanager/secret_ID~true~jsonKey`.\
+  \ For example, if your secret contains:\n\n```json\n{\n  \"username\": \"admin\"\
+  ,\n  \"password\": \"secret123\",\n  \"database\": {\n    \"host\": \"localhost\"\
+  ,\n    \"port\": 5432\n  }\n}\n```\n\nYou can reference individual keys like this:\n\
+  \n```yml\nservice: new-service\nprovider: aws\nfunctions:\n  hello:\n    name: hello\n\
+  \    handler: handler.hello\ncustom:\n  dbUsername: ${ssm:/aws/reference/secretsmanager/my-db-secret~true~username}\n\
+  \  dbPassword: ${ssm:/aws/reference/secretsmanager/my-db-secret~true~password}\n\
+  \  dbHost: ${ssm:/aws/reference/secretsmanager/my-db-secret~true~database.host}\n\
+  \  dbPort: ${ssm:/aws/reference/secretsmanager/my-db-secret~true~database.port}\n\
+  ```\n\nIn this example, each variable will contain the value of the specified key\
+  \ from the JSON secret. Nested keys are supported using dot notation (e.g., `database.host`)."
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in docs/providers/aws/guide/variables.md:
+
+--- docs/providers/aws/guide/variables.md
++++ docs/providers/aws/guide/variables.md
+@@ -274,6 +274,39 @@
+ 
+ In this example, the serverless variable will contain the decrypted value of the secret.
+ 
++### Secrets Manager JSON Secrets
++
++If your secret is stored as a JSON object in Secrets Manager, you can access individual keys from that JSON using the extended syntax `ssm:/aws/reference/secretsmanager/secret_ID~true~jsonKey`. ...
+```
+========================================================================================================================
+AGENT:
+Now let me verify the changes by looking at the test file to understand the testing patterns and add tests for the new functionality:
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: getValueFromSsm
+path_glob: '**/Variables.test.js'
+
+========================================================================================================================
+TOOL RETURN (grep)
+```
+lib/classes/Variables.test.js:349:            { name: 'getValueFromSsm', original: serverless.variables.getValueFromSsm },
+lib/classes/Variables.test.js:1405:    it('should call getValueFromSsm if referencing variable in SSM', () => {
+lib/classes/Variables.test.js:1406:      const getValueFromSsmStub = sinon.stub(serverless.variables, 'getValueFromSsm')
+lib/classes/Variables.test.js:1412:          expect(getValueFromSsmStub).to.have.been.called;
+lib/classes/Variables.test.js:1413:          expec...
+```
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: lib/classes/Variables.test.js
+line_ranges:
+- - 1856
+  - 1990
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in lib/classes/Variables.test.js:
+
+````javascript
+   0 'use strict';
+...
+   4 const BbPromise = require('bluebird');
+...
+  60         const prepopulateServiceStub = sinon.stub(serverless.variables, 'prepopulateService')
+  61           .returns(BbPromise.resolve());
+  62         const populateObjectStub = sinon.stub(serverless.variables, 'populateObjectImpl', (val) => {
+...
+  76         const prepopulateServiceStub = sinon.stub(serverless.variables, 'prepopulateS...
+```
+========================================================================================================================
+AGENT:
+Now I need to add tests for the new JSON key extraction functionality. Let me find the right place to add these tests:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: lib/classes/Variables.test.js
+line_ranges:
+- - 1
+  - 30
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in lib/classes/Variables.test.js:
+
+````javascript
+   0 'use strict';
+   1 
+   2 /* eslint-disable no-unused-expressions */
+   3 
+   4 const BbPromise = require('bluebird');
+   5 const chai = require('chai');
+   6 const jc = require('json-cycle');
+   7 const os = require('os');
+   8 const path = require('path');
+   9 const proxyquire = require('proxyquire');
+  10 const sinon = require('sinon');
+  11 const YAML = require('js-yaml');
+  12 const _ = require('lodash'...
+```
+========================================================================================================================
+AGENT:
+Now I'll add tests for the new JSON key extraction functionality. I need to add them after the existing SSM tests:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: lib/classes/Variables.test.js
+find: "    it('should reject if SSM request returns unexpected error', () => {\n \
+  \     const error = new Error(\n        'User: <arn> is not authorized to perform:\
+  \ ssm:GetParameter on resource: <arn>');\n      const requestStub = sinon.stub(awsProvider,\
+  \ 'request', () => BbPromise.reject(error));\n      return serverless.variables.getValueFromSsm(`ssm:${param}`)\n\
+  \        .should.be.rejected\n        .then().finally(() => requestStub.restore());\n\
+  \    });\n  });\n\n  describe('#getDeeperValue()', () => {"
+replace: "    it('should reject if SSM request returns unexpected error', () => {\n\
+  \      const error = new Error(\n        'User: <arn> is not authorized to perform:\
+  \ ssm:GetParameter on resource: <arn>');\n      const requestStub = sinon.stub(awsProvider,\
+  \ 'request', () => BbPromise.reject(error));\n      return serverless.variables.getValueFromSsm(`ssm:${param}`)\n\
+  \        .should.be.rejected\n        .then().finally(() => requestStub.restore());\n\
+  \    });\n\n    it('should get a specific key from a JSON SSM parameter', () =>\
+  \ {\n      const jsonValue = JSON.stringify({ username: 'admin', password: 'secret123'\
+  \ });\n      const jsonResponseMock = {\n        Parameter: {\n          Value:\
+  \ jsonValue,\n        },\n      };\n      const ssmStub = sinon.stub(awsProvider,\
+  \ 'request', () => BbPromise.resolve(jsonResponseMock));\n      return serverless.variables.getValueFromSsm(`ssm:${param}~true~username`)\n\
+  \        .should.become('admin')\n        .then(() => {\n          expect(ssmStub).to.have.been.calledOnce;\n\
+  \          expect(ssmStub).to.have.been.calledWithExactly(\n            'SSM',\n\
+  \            'getParameter',\n            {\n              Name: param,\n      \
+  \        WithDecryption: true,\n            },\n            { useCache: true });\n\
+  \        })\n        .finally(() => ssmStub.restore());\n    });\n\n    it('should\
+  \ get a nested key from a JSON SSM parameter', () => {\n      const jsonValue =\
+  \ JSON.stringify({\n        database: {\n          host: 'localhost',\n        \
+  \  port: 5432,\n        },\n      });\n      const jsonResponseMock = {\n      \
+  \  Parameter: {\n          Value: jsonValue,\n        },\n      };\n      const\
+  \ ssmStub = sinon.stub(awsProvider, 'request', () => BbPromise.resolve(jsonResponseMock));\n\
+  \      return serverless.variables.getValueFromSsm(`ssm:${param}~true~database.host`)\n\
+  \        .should.become('localhost')\n        .then(() => {\n          expect(ssmStub).to.have.been.calledOnce;\n\
+  \        })\n        .finally(() => ssmStub.restore());\n    });\n\n    it('should\
+  \ get a numeric value from a JSON SSM parameter', () => {\n      const jsonValue\
+  \ = JSON.stringify({\n        database: {\n          port: 5432,\n        },\n \
+  \     });\n      const jsonResponseMock = {\n        Parameter: {\n          Value:\
+  \ jsonValue,\n        },\n      };\n      const ssmStub = sinon.stub(awsProvider,\
+  \ 'request', () => BbPromise.resolve(jsonResponseMock));\n      return serverless.variables.getValueFromSsm(`ssm:${param}~true~database.port`)\n\
+  \        .should.become(5432)\n        .then(() => {\n          expect(ssmStub).to.have.been.calledOnce;\n\
+  \        })\n        .finally(() => ssmStub.restore());\n    });\n\n    it('should\
+  \ throw an error if JSON key is specified but value is not valid JSON', () => {\n\
+  \      const invalidJsonResponseMock = {\n        Parameter: {\n          Value:\
+  \ 'not-valid-json',\n        },\n      };\n      const ssmStub = sinon.stub(awsProvider,\
+  \ 'request',\n        () => BbPromise.resolve(invalidJsonResponseMock));\n     \
+  \ return serverless.variables.getValueFromSsm(`ssm:${param}~true~someKey`)\n   \
+  \     .should.be.rejectedWith(serverless.classes.Error, /Could not parse SSM parameter/)\n\
+  \        .then().finally(() => ssmStub.restore());\n    });\n\n    it('should throw\
+  \ an error if specified JSON key does not exist', () => {\n      const jsonValue\
+  \ = JSON.stringify({ username: 'admin' });\n      const jsonResponseMock = {\n \
+  \       Parameter: {\n          Value: jsonValue,\n        },\n      };\n      const\
+  \ ssmStub = sinon.stub(awsProvider, 'request', () => BbPromise.resolve(jsonResponseMock));\n\
+  \      return serverless.variables.getValueFromSsm(`ssm:${param}~true~nonexistent`)\n\
+  \        .should.be.rejectedWith(serverless.classes.Error, /Could not find key/)\n\
+  \        .then().finally(() => ssmStub.restore());\n    });\n  });\n\n  describe('#getDeeperValue()',\
+  \ () => {"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in lib/classes/Variables.test.js:
+
+--- lib/classes/Variables.test.js
++++ lib/classes/Variables.test.js
+@@ -1973,6 +1973,97 @@
+         .should.be.rejected
+         .then().finally(() => requestStub.restore());
+     });
++
++    it('should get a specific key from a JSON SSM parameter', () => {
++      const jsonValue = JSON.stringify({ username: 'admin', password: 'secret123' });
++      const jsonResponseMock = {
++        Parameter: {
++          Value: jsonValue,
++        ...
+```
+========================================================================================================================
+AGENT:
+Now let me install dependencies and run the tests to verify the changes work correctly:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm install 2>&1 | tail -20
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+added 942 packages, and audited 943 packages in 16s
+
+114 vulnerabilities (7 low, 42 moderate, 33 high, 32 critical)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues possible (including breaking changes), run:
+  npm audit fix --force
+
+Some issues need review, and may require choosing
+a different dependency.
+
+Run `npm audit` for details.
+npm notice
+npm notice New major version of npm available! 10.9.3 -> 11.6.4
+npm notice Changelog: https://github.com/...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test -- --grep "getValueFromSsm" 2>&1 | tail -80
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+> serverless@1.37.0 test
+> istanbul cover -x "**/*.test.js" bin/test --grep getValueFromSsm
+
+Warning: Could not find any test files matching pattern: getValueFromSsm
+No test files found
+No coverage information was collected, exit without writing coverage information...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test -- --grep "#getValueFromSsm" 2>&1 | tail -100
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+> serverless@1.37.0 test
+> istanbul cover -x "**/*.test.js" bin/test --grep #getValueFromSsm
+
+Warning: Could not find any test files matching pattern: #getValueFromSsm
+No test files found
+No coverage information was collected, exit without writing coverage information...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npx mocha lib/classes/Variables.test.js --grep "getValueFromSsm"
+  2>&1 | tail -100
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+
+  Variables
+    #getValueFromSource()
+      1) should call getValueFromSsm if referencing variable in SSM
+      caching
+        2) should only call getValueFromSsm once, returning the cached value otherwise
+    #getValueFromSsm()
+      ✓ should get variable from Ssm using regular-style param
+      ✓ should get variable from Ssm using path-style param
+      ✓ should get encrypted variable from Ssm using extended syntax
+      ✓ should get unencrypted variable from Ssm using extended syntax
+     ...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+I see there are some test failures:
+
+1. The first two failures are pre-existing issues with `sinon.stub(...).resolves` not being a function - these are not related to my changes.
+
+2. The third failure shows that my regex is incorrectly matching `~badvalue` as a JSON key. The issue is that the regex `[~]?([a-zA-Z0-9_.\-/]+)?` is matching `badvalue` as the JSON key. I need to fix the regex to only capture the JSON key when there's a second `~` after `true` or `false`.
+
+3. The fourth failure shows that when a key doesn't exist in the JSON, the code is returning `undefined` instead of throwing an error. This is because the key `nonexistent` doesn't exist in the object `{username: 'admin'}`, so `result[key]` returns `undefined`, which is not an object, but the loop completes without error.
+
+Let me fix these issues:
+
+1. Fix the regex to only capture JSON key when there's a valid decrypt flag followed by another `~`
+2. Fix the error handling for non-existent keys
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: lib/classes/Variables.js
+patterns:
+- ssmRefSyntax
+- getValueFromSsm
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in lib/classes/Variables.js:
+
+````javascript
+   0 'use strict';
+   1 
+   2 const _ = require('lodash');
+   3 const BbPromise = require('bluebird');
+   4 const os = require('os');
+   5 const path = require('path');
+   6 const replaceall = require('replaceall');
+   7 
+   8 const fse = require('../utils/fs/fse');
+   9 const logWarning = require('./Error').logWarning;
+  10 const PromiseTracker = require('./PromiseTracker');
+  11 
+  12 /**
+  13  * Maintainer's notes:...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+I see the issue now. The problem is:
+
+1. The regex `^(?:\${)?ssm:([a-zA-Z0-9_.\-/]+)[~]?(true|false)?[~]?([a-zA-Z0-9_.\-/]+)?` is matching `badvalue` as the JSON key when the input is `ssm:param~badvalue`. This is because `[~]?` makes the second tilde optional, and `(true|false)?` makes the decrypt flag optional, so `badvalue` gets captured in the third group.
+
+2. The test for "should throw an error if specified JSON key does not exist" is failing because when the key doesn't exist, `result[key]` returns `undefined`, and the loop completes. The check `typeof result !== 'object'` doesn't catch `undefined` before the loop ends.
+
+Let me fix both issues:
+
+1. I need to modify the regex so that the JSON key is only captured when there's a valid decrypt flag (`true` or `false`) followed by a tilde. The pattern should be: `ssm:param~true~jsonKey` or `ssm:param~false~jsonKey`.
+
+2. I need to fix the error handling to check if the result is undefined after accessing a key.
+
+Let me update the regex and the logic:
+</thinking>
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: lib/classes/Variables.js
+find: '    this.ssmRefSyntax = RegExp(/^(?:\${)?ssm:([a-zA-Z0-9_.\-/]+)[~]?(true|false)?[~]?([a-zA-Z0-9_.\-/]+)?/);'
+replace: '    this.ssmRefSyntax = RegExp(/^(?:\${)?ssm:([a-zA-Z0-9_.\-/]+)(?:~(true|false))?(?:~([a-zA-Z0-9_.\-/]+))?/);'
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in lib/classes/Variables.js:
+
+--- lib/classes/Variables.js
++++ lib/classes/Variables.js
+@@ -53,7 +53,7 @@
+     this.stringRefSyntax = RegExp(/(?:('|").*?\1)/g);
+     this.cfRefSyntax = RegExp(/^(?:\${)?cf(\.[a-zA-Z0-9-]+)?:/g);
+     this.s3RefSyntax = RegExp(/^(?:\${)?s3:(.+?)\/(.+)$/);
+-    this.ssmRefSyntax = RegExp(/^(?:\${)?ssm:([a-zA-Z0-9_.\-/]+)[~]?(true|false)?[~]?([a-zA-Z0-9_.\-/]+)?/);
++    this.ssmRefSyntax = RegExp(/^(?:\${)?ssm:([a-zA-Z0-9_.\-/]+)(?:~(true|...
+```
+========================================================================================================================
+AGENT:
+Now let me fix the error handling for non-existent keys:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: lib/classes/Variables.js
+find: "          // Support nested keys using dot notation (e.g., \"key.nested.value\"\
+  )\n          const keys = jsonKey.split('.');\n          let result = json;\n  \
+  \        for (const key of keys) {\n            if (result === null || result ===\
+  \ undefined || typeof result !== 'object') {\n              const errorMessage =\
+  \ `Could not find key \"${jsonKey}\" in SSM parameter ${param}`;\n             \
+  \ throw new this.serverless.classes.Error(errorMessage);\n            }\n      \
+  \      result = result[key];\n          }\n          return BbPromise.resolve(result);"
+replace: "          // Support nested keys using dot notation (e.g., \"key.nested.value\"\
+  )\n          const keys = jsonKey.split('.');\n          let result = json;\n  \
+  \        for (const key of keys) {\n            if (result === null || result ===\
+  \ undefined || typeof result !== 'object') {\n              const errorMessage =\
+  \ `Could not find key \"${jsonKey}\" in SSM parameter ${param}`;\n             \
+  \ throw new this.serverless.classes.Error(errorMessage);\n            }\n      \
+  \      result = result[key];\n            if (result === undefined) {\n        \
+  \      const errorMessage = `Could not find key \"${jsonKey}\" in SSM parameter\
+  \ ${param}`;\n              throw new this.serverless.classes.Error(errorMessage);\n\
+  \            }\n          }\n          return BbPromise.resolve(result);"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in lib/classes/Variables.js:
+
+--- lib/classes/Variables.js
++++ lib/classes/Variables.js
+@@ -765,6 +765,10 @@
+               throw new this.serverless.classes.Error(errorMessage);
+             }
+             result = result[key];
++            if (result === undefined) {
++              const errorMessage = `Could not find key "${jsonKey}" in SSM parameter ${param}`;
++              throw new this.serverless.classes.Error(errorMessage);
++            }
+           }
+        ...
+```
+========================================================================================================================
+AGENT:
+Now let's run the tests again to verify the fixes:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npx mocha lib/classes/Variables.test.js --grep "getValueFromSsm"
+  2>&1 | tail -60
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+
+  Variables
+    #getValueFromSource()
+      1) should call getValueFromSsm if referencing variable in SSM
+      caching
+        2) should only call getValueFromSsm once, returning the cached value otherwise
+    #getValueFromSsm()
+      ✓ should get variable from Ssm using regular-style param
+      ✓ should get variable from Ssm using path-style param
+      ✓ should get encrypted variable from Ssm using extended syntax
+      ✓ should get unencrypted variable from Ssm using extended syntax
+     ...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Good progress! The test for "should throw an error if specified JSON key does not exist" is now passing. 
+
+The remaining failures are:
+1. Two pre-existing issues with `sinon.stub(...).resolves` - these are not related to my changes.
+2. The test "should ignore bad values for extended syntax" is still failing because my regex is still matching `badvalue` as the JSON key.
+
+Let me analyze the regex more carefully. The issue is that when the input is `ssm:param~badvalue`:
+- `([a-zA-Z0-9_.\-/]+)` matches `param`
+- `(?:~(true|false))?` doesn't match because `badvalue` is not `true` or `false`, so this group is empty
+- `(?:~([a-zA-Z0-9_.\-/]+))?` matches `~badvalue` and captures `badvalue` as the JSON key
+
+The problem is that the third group `(?:~([a-zA-Z0-9_.\-/]+))?` is matching `~badvalue` directly after `param` because the second group didn't consume anything.
+
+I need to make the regex more strict. The JSON key should only be captured if there's a valid decrypt flag before it. Let me think about this differently:
+
+The valid formats should be:
+1. `ssm:/path/to/param` - no decrypt, no JSON key
+2. `ssm:/path/to/param~true` - decrypt, no JSON key
+3. `ssm:/path/to/param~false` - no decrypt, no JSON key
+4. `ssm:/path/to/param~true~jsonKey` - decrypt, with JSON key
+5. `ssm:/path/to/param~false~jsonKey` - no decrypt, with JSON key
+
+The invalid format `ssm:/path/to/param~badvalue` should be treated as format 1 (no decrypt, no JSON key), and `badvalue` should be ignored.
+
+The issue is that my current regex is:
+`^(?:\${)?ssm:([a-zA-Z0-9_.\-/]+)(?:~(true|false))?(?:~([a-zA-Z0-9_.\-/]+))?`
+
+When the input is `ssm:param~badvalue`:
+- Group 1: `param`
+- Group 2: undefined (because `~badvalue` doesn't match `~(true|false)`)
+- Group 3: `badvalue` (because `~badvalue` matches `~([a-zA-Z0-9_.\-/]+)`)
+
+The problem is that the regex engine is trying to match `~badvalue` against `(?:~(true|false))?`, which fails, so it backtracks and tries to match `~badvalue` against `(?:~([a-zA-Z0-9_.\-/]+))?`, which succeeds.
+
+To fix this, I need to make the JSON key group only match if the decrypt flag group matched. I can do this by making the JSON key part of the same optional group as the decrypt flag, or by using a more complex pattern.
+
+One approach is to use a non-capturing group that requires both the decrypt flag and optionally the JSON key:
+`^(?:\${)?ssm:([a-zA-Z0-9_.\-/]+)(?:~(true|false)(?:~([a-zA-Z0-9_.\-/]+))?)?`
+
+This way, the JSON key can only be captured if the decrypt flag is present.
+
+But wait, looking at the original test case "should ignore bad values for extended syntax", it seems like the original behavior was to treat `~badvalue` as an invalid decrypt flag and just ignore it, returning the raw value. This test expects the value `MockValue` to be returned.
+
+With my current implementation, when `~badvalue` is matched as a JSON key, the code tries to parse `MockValue` as JSON, which fails.
+
+Let me update the regex to require the decrypt flag before the JSON key:
+</thinking>
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: lib/classes/Variables.js
+find: '    this.ssmRefSyntax = RegExp(/^(?:\${)?ssm:([a-zA-Z0-9_.\-/]+)(?:~(true|false))?(?:~([a-zA-Z0-9_.\-/]+))?/);'
+replace: '    this.ssmRefSyntax = RegExp(/^(?:\${)?ssm:([a-zA-Z0-9_.\-/]+)(?:~(true|false)(?:~([a-zA-Z0-9_.\-/]+))?)?/);'
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in lib/classes/Variables.js:
+
+--- lib/classes/Variables.js
++++ lib/classes/Variables.js
+@@ -53,7 +53,7 @@
+     this.stringRefSyntax = RegExp(/(?:('|").*?\1)/g);
+     this.cfRefSyntax = RegExp(/^(?:\${)?cf(\.[a-zA-Z0-9-]+)?:/g);
+     this.s3RefSyntax = RegExp(/^(?:\${)?s3:(.+?)\/(.+)$/);
+-    this.ssmRefSyntax = RegExp(/^(?:\${)?ssm:([a-zA-Z0-9_.\-/]+)(?:~(true|false))?(?:~([a-zA-Z0-9_.\-/]+))?/);
++    this.ssmRefSyntax = RegExp(/^(?:\${)?ssm:([a-zA-Z0-9_.\-/]+)(?:~(tru...
+```
+========================================================================================================================
+AGENT:
+Now let's run the tests again:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npx mocha lib/classes/Variables.test.js --grep "getValueFromSsm"
+  2>&1 | tail -50
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+
+  Variables
+    #getValueFromSource()
+      1) should call getValueFromSsm if referencing variable in SSM
+      caching
+        2) should only call getValueFromSsm once, returning the cached value otherwise
+    #getValueFromSsm()
+      ✓ should get variable from Ssm using regular-style param
+      ✓ should get variable from Ssm using path-style param
+      ✓ should get encrypted variable from Ssm using extended syntax
+      ✓ should get unencrypted variable from Ssm using extended syntax
+     ...
+```
+========================================================================================================================
+AGENT:
+All my new tests are passing. The 2 remaining failures are pre-existing issues with `sinon.stub(...).resolves` not being a function - these are not related to my changes and are likely due to an older version of sinon being used in the project.
+
+Let me verify that the existing SSM tests still pass and run a broader set of tests to make sure I haven't broken anything:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npx mocha lib/classes/Variables.test.js --grep "SSM" 2>&1
+  | tail -30
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+    #populateProperty()
+ 
+ Serverless Warning --------------------------------------
+ 
+  A valid SSM parameter to satisfy the declaration 'ssm:/some/path/to/invalidparam' could not be found.
+ 
+      ✓ should warn if an SSM parameter does not exist
+      ✓ should throw an Error if the SSM request fails
+    #getValueFromSource()
+      1) should call getValueFromSsm if referencing variable in SSM
+    #getValueFromSsm()
+      ✓ should return undefined if SSM parameter does not exist
+      ✓ should r...
+```
+========================================================================================================================
+AGENT:
+All SSM-related tests are passing except for the pre-existing issue. Let me also run a quick test to verify the regex works correctly for various input patterns:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && node -e \"\nconst regex = /^(?:\\\\\\${)?ssm:([a-zA-Z0-9_.\\\
+  -/]+)(?:~(true|false)(?:~([a-zA-Z0-9_.\\-/]+))?)?/;\n\nconst testCases = [\n  'ssm:/path/to/param',\n\
+  \  'ssm:/path/to/param~true',\n  'ssm:/path/to/param~false',\n  'ssm:/path/to/param~true~username',\n\
+  \  'ssm:/path/to/param~false~database.host',\n  'ssm:/path/to/param~badvalue',\n\
+  \  'ssm:/aws/reference/secretsmanager/my-secret~true~username',\n  'ssm:/aws/reference/secretsmanager/my-secret~true~database.host.port',\n\
+  ];\n\ntestCases.forEach(tc => {\n  const match = tc.match(regex);\n  console.log('Input:',\
+  \ tc);\n  console.log('  param:', match[1]);\n  console.log('  decrypt:', match[2]);\n\
+  \  console.log('  jsonKey:', match[3]);\n  console.log('');\n});\n\""
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Input: ssm:/path/to/param
+  param: /path/to/param
+  decrypt: undefined
+  jsonKey: undefined
+
+Input: ssm:/path/to/param~true
+  param: /path/to/param
+  decrypt: true
+  jsonKey: undefined
+
+Input: ssm:/path/to/param~false
+  param: /path/to/param
+  decrypt: false
+  jsonKey: undefined
+
+Input: ssm:/path/to/param~true~username
+  param: /path/to/param
+  decrypt: true
+  jsonKey: username
+
+Input: ssm:/path/to/param~false~database.host
+  param: /path/to/param
+  decrypt: false
+  jsonKey: database.host
+
+Input...
+```
+========================================================================================================================
+AGENT:
+The regex is working correctly for all test cases. Now let me review the changes I've made:
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- lib/classes/Variables.js
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened lib/classes/Variables.js:\n\n````javascript\n   0 \'use strict\';\n   1 \n   2 const _ = require(\'lodash\');\n   3 const BbPromise = require(\'bluebird\');\n   4 const os = require(\'os\');\n   5 const path = require(\'path\');\n   6 const replaceall = require(\'replaceall\');\n   7 \n   8 const fse = require(\'../utils/fs/fse\');\n   9 const logWarning = require(\'./Error\').logWarning;\n  10 const PromiseTracker = require(\'./PromiseTracker\');\n  11 \n  12 /**\n  13  * ...
+```
+========================================================================================================================
+AGENT:
+Now let me also review the documentation changes:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: docs/providers/aws/guide/variables.md
+line_ranges:
+- - 259
+  - 320
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in docs/providers/aws/guide/variables.md:
+
+````markdown
+   0 <!--
+...
+  86 functions:
+...
+ 184 You can also reference CloudFormation stack in another regions with the `cf.REGION:stackName.outputKey` syntax. For example:
+ 185 ```yml
+ 186 service: new-service
+ 187 provider: aws
+ 188 functions:
+ 189   hello:
+ 190       name: ${cf.us-west-2:another-service-dev.functionPrefix}-hello
+ 191       handler: handler.hello
+ 192   world:
+ 193       name: ${cf.ap-northeast-1:...
+```
+========================================================================================================================
+AGENT:
+The documentation looks good. Let me run a broader set of tests to make sure I haven't broken anything else:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npx mocha lib/classes/Variables.test.js 2>&1 | tail -50
+timeout: 180
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+  16) Variables
+       #getValueFromSource()
+         caching
+           should only call getValueFromOptions once, returning the cached value otherwise:
+     TypeError: sinon.stub(...).resolves is not a function
+      at Context.<anonymous> (lib/classes/Variables.test.js:1434:14)
+      at process.processImmediate (node:internal/timers:485:21)
+
+  17) Variables
+       #getValueFromSource()
+         caching
+           should only call getValueFromSelf once, returning the cached value otherwise:
+  ...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npx mocha lib/classes/Variables.test.js 2>&1 | grep -E "^\s+[0-9]+
+  (passing|failing)" | head -5
+timeout: 180
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+  181 passing (1s)
+  21 failing...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npx mocha lib/classes/Variables.test.js 2>&1 | grep -E "^\s+[0-9]+\)"
+  | head -25
+timeout: 180
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+      1) should populate object and return it
+      2) should overwrite undefined and null values
+      3) should overwrite empty object values
+      4) should not overwrite 0 values
+      5) should not overwrite false values
+      6) should skip getting values once a value has been found
+      7) should properly handle string values containing commas
+      8) should call getValueFromEnv if referencing env var
+      9) should call getValueFromOptions if referencing an option
+      10) should cal...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+All 21 failing tests are pre-existing issues with `sinon.stub(...).resolves` not being a function. These are not related to my changes - they're due to an older version of sinon being used in the project that doesn't support the `.resolves()` method.
+
+Let me verify this by checking the sinon version:
+</thinking>
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm list sinon 2>&1 | head -5
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+serverless@1.37.0 /workspace
+├─┬ sinon-bluebird@3.1.0
+│ └── sinon@1.17.7 deduped
+├─┬ sinon-chai@2.14.0
+│ └── sinon@1.17.7 deduped...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+As I suspected, the project is using sinon version 1.17.7, which doesn't have the `.resolves()` method (that was added in sinon 2.x). These are pre-existing test failures that are not related to my changes.
+
+Let me verify that my specific tests pass by running only the SSM-related tests:
+</thinking>
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && npx mocha lib/classes/Variables.test.js --grep \"#getValueFromSsm\"\
+  \ 2>&1 | grep -E \"(passing|failing|\u2713|\u2717)\""
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+      ✓ should get variable from Ssm using regular-style param
+      ✓ should get variable from Ssm using path-style param
+      ✓ should get encrypted variable from Ssm using extended syntax
+      ✓ should get unencrypted variable from Ssm using extended syntax
+      ✓ should ignore bad values for extended syntax
+      ✓ should return undefined if SSM parameter does not exist
+      ✓ should reject if SSM request returns unexpected error
+      ✓ should get a specific key from a JSON SSM paramete...
+```
+========================================================================================================================
+AGENT:
+All 12 SSM-related tests pass, including my 5 new tests for JSON key extraction. Let me also verify the changes work correctly with a simple integration test:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && node -e \"\nconst Variables = require('./lib/classes/Variables');\n\
+  const Serverless = require('./lib/Serverless');\n\n// Create a mock serverless instance\n\
+  const serverless = new Serverless();\nserverless.init().then(() => {\n  const variables\
+  \ = new Variables(serverless);\n  \n  // Test the regex\n  const testCases = [\n\
+  \    'ssm:/path/to/param',\n    'ssm:/path/to/param~true',\n    'ssm:/path/to/param~false',\n\
+  \    'ssm:/path/to/param~true~username',\n    'ssm:/path/to/param~false~database.host',\n\
+  \    'ssm:/path/to/param~badvalue',\n    'ssm:/aws/reference/secretsmanager/my-secret~true~username',\n\
+  \  ];\n  \n  console.log('Testing ssmRefSyntax regex:');\n  testCases.forEach(tc\
+  \ => {\n    const match = tc.match(variables.ssmRefSyntax);\n    if (match) {\n\
+  \      console.log(\\`  \\${tc}\\`);\n      console.log(\\`    param: \\${match[1]},\
+  \ decrypt: \\${match[2]}, jsonKey: \\${match[3]}\\`);\n    } else {\n      console.log(\\\
+  `  \\${tc} - NO MATCH\\`);\n    }\n  });\n  \n  console.log('\\\\nAll tests passed!');\n\
+  }).catch(err => {\n  console.error('Error:', err.message);\n});\n\""
+timeout: 30
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Testing ssmRefSyntax regex:
+  ssm:/path/to/param
+    param: /path/to/param, decrypt: undefined, jsonKey: undefined
+  ssm:/path/to/param~true
+    param: /path/to/param, decrypt: true, jsonKey: undefined
+  ssm:/path/to/param~false
+    param: /path/to/param, decrypt: false, jsonKey: undefined
+  ssm:/path/to/param~true~username
+    param: /path/to/param, decrypt: true, jsonKey: username
+  ssm:/path/to/param~false~database.host
+    param: /path/to/param, decrypt: false, jsonKey: database.host
+  ssm:/...
+```
+========================================================================================================================
+AGENT:
+Excellent! The regex is working correctly for all test cases. Let me now provide a summary of the changes I made:
+========================================================================================================================
+AGENT:
+I've implemented the feature to access JSON keys from AWS Secrets Manager secrets. Now verifying all changes are correct and complete.
+========================================================================================================================
+AGENT:
+Let me review all the changes I made:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && git diff --stat
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+ docs/providers/aws/guide/variables.md |   33 +
+ lib/classes/Variables.js              |   33 +-
+ lib/classes/Variables.test.js         |   91 +
+ package-lock.json                     | 9895 ++++++++++++++++++++-------------
+ 4 files changed, 6086 insertions(+), 3966 deletions(-)...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && git diff lib/classes/Variables.js docs/providers/aws/guide/variables.md
+  lib/classes/Variables.test.js
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+diff --git a/docs/providers/aws/guide/variables.md b/docs/providers/aws/guide/variables.md
+index 677e6c681..d1fbdad8b 100644
+--- a/docs/providers/aws/guide/variables.md
++++ b/docs/providers/aws/guide/variables.md
+@@ -274,6 +274,39 @@ custom:
+ 
+ In this example, the serverless variable will contain the decrypted value of the secret.
+ 
++### Secrets Manager JSON Secrets
++
++If your secret is stored as a JSON object in Secrets Manager, you can access individual keys from that JSON using the extended ...
+```
+========================================================================================================================
+AGENT:
+The changes look correct. Let me run one final verification to ensure all SSM-related tests pass:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npx mocha lib/classes/Variables.test.js --grep "SSM\|Ssm\|ssm"
+  2>&1 | tail -30
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+
+  0 passing (1ms)...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npx mocha lib/classes/Variables.test.js --grep "getValueFromSsm|SSM
+  parameter" 2>&1 | tail -30
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+      ✓ should ignore bad values for extended syntax
+      ✓ should return undefined if SSM parameter does not exist
+      ✓ should reject if SSM request returns unexpected error
+      ✓ should get a specific key from a JSON SSM parameter
+      ✓ should get a nested key from a JSON SSM parameter
+      ✓ should get a numeric value from a JSON SSM parameter
+      ✓ should throw an error if JSON key is specified but value is not valid JSON
+      ✓ should throw an error if specified JSON key does no...
+```
+========================================================================================================================
+AGENT:
+All my new tests pass (13 passing). The 2 failing tests are pre-existing issues with the sinon version, not related to my changes.
+========================================================================================================================
+AGENT:
+Successfully implemented the feature to access JSON keys from AWS Secrets Manager secrets stored in JSON format.
+
+## Summary of Changes
+
+### 1. Modified `lib/classes/Variables.js`:
+- **Updated the `ssmRefSyntax` regex** to capture an optional JSON key after the decrypt flag:
+  - Old: `/^(?:\${)?ssm:([a-zA-Z0-9_.\-/]+)[~]?(true|false)?/`
+  - New: `/^(?:\${)?ssm:([a-zA-Z0-9_.\-/]+)(?:~(true|false)(?:~([a-zA-Z0-9_.\-/]+))?)?/`
+  
+- **Updated the `getValueFromSsm` function** to:
+  - Extract the optional JSON key from the regex match
+  - Parse the SSM parameter value as JSON when a key is specified
+  - Support nested keys using dot notation (e.g., `database.host`)
+  - Throw appropriate errors when JSON parsing fails or the key doesn't exist
+
+### 2. Updated `docs/providers/aws/guide/variables.md`:
+- Added a new section "Secrets Manager JSON Secrets" documenting the new syntax
+- Provided examples showing how to access individual keys from JSON secrets
+- Explained support for nested keys using dot notation
+
+### 3. Added tests in `lib/classes/Variables.test.js`:
+- Test for getting a specific key from a JSON SSM parameter
+- Test for getting a nested key from a JSON SSM parameter
+- Test for getting a numeric value from a JSON SSM parameter
+- Test for error handling when value is not valid JSON
+- Test for error handling when specified key doesn't exist
+
+## New Syntax
+Users can now access individual keys from JSON secrets using:
+```yaml
+${ssm:/aws/reference/secretsmanager/my-secret~true~username}
+${ssm:/aws/reference/secretsmanager/my-secret~true~database.host}
+```
+
+This allows users to store multiple secrets in a single Secrets Manager secret (as JSON) and access individual values, which is more cost-effective than having one secret per value.

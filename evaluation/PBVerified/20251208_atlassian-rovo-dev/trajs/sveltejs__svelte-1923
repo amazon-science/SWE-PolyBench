@@ -1,0 +1,1243 @@
+########################################################################################################################
+PHASE 1
+########################################################################################################################
+========================================================================================================================
+AGENT:
+I will start by viewing the workspace to understand its structure and contents. This will help me identify key files and locations that may be relevant to the task.
+========================================================================================================================
+USER PROMPT:
+Resolve the following problem statement:
+
+<problem_statement>
+Event handlers not deconflicted when one is binding inside each loop and one outside
+```html
+<input bind:value={foo}>
+
+{#each [] as bar}
+	<input bind:value={bar}>
+{/each}
+```
+
+results in code that look like
+
+```javascript
+	function input_input_handler() {
+		foo = this.value;
+		$$invalidate('foo', foo);
+	}
+
+	function input_input_handler({ bar, each_value, bar_index }) {
+		each_value[bar_index] = this.value;
+	}
+```
+
+(Aside: I can't believe this isn't a syntax error, and that I had to find this out by my app not working. Thanks, javascript.)
+
+</problem_statement>
+
+Do not stop until you have made code changes that resolve the problem statement. Do not ask for clarifications.
+========================================================================================================================
+AGENT:
+Starting to analyze the problem statement. The issue is that event handlers are not being properly deconflicted when one binding is inside an each loop and one is outside. This results in duplicate function names (input_input_handler) which causes issues. I need to explore the codebase to understand how bindings and event handlers are generated and deconflicted.
+========================================================================================================================
+AGENT:
+EXPLORATION: Understanding the codebase structure
+
+<thinking>
+The problem is about event handlers not being deconflicted when one binding is inside an each loop and one is outside. The issue is that both bindings generate a function named `input_input_handler`, which causes a conflict.
+
+Looking at the workspace structure, this is a Svelte compiler codebase. The relevant files are likely in:
+- `src/compile/render-dom/wrappers/Element/Binding.ts` - handles bindings on elements
+- `src/compile/render-dom/Block.ts` - handles block-level code generation
+- `src/compile/render-dom/Renderer.ts` - handles rendering
+
+Let me start by exploring the binding-related code to understand how handler names are generated.
+</thinking>
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- src/compile/render-dom/wrappers/Element/Binding.ts
+- src/compile/render-dom/Block.ts
+- src/compile/render-dom/Renderer.ts
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+["Successfully opened src/compile/render-dom/wrappers/Element/Binding.ts:\n\n````typescript\n   0 import Binding from '../../../nodes/Binding';\n...\n  11 const readOnlyMediaAttributes = new Set([\n...\n  18 export default class BindingWrapper {\n...\n  29 \tconstructor(block: Block, node: Binding, parent: ElementWrapper) {\n...\n  55 \tisReadOnlyMediaAttribute() {\n...\n  59 \tmunge(block: Block) {\n...\n 169 function getDomUpdater(\n...\n 203 function getBindingGroup(renderer: Renderer, value:...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Let me expand the Binding.ts file to see how event handlers are generated, particularly the `getEventHandler` function and the `munge` method which seems to be where the handler is created.
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/compile/render-dom/wrappers/Element/Binding.ts
+patterns:
+- getEventHandler
+- munge
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/compile/render-dom/wrappers/Element/Binding.ts:
+
+````typescript
+   0 import Binding from '../../../nodes/Binding';
+...
+  11 const readOnlyMediaAttributes = new Set([
+...
+  18 export default class BindingWrapper {
+...
+  29 	constructor(block: Block, node: Binding, parent: ElementWrapper) {
+...
+  55 	isReadOnlyMediaAttribute() {
+...
+  59 	munge(block: Block) {
+  60 		const { parent } = this;
+  61 		const { renderer } = parent;
+  62 
+  63 		const needsLock =...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+I see that `getEventHandler` returns a handler object with `usesContext`, `mutation`, and `contextual_dependencies`. But I don't see where the handler name is generated. Let me look at the Element wrapper to see how the handler is actually used and named.
+</thinking>
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- src/compile/render-dom/wrappers/Element/index.ts
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+["Successfully opened src/compile/render-dom/wrappers/Element/index.ts:\n\n````typescript\n   0 import Renderer from '../../Renderer';\n...\n  22 const events = [\n...\n  86 export default class ElementWrapper extends Wrapper {\n...\n  99 \tconstructor(\n...\n 198 \trender(block: Block, parentNode: string, parentNodes: string) {\n...\n 317 \t\tfunction toHTML(wrapper: ElementWrapper | TextWrapper) {\n...\n 355 \tgetRenderStatement() {\n...\n 369 \tgetClaimStatement(nodes: string) {\n...\n 384 \t...
+```
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/compile/render-dom/wrappers/Element/index.ts
+patterns:
+- addBindings
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/compile/render-dom/wrappers/Element/index.ts:
+
+````typescript
+   0 import Renderer from '../../Renderer';
+...
+  22 const events = [
+...
+  86 export default class ElementWrapper extends Wrapper {
+...
+  99 	constructor(
+...
+ 198 	render(block: Block, parentNode: string, parentNodes: string) {
+ 199 		const { renderer } = this;
+ 200 
+ 201 		if (this.node.name === 'slot') {
+ 202 			const slotName = this.getStaticAttributeValue('name') || 'default';
+ 203 			ren...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Now I can see the issue! On line 412, the handler name is generated using:
+
+```javascript
+const handler = block.getUniqueName(`${this.var}_${group.events.join('_')}_handler`);
+```
+
+The problem is that `block.getUniqueName` only ensures uniqueness within that specific block. When there's an `each` block, a new child block is created, and the handler name is generated using `block.getUniqueName` on that child block. But the handler function is hoisted to the component level (via `renderer.component.partly_hoisted.push`), so both handlers end up with the same name at the component level.
+
+Let me look at the Block class to understand how `getUniqueName` works:
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/compile/render-dom/Block.ts
+patterns:
+- getUniqueName
+- alias
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/compile/render-dom/Block.ts:
+
+````typescript
+   0 import CodeBuilder from '../../utils/CodeBuilder';
+...
+   7 export interface BlockOptions {
+...
+  18 export default class Block {
+  19 	parent?: Block;
+  20 	renderer: Renderer;
+  21 	name: string;
+  22 	comment?: string;
+  23 
+  24 	wrappers: Wrapper[];
+  25 
+  26 	key: string;
+  27 	first: string;
+  28 
+  29 	dependencies: Set<string>;
+  30 
+  31 	bindings: Map<string, () => { object: string, property: s...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Now I understand the issue better. Looking at line 103:
+
+```javascript
+this.getUniqueName = this.renderer.component.getUniqueNameMaker();
+```
+
+Each block gets its own `getUniqueName` function from `getUniqueNameMaker()`. Let me look at how `getUniqueNameMaker` works in the Component class.
+</thinking>
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: getUniqueNameMaker
+
+========================================================================================================================
+TOOL RETURN (grep)
+```
+src/compile/render-dom/Block.ts:104:		this.getUniqueName = this.renderer.component.getUniqueNameMaker();
+src/compile/Component.ts:314:	getUniqueNameMaker() {...
+```
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/compile/Component.ts
+patterns:
+- getUniqueNameMaker
+- getUniqueName
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/compile/Component.ts:
+
+````typescript
+   0 import MagicString, { Bundle } from 'magic-string';
+...
+  26 type Meta = {
+...
+  41 export default class Component {
+...
+  98 	constructor(
+  99 		ast: Ast,
+ 100 		source: string,
+ 101 		name: string,
+ 102 		options: CompileOptions,
+ 103 		stats: Stats
+ 104 	) {
+ 105 		this.name = this.getUniqueName(name);
+ 106 
+ 107 		this.stats = stats;
+ 108 		this.ast = ast;
+ 109 		this.source = source;
+ 110 		this.options = o...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Now I understand the issue. Looking at `getUniqueNameMaker()`:
+
+1. Each Block gets its own `getUniqueName` function via `getUniqueNameMaker()`.
+2. `getUniqueNameMaker()` creates a new `localUsedNames` set for each call.
+3. The function checks against both `this.usedNames` (component-level) and `localUsedNames` (block-level).
+4. However, it only adds to `localUsedNames`, not to `this.usedNames`.
+
+The problem is that when a handler is created in the main block (outside the each loop), it's added to the main block's `localUsedNames`. When another handler is created in the each block (inside the loop), it's added to the each block's `localUsedNames`. Since these are separate sets, and the handler names are not added to `this.usedNames`, both handlers can end up with the same name.
+
+Looking at line 412 in `Element/index.ts`:
+```javascript
+const handler = block.getUniqueName(`${this.var}_${group.events.join('_')}_handler`);
+```
+
+The handler name is generated using `block.getUniqueName`, which only ensures uniqueness within that block's local scope. But the handler is then hoisted to the component level via `renderer.component.partly_hoisted.push`, causing the conflict.
+
+The fix should be to use `renderer.component.getUniqueName` instead of `block.getUniqueName` for the handler name, since the handler is hoisted to the component level.
+
+Let me verify this by looking at the code more carefully:
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/compile/render-dom/wrappers/Element/index.ts
+line_ranges:
+- - 410
+  - 490
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/compile/render-dom/wrappers/Element/index.ts:
+
+````typescript
+   0 import Renderer from '../../Renderer';
+...
+  22 const events = [
+...
+  86 export default class ElementWrapper extends Wrapper {
+...
+  99 	constructor(
+...
+ 198 	render(block: Block, parentNode: string, parentNodes: string) {
+ 199 		const { renderer } = this;
+ 200 
+ 201 		if (this.node.name === 'slot') {
+ 202 			const slotName = this.getStaticAttributeValue('name') || 'default';
+ 203 			ren...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Now I can see the issue clearly. On line 412:
+
+```javascript
+const handler = block.getUniqueName(`${this.var}_${group.events.join('_')}_handler`);
+```
+
+The handler name is generated using `block.getUniqueName`, but then the handler is hoisted to the component level via `renderer.component.partly_hoisted.push` (lines 462-472 and 476-486).
+
+The problem is that `block.getUniqueName` only ensures uniqueness within that block's local scope, not at the component level. When there are two bindings in different blocks (one outside an each loop and one inside), they can both generate the same handler name because each block has its own `localUsedNames` set.
+
+Looking at line 532, we can see that for `this_binding`, the code correctly uses `renderer.component.getUniqueName`:
+
+```javascript
+const name = renderer.component.getUniqueName(`${this.var}_binding`);
+```
+
+The fix should be to change line 412 to use `renderer.component.getUniqueName` instead of `block.getUniqueName`:
+
+```javascript
+const handler = renderer.component.getUniqueName(`${this.var}_${group.events.join('_')}_handler`);
+```
+
+Let me first create a test case to reproduce the issue, then apply the fix.
+</thinking>
+========================================================================================================================
+AGENT:
+I've identified the root cause of the issue. The handler name is generated using `block.getUniqueName` but the handler is hoisted to the component level. This causes name conflicts when bindings exist in different blocks (e.g., one outside an each loop and one inside). The fix is to use `renderer.component.getUniqueName` instead. Now I'll create a test case and apply the fix.
+========================================================================================================================
+AGENT:
+Let me first create a minimal reproduction to verify the issue exists:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm install 2>&1 | tail -20
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+transition.mjs → transition.js...
+created transition.js in 3ms
+
+added 606 packages, and audited 863 packages in 18s
+
+70 vulnerabilities (7 low, 18 moderate, 26 high, 19 critical)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+npm notice
+npm notice New major version of npm available! 10.9.3 -> 11.6.4
+npm notice Changelog: https://github.com/npm/cli/releases/tag/...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && cat > test_repro.html << 'EOF'\n<script>\n\tlet foo = '';\n\
+  \tlet items = ['a', 'b'];\n</script>\n\n<input bind:value={foo}>\n\n{#each items\
+  \ as bar}\n\t<input bind:value={bar}>\n{/each}\nEOF\n"
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && cat > test_repro.js << 'EOF'\nconst svelte = require('./');\n\
+  const fs = require('fs');\n\nconst source = fs.readFileSync('./test_repro.html',\
+  \ 'utf-8');\n\ntry {\n    const result = svelte.compile(source, {\n        filename:\
+  \ 'test_repro.html',\n        name: 'TestComponent',\n        generate: 'dom'\n\
+  \    });\n    \n    console.log('=== Generated JS ===');\n    console.log(result.js.code);\n\
+  \    \n    // Check for duplicate function names\n    const matches = result.js.code.match(/function\
+  \ input_input_handler/g);\n    if (matches && matches.length > 1) {\n        console.log('\\\
+  n=== ERROR: Found duplicate function names ===');\n        console.log(`Found ${matches.length}\
+  \ occurrences of \"function input_input_handler\"`);\n        process.exit(1);\n\
+  \    } else {\n        console.log('\\n=== SUCCESS: No duplicate function names\
+  \ ===');\n    }\n} catch (e) {\n    console.error('Compilation error:', e);\n  \
+  \  process.exit(1);\n}\nEOF\nnode test_repro.js"
+timeout: 30
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Compilation error: TypeError: svelte.compile is not a function
+    at Object.<anonymous> (/workspace/test_repro.js:7:27)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Object..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Function._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && cat package.json | head -30
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+{
+  "name": "svelte",
+  "version": "3.0.0-alpha12",
+  "description": "The magical disappearing UI framework",
+  "module": "index.mjs",
+  "main": "index.js",
+  "bin": {
+    "svelte": "svelte"
+  },
+  "files": [
+    "cli",
+    "compiler.js",
+    "register.js",
+    "index.*",
+    "internal.*",
+    "store.*",
+    "transition.*",
+    "easing.*",
+    "svelte",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "mocha --opts mocha.opts",
+    "quicktest": "mocha --opts mocha.opts",
+    "precoverage": "expor...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm run build 2>&1 | tail -20
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+(!) Circular dependency: src/compile/nodes/shared/mapChildren.ts -> src/compile/nodes/Title.ts -> src/compile/nodes/shared/mapChildren.ts
+created compiler.js in 1.7s
+
+src/cli/index.ts → cli...
+created cli in 52ms
+
+src/internal/index.js → internal.mjs, internal.js...
+created internal.mjs, internal.js in 31ms
+
+index.mjs → index.js...
+created index.js in 3ms
+
+store.mjs → store.js...
+created store.js in 3ms
+
+easing.mjs → easing.js...
+created easing.js in 4ms
+
+transition.mjs → transition.js...
+create...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && cat > test_repro.js << 'EOF'\nconst svelte = require('./compiler.js');\n\
+  const fs = require('fs');\n\nconst source = fs.readFileSync('./test_repro.html',\
+  \ 'utf-8');\n\ntry {\n    const result = svelte.compile(source, {\n        filename:\
+  \ 'test_repro.html',\n        name: 'TestComponent',\n        generate: 'dom'\n\
+  \    });\n    \n    console.log('=== Generated JS ===');\n    console.log(result.js.code);\n\
+  \    \n    // Check for duplicate function names\n    const matches = result.js.code.match(/function\
+  \ input_input_handler/g);\n    if (matches && matches.length > 1) {\n        console.log('\\\
+  n=== ERROR: Found duplicate function names ===');\n        console.log(`Found ${matches.length}\
+  \ occurrences of \"function input_input_handler\"`);\n        process.exit(1);\n\
+  \    } else {\n        console.log('\\n=== SUCCESS: No duplicate function names\
+  \ ===');\n    }\n} catch (e) {\n    console.error('Compilation error:', e);\n  \
+  \  process.exit(1);\n}\nEOF\nnode test_repro.js"
+timeout: 30
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+=== Generated JS ===
+/* test_repro.html generated by Svelte v3.0.0-alpha12 */
+import { SvelteComponent, addListener, createComment, createElement, createText, destroyEach, detachNode, init, insert, run, safe_not_equal } from "svelte/internal";
+
+function get_each_context(ctx, list, i) {
+	const child_ctx = Object.create(ctx);
+	child_ctx.bar = list[i];
+	child_ctx.each_value = list;
+	child_ctx.bar_index = i;
+	return child_ctx;
+}
+
+// (8:0) {#each items as bar}
+function create_each_block(component, ct...
+```
+========================================================================================================================
+AGENT:
+I've confirmed the issue. The generated code has duplicate `input_input_handler` function names. Now let me apply the fix by changing `block.getUniqueName` to `renderer.component.getUniqueName` on line 412 of `src/compile/render-dom/wrappers/Element/index.ts`.
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/compile/render-dom/wrappers/Element/index.ts
+find: "\t\tgroups.forEach(group => {\n\t\t\tconst handler = block.getUniqueName(`${this.var}_${group.events.join('_')}_handler`);"
+replace: "\t\tgroups.forEach(group => {\n\t\t\tconst handler = renderer.component.getUniqueName(`${this.var}_${group.events.join('_')}_handler`);"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/compile/render-dom/wrappers/Element/index.ts:
+
+--- src/compile/render-dom/wrappers/Element/index.ts
++++ src/compile/render-dom/wrappers/Element/index.ts
+@@ -410,7 +410,7 @@
+ 			.filter(group => group.bindings.length);
+ 
+ 		groups.forEach(group => {
+-			const handler = block.getUniqueName(`${this.var}_${group.events.join('_')}_handler`);
++			const handler = renderer.component.getUniqueName(`${this.var}_${group.events.join('_')}_handler`);
+ 			renderer.component.d...
+```
+========================================================================================================================
+AGENT:
+Now let me rebuild and test:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm run build 2>&1 | tail -10
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+created index.js in 3ms
+
+store.mjs → store.js...
+created store.js in 3ms
+
+easing.mjs → easing.js...
+created easing.js in 6ms
+
+transition.mjs → transition.js...
+created transition.js in 4ms...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && node test_repro.js
+timeout: 30
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+=== Generated JS ===
+/* test_repro.html generated by Svelte v3.0.0-alpha12 */
+import { SvelteComponent, addListener, createComment, createElement, createText, destroyEach, detachNode, init, insert, run, safe_not_equal } from "svelte/internal";
+
+function get_each_context(ctx, list, i) {
+	const child_ctx = Object.create(ctx);
+	child_ctx.bar = list[i];
+	child_ctx.each_value = list;
+	child_ctx.bar_index = i;
+	return child_ctx;
+}
+
+// (8:0) {#each items as bar}
+function create_each_block(component, ct...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+The fix is working - now the handlers are named `input_input_handler` and `input_input_handler_1`. However, my test script is still detecting duplicates because it's matching the local wrapper function `input_input_handler_1()` inside `create_each_block` as well as the actual function definitions.
+
+Let me update the test to be more precise:
+</thinking>
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && cat > test_repro.js << 'EOF'\nconst svelte = require('./compiler.js');\n\
+  const fs = require('fs');\n\nconst source = fs.readFileSync('./test_repro.html',\
+  \ 'utf-8');\n\ntry {\n    const result = svelte.compile(source, {\n        filename:\
+  \ 'test_repro.html',\n        name: 'TestComponent',\n        generate: 'dom'\n\
+  \    });\n    \n    console.log('=== Generated JS ===');\n    console.log(result.js.code);\n\
+  \    \n    // Check for duplicate function names in the instance function\n    //\
+  \ Look for function definitions at the start of a line (not local wrappers)\n  \
+  \  const instanceMatch = result.js.code.match(/function instance[\\s\\S]*?^}/m);\n\
+  \    if (instanceMatch) {\n        const instanceCode = instanceMatch[0];\n    \
+  \    console.log('\\n=== Instance function ===');\n        console.log(instanceCode);\n\
+  \        \n        // Find all function definitions in instance\n        const funcDefs\
+  \ = instanceCode.match(/^\\tfunction (\\w+)/gm);\n        if (funcDefs) {\n    \
+  \        const funcNames = funcDefs.map(f => f.replace(/^\\tfunction /, ''));\n\
+  \            console.log('\\n=== Function names in instance ===');\n           \
+  \ console.log(funcNames);\n            \n            const uniqueNames = new Set(funcNames);\n\
+  \            if (uniqueNames.size !== funcNames.length) {\n                console.log('\\\
+  n=== ERROR: Found duplicate function names ===');\n                process.exit(1);\n\
+  \            } else {\n                console.log('\\n=== SUCCESS: No duplicate\
+  \ function names ===');\n            }\n        }\n    }\n} catch (e) {\n    console.error('Compilation\
+  \ error:', e);\n    process.exit(1);\n}\nEOF\nnode test_repro.js"
+timeout: 30
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+=== Generated JS ===
+/* test_repro.html generated by Svelte v3.0.0-alpha12 */
+import { SvelteComponent, addListener, createComment, createElement, createText, destroyEach, detachNode, init, insert, run, safe_not_equal } from "svelte/internal";
+
+function get_each_context(ctx, list, i) {
+	const child_ctx = Object.create(ctx);
+	child_ctx.bar = list[i];
+	child_ctx.each_value = list;
+	child_ctx.bar_index = i;
+	return child_ctx;
+}
+
+// (8:0) {#each items as bar}
+function create_each_block(component, ct...
+```
+========================================================================================================================
+AGENT:
+The fix is working. Now the handlers are properly deconflicted:
+- `input_input_handler` for the binding outside the each loop
+- `input_input_handler_1` for the binding inside the each loop
+
+Let me run the existing test suite to make sure the fix doesn't break anything:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test 2>&1 | tail -50
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+      at processTimers (node:internal/timers:523:7)
+
+  7) custom-elements
+       no-missing-prop-warnings:
+     Error: Timeout of 10000ms exceeded. For async tests and hooks, ensure "done()" is called; if returning a Promise, ensure it resolves. (/workspace/test/test.js)
+      at listOnTimeout (node:internal/timers:588:17)
+      at processTimers (node:internal/timers:523:7)
+
+  8) custom-elements
+       oncreate:
+     Error: Timeout of 10000ms exceeded. For async tests and hooks, ensure "done()" ...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+The test failures seem to be unrelated to my change - they're about custom-elements timeouts and a binding-select test that appears to be an existing issue. Let me run just the js tests to see if my change affects the expected output:
+</thinking>
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test -- --grep "js" 2>&1 | tail -50
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+    ✓ transition-js-context
+    ✓ transition-js-deferred
+    ✓ transition-js-delay
+    ✓ transition-js-delay-in-out
+    ✓ transition-js-destroyed-before-end
+    ✓ transition-js-dynamic-component
+    ✓ transition-js-dynamic-if-block-bidi
+    ✓ transition-js-each-block-intro
+    ✓ transition-js-each-block-intro-outro
+    ✓ transition-js-each-block-keyed-intro
+    ✓ transition-js-each-block-keyed-intro-outro
+    ✓ transition-js-each-block-keyed-outro
+    ✓ transition-js-each-block-outro
+    ✓ trans...
+```
+========================================================================================================================
+AGENT:
+All 186 tests pass. Let me also run the runtime tests to make sure bindings work correctly:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test -- --grep "binding" 2>&1 | tail -80
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+    ✓ binding-textarea
+    ✓ binding-this
+    ✓ binding-this-and-value
+    ✓ binding-this-no-innerhtml
+    ✓ binding-this-unset
+    ✓ bindings-before-onmount
+    ✓ bindings-coalesced
+    ✓ component-binding-blowback
+    ✓ component-binding-computed
+    ✓ component-binding-deep
+    - component-binding-deep-b
+    ✓ component-binding-each
+    ✓ component-binding-each-nested
+    ✓ component-binding-each-object
+    ✓ component-binding-infinite-loop
+    ✓ component-binding-parent-supercedes-child
+    ...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+The `binding-select` test failure appears to be a pre-existing issue unrelated to my change. Let me verify this by checking if this test was failing before my change by reverting and running the test:
+</thinking>
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && git status
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+HEAD detached at ff2a21e63
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   package-lock.json
+	modified:   src/compile/render-dom/wrappers/Element/index.ts
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	test_repro.html
+	test_repro.js
+	tmp_code_4f39cb3e728734e972e833b93517f408946eba374670c44478ac1f0fcc5c0553.bash
+
+no changes added to ...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && git stash && npm run build 2>&1 | tail -5 && npm test --
+  --grep "binding-select" 2>&1 | tail -30
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Saved working directory and index state WIP on (no branch): ff2a21e63 Merge branch 'master' into embedded-repl-hide-compiler-options
+easing.mjs → easing.js...
+created easing.js in 4ms
+
+transition.mjs → transition.js...
+created transition.js in 2ms
+  1) runtime
+       binding-select :
+     AssertionError [ERR_ASSERTION] [ERR_ASSERTION]: Expected values to be loosely deep-equal:
+
+[
+  HTMLOptionElement {
+    __value: 'one'
+  },
+  HTMLOptionElement {
+    __value: 'two'
+  },
+  HTMLOptionElement {
+   ...
+```
+========================================================================================================================
+AGENT:
+The `binding-select` test failure is a pre-existing issue, not caused by my change. Let me restore my changes:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && git stash pop && npm run build 2>&1 | tail -5
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+HEAD detached at ff2a21e63
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   package-lock.json
+	modified:   src/compile/render-dom/wrappers/Element/index.ts
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	test_repro.html
+	test_repro.js
+	tmp_code_5abf367adef78b55a3218de722b5dee83c45fdc6615fc1b101749956062cb3f4.bash
+
+no changes added to ...
+```
+========================================================================================================================
+AGENT:
+Now let me also check if there are any existing tests that specifically test for binding deconfliction in each blocks:
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: bind:value.*each
+path_glob: '**/test/**/*.html'
+
+========================================================================================================================
+TOOL RETURN (grep)
+```
+No matches found for pattern 'bind:value.*each'....
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && grep -r "bind:value" test/runtime/samples/*/main.html |
+  head -20
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+test/runtime/samples/binding-indirect-computed/main.html:<select bind:value={selected.letter}>
+test/runtime/samples/binding-indirect/main.html:<select bind:value={selected}>
+test/runtime/samples/binding-input-number/main.html:<input type='number' bind:value={count}>
+test/runtime/samples/binding-input-range-change/main.html:<input type='range' bind:value={count}>
+test/runtime/samples/binding-input-range/main.html:<input type='range' bind:value={count}>
+test/runtime/samples/binding-input-text-cont...
+```
+========================================================================================================================
+AGENT:
+Let me look at the `binding-input-text-contextual` test which has a binding inside an each block:
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- test/runtime/samples/binding-input-text-contextual/main.html
+- test/runtime/samples/binding-input-text-contextual/_config.js
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened test/runtime/samples/binding-input-text-contextual/main.html:\n\n````html\n   0 {#each items as item}\n   1 \t<div><input bind:value={item}><p>{item}</p></div>\n   2 {/each}\n````', "Successfully opened test/runtime/samples/binding-input-text-contextual/_config.js:\n\n````javascript\n   0 export default {\n   1 \tprops: {\n   2 \t\titems: ['one', 'two', 'three'],\n   3 \t},\n   4 \n   5 \thtml: `\n   6 \t\t<div>\n   7 \t\t\t<input><p>one</p>\n   8 \t\t</div>\n   9 \t\t<div>...
+```
+========================================================================================================================
+AGENT:
+This test only has a binding inside the each block, not both inside and outside. Let me create a proper test case for the issue:
+========================================================================================================================
+TOOL CALL (bash)
+command: mkdir -p /workspace/test/runtime/samples/binding-input-text-deconflicted-each
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+...
+```
+========================================================================================================================
+TOOL CALL (create_file)
+file_path: test/runtime/samples/binding-input-text-deconflicted-each/main.html
+initial_content: "<script>\n\texport let foo = '';\n\texport let items = ['a', 'b'];\n\
+  </script>\n\n<input bind:value={foo}>\n\n{#each items as bar}\n\t<input bind:value={bar}>\n\
+  {/each}\n"
+
+========================================================================================================================
+TOOL RETURN (create_file)
+```
+Successfully created test/runtime/samples/binding-input-text-deconflicted-each/main.html....
+```
+========================================================================================================================
+TOOL CALL (create_file)
+file_path: test/runtime/samples/binding-input-text-deconflicted-each/_config.js
+initial_content: "export default {\n\thtml: `\n\t\t<input>\n\t\t<input>\n\t\t<input>\n\
+  \t`,\n\n\tasync test({ assert, component, target, window }) {\n\t\tconst inputs\
+  \ = [...target.querySelectorAll('input')];\n\t\tconst event = new window.Event('input');\n\
+  \n\t\t// Test the first input (bound to foo)\n\t\tinputs[0].value = 'hello';\n\t\
+  \tawait inputs[0].dispatchEvent(event);\n\t\tassert.equal(component.foo, 'hello');\n\
+  \n\t\t// Test the second input (bound to items[0])\n\t\tinputs[1].value = 'x';\n\
+  \t\tawait inputs[1].dispatchEvent(event);\n\t\tassert.equal(component.items[0],\
+  \ 'x');\n\n\t\t// Test the third input (bound to items[1])\n\t\tinputs[2].value\
+  \ = 'y';\n\t\tawait inputs[2].dispatchEvent(event);\n\t\tassert.equal(component.items[1],\
+  \ 'y');\n\t},\n};\n"
+
+========================================================================================================================
+TOOL RETURN (create_file)
+```
+Successfully created test/runtime/samples/binding-input-text-deconflicted-each/_config.js....
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test -- --grep "binding-input-text-deconflicted-each"
+  2>&1
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+> svelte@3.0.0-alpha12 pretest
+> npm run build
+
+
+> svelte@3.0.0-alpha12 build
+> rollup -c
+
+
+src/index.ts → compiler.js...
+(!) Circular dependency: src/compile/render-dom/wrappers/Fragment.ts -> src/compile/render-dom/wrappers/AwaitBlock.ts -> src/compile/render-dom/wrappers/Fragment.ts
+(!) Circular dependency: src/compile/render-dom/wrappers/Fragment.ts -> src/compile/render-dom/wrappers/EachBlock.ts -> src/compile/render-dom/wrappers/Fragment.ts
+(!) Circular dependency: src/compile/render-dom/...
+```
+========================================================================================================================
+AGENT:
+The runtime tests pass. The SSR test failure is just about the expected HTML format - SSR includes the value attribute. Let me update the test config:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: test/runtime/samples/binding-input-text-deconflicted-each/_config.js
+find: "export default {\n\thtml: `\n\t\t<input>\n\t\t<input>\n\t\t<input>\n\t`,"
+replace: "export default {\n\thtml: `\n\t\t<input>\n\t\t<input>\n\t\t<input>\n\t`,\n\
+  \n\tssrHtml: `\n\t\t<input>\n\t\t<input value=\"a\">\n\t\t<input value=\"b\">\n\t\
+  `,"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in test/runtime/samples/binding-input-text-deconflicted-each/_config.js:
+
+--- test/runtime/samples/binding-input-text-deconflicted-each/_config.js
++++ test/runtime/samples/binding-input-text-deconflicted-each/_config.js
+@@ -3,6 +3,12 @@
+ 		<input>
+ 		<input>
+ 		<input>
++	`,
++
++	ssrHtml: `
++		<input>
++		<input value="a">
++		<input value="b">
+ 	`,
+ 
+ 	async test({ assert, component, target, window }) {
+...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test -- --grep "binding-input-text-deconflicted-each"
+  2>&1 | tail -30
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+(node:5507) Warning: Accessing non-existent property 'mkdir' of module exports inside circular dependency
+(node:5507) Warning: Accessing non-existent property 'rm' of module exports inside circular dependency
+(node:5507) Warning: Accessing non-existent property 'mv' of module exports inside circular dependency
+(node:5507) Warning: Accessing non-existent property 'sed' of module exports inside circular dependency
+(node:5507) Warning: Accessing non-existent property 'set' of module exports inside ...
+```
+========================================================================================================================
+AGENT:
+All tests pass. Now let me also verify that the fix works with the exact example from the problem statement:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && cat > test_exact_repro.html << 'EOF'\n<script>\n\tlet foo\
+  \ = '';\n</script>\n\n<input bind:value={foo}>\n\n{#each [] as bar}\n\t<input bind:value={bar}>\n\
+  {/each}\nEOF\nnode -e \"\nconst svelte = require('./compiler.js');\nconst fs = require('fs');\n\
+  const source = fs.readFileSync('./test_exact_repro.html', 'utf-8');\nconst result\
+  \ = svelte.compile(source, { filename: 'test.html', name: 'Test' });\nconsole.log(result.js.code);\n\
+  \""
+timeout: 30
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+/* test.html generated by Svelte v3.0.0-alpha12 */
+import { SvelteComponent, addListener, createComment, createElement, createText, destroyEach, detachNode, init, insert, run, safe_not_equal } from "svelte/internal";
+
+function get_each_context(ctx, list, i) {
+	const child_ctx = Object.create(ctx);
+	child_ctx.bar = list[i];
+	child_ctx.each_value = list;
+	child_ctx.bar_index = i;
+	return child_ctx;
+}
+
+// (7:0) {#each [] as bar}
+function create_each_block(component, ctx) {
+	var input, input_updatin...
+```
+========================================================================================================================
+AGENT:
+The fix is working correctly. Now the handlers are properly deconflicted:
+- `input_input_handler` for the binding outside the each loop
+- `input_input_handler_1` for the binding inside the each loop
+
+Let me clean up the test files and run a broader set of tests to make sure nothing is broken:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && rm -f test_repro.html test_repro.js test_exact_repro.html
+  tmp_*.bash
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test -- --grep "runtime" 2>&1 | tail -50
+timeout: 180
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+    ✓ whitespace-normal 
+    ✓ whitespace-normal (with hydration)
+    - window-bind-scroll-update 
+    - window-bind-scroll-update (with hydration)
+    - window-binding-resize 
+    - window-binding-resize (with hydration)
+    - window-event 
+    - window-event (with hydration)
+    ✓ window-event-context 
+    ✓ window-event-context (with hydration)
+    ✓ window-event-custom 
+    ✓ window-event-custom (with hydration)
+    ✓ fails if options.target is missing in dev mode (40ms)
+    ✓ fails if optio...
+```
+========================================================================================================================
+AGENT:
+873 tests pass, and the only 2 failures are the pre-existing `binding-select` issue that was failing before my change.
+
+Let me also run the js tests to make sure the generated code is correct:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test -- --grep "^js" 2>&1 | tail -30
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+    ✓ input-files
+    ✓ input-range
+    ✓ input-without-blowback-guard
+    ✓ instrumentation-script-if-no-block
+    ✓ instrumentation-script-x-equals-x
+    ✓ instrumentation-template-if-no-block
+    ✓ instrumentation-template-x-equals-x
+    ✓ legacy-input-type
+    ✓ media-bindings
+(6:0) – 'NonImported' is not defined
+    ✓ non-imported-component
+    ✓ select-dynamic-value
+    ✓ setup-method
+    ✓ ssr-no-oncreate-etc
+    ✓ ssr-preserve-comments
+    ✓ svg-title
+    ✓ title
+    ✓ use-elements-as-an...
+```
+========================================================================================================================
+AGENT:
+All 52 js tests pass. Let me also verify my change one more time:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && git diff src/compile/render-dom/wrappers/Element/index.ts
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+diff --git a/src/compile/render-dom/wrappers/Element/index.ts b/src/compile/render-dom/wrappers/Element/index.ts
+index 5f6f94f38..9b51799cd 100644
+--- a/src/compile/render-dom/wrappers/Element/index.ts
++++ b/src/compile/render-dom/wrappers/Element/index.ts
+@@ -410,7 +410,7 @@ export default class ElementWrapper extends Wrapper {
+ 			.filter(group => group.bindings.length);
+ 
+ 		groups.forEach(group => {
+-			const handler = block.getUniqueName(`${this.var}_${group.events.join('_')}_handler`);
++		...
+```
+========================================================================================================================
+AGENT:
+The fix is minimal and correct. Let me also verify that the test case I added is properly included:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && ls -la test/runtime/samples/binding-input-text-deconflicted-each/
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+total 8
+drwxr-xr-x   4 root root   128 Dec  6 02:18 .
+drwxr-xr-x 452 root root 14464 Dec  6 02:18 ..
+-rw-r--r--   1 root root   745 Dec  6 02:18 _config.js
+-rw-r--r--   1 root root   155 Dec  6 02:18 main.html...
+```
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- test/runtime/samples/binding-input-text-deconflicted-each/_config.js
+- test/runtime/samples/binding-input-text-deconflicted-each/main.html
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened test/runtime/samples/binding-input-text-deconflicted-each/_config.js:\n\n````javascript\n   0 export default {\n   1 \thtml: `\n   2 \t\t<input>\n   3 \t\t<input>\n   4 \t\t<input>\n   5 \t`,\n   6 \n   7 \tssrHtml: `\n   8 \t\t<input>\n   9 \t\t<input value="a">\n  10 \t\t<input value="b">\n  11 \t`,\n  12 \n  13 \tasync test({ assert, component, target, window }) {\n  14 \t\tconst inputs = [...target.querySelectorAll(\'input\')];\n  15 \t\tconst event = new window.Event(\...
+```
+========================================================================================================================
+AGENT:
+The test case is complete and properly tests the scenario from the problem statement. Let me run the full test suite one more time to make sure everything is working:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test 2>&1 | grep -E "(passing|failing|pending)" | tail
+  -5
+timeout: 180
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+  1625 passing (2m)
+  51 pending
+  11 failing...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test 2>&1 | grep -A 5 "failing"
+timeout: 180
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+  11 failing
+
+  1) custom-elements
+       custom-method:
+     Error: Timeout of 10000ms exceeded. For async tests and hooks, ensure "done()" is called; if returning a Promise, ensure it resolves. (/workspace/test/test.js)
+      at listOnTimeout (node:internal/timers:588:17)...
+```
+========================================================================================================================
+AGENT:
+The failing tests are all pre-existing issues (custom-elements timeouts and binding-select), not related to my change. Let me verify this by checking the test failures:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test 2>&1 | grep -E "^\s+\d+\)" | head -15
+timeout: 180
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test 2>&1 | grep -B 1 "Error:" | head -30
+timeout: 180
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+       custom-method:
+     Error: Timeout of 10000ms exceeded. For async tests and hooks, ensure "done()" is called; if returning a Promise, ensure it resolves. (/workspace/test/test.js)
+--
+       escaped-css:
+     Error: Timeout of 10000ms exceeded. For async tests and hooks, ensure "done()" is called; if returning a Promise, ensure it resolves. (/workspace/test/test.js)
+--
+       html:
+     Error: Timeout of 10000ms exceeded. For async tests and hooks, ensure "done()" is called; if returning a...
+```
+========================================================================================================================
+AGENT:
+All the failing tests are:
+1. Custom-elements tests with timeout issues (9 tests) - these are pre-existing environment issues
+2. `binding-select` test (2 tests) - pre-existing issue
+
+None of these failures are related to my change. Let me verify by checking if these tests were failing before my change:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && git stash && npm run build 2>&1 | tail -3 && npm test 2>&1
+  | grep -E "(passing|failing|pending)" | tail -5
+timeout: 180
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Saved working directory and index state WIP on (no branch): ff2a21e63 Merge branch 'master' into embedded-repl-hide-compiler-options
+
+transition.mjs → transition.js...
+created transition.js in 4ms
+  1623 passing (2m)
+  51 pending
+  13 failing...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && git stash pop && npm run build 2>&1 | tail -3
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+HEAD detached at ff2a21e63
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   package-lock.json
+	modified:   src/compile/render-dom/wrappers/Element/index.ts
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	test/runtime/samples/binding-input-text-deconflicted-each/
+	tmp_code_c7f8d9e54cb9b38250307a90914ed36c0a5f8c3418c068e24e81e0cac3b3bcb...
+```
+========================================================================================================================
+AGENT:
+Without my change, there were 13 failing tests. With my change, there are 11 failing tests (because I added 2 new passing tests). This confirms that my change doesn't introduce any new test failures.
+
+Let me clean up the temporary files:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && rm -f tmp_*.bash
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+...
+```
+========================================================================================================================
+AGENT:
+Now let me provide a summary of the changes I made:
+
+## Summary
+
+### Problem
+Event handlers were not being properly deconflicted when one binding was inside an each loop and one was outside. This resulted in duplicate function names like `input_input_handler` being generated, which caused JavaScript errors.
+
+### Root Cause
+In `src/compile/render-dom/wrappers/Element/index.ts`, the handler name was being generated using `block.getUniqueName()` which only ensures uniqueness within that specific block's local scope. However, the handler function is hoisted to the component level via `renderer.component.partly_hoisted.push()`, so handlers from different blocks could end up with the same name.
+
+### Fix
+Changed line 412 from:
+```javascript
+const handler = block.getUniqueName(`${this.var}_${group.events.join('_')}_handler`);
+```
+to:
+```javascript
+const handler = renderer.component.getUniqueName(`${this.var}_${group.events.join('_')}_handler`);
+```
+
+This ensures that handler names are unique at the component level, not just within individual blocks.
+
+### Test Case Added
+Added a new test case `test/runtime/samples/binding-input-text-deconflicted-each/` that specifically tests the scenario from the problem statement - having a binding outside an each loop and another binding inside the each loop.
+========================================================================================================================
+AGENT:
+Successfully resolved the issue where event handlers were not being deconflicted when one binding was inside an each loop and one was outside. 
+
+The fix was a single-line change in `src/compile/render-dom/wrappers/Element/index.ts` on line 412, changing `block.getUniqueName()` to `renderer.component.getUniqueName()` to ensure handler names are unique at the component level rather than just within individual blocks.
+
+Added a test case `test/runtime/samples/binding-input-text-deconflicted-each/` to verify the fix works correctly.
+
+Before the fix, the generated code had duplicate function names:
+```javascript
+function input_input_handler() { ... }
+function input_input_handler({ bar, each_value, bar_index }) { ... }
+```
+
+After the fix, the handlers are properly deconflicted:
+```javascript
+function input_input_handler() { ... }
+function input_input_handler_1({ bar, each_value, bar_index }) { ... }
+```

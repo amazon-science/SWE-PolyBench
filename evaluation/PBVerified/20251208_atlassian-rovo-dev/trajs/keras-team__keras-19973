@@ -1,0 +1,930 @@
+########################################################################################################################
+PHASE 1
+########################################################################################################################
+========================================================================================================================
+AGENT:
+I will start by viewing the workspace to understand its structure and contents. This will help me identify key files and locations that may be relevant to the task.
+========================================================================================================================
+USER PROMPT:
+Resolve the following problem statement:
+
+<problem_statement>
+Inconsistent assertion in keras.layers.MultiHeadAttention
+I've noticed that depending on what is fed as the key, query and value to the keras.layers.MultiHeadAttention the assertion query_shape==value_shape is only _sometimes_ activated.
+
+Minimal working example (no assertion error):
+```
+`import os`
+`os.environ["KERAS_BACKEND"] = "torch"`
+`import torch  # ==2.3.0`
+`import keras  # ==3.3.0`
+
+`batch_size = 32`
+`seq_len = 256`
+`key_dim = 16`
+`value_dim = 8`
+`num_heads = 8`
+
+`query = torch.randn(batch_size, seq_len, key_dim)`
+`key = torch.randn(batch_size, seq_len, key_dim)`
+`value = torch.randn(batch_size, seq_len, value_dim)`
+
+`mha = keras.layers.MultiHeadAttention(num_heads=num_heads, key_dim=key_dim//num_heads)`
+`attn_out = mha(query=query, value=value, key=key)`
+
+In contrast, I've tried the same procedure with keras tensors instead (assertion error):
+`query = keras.Input(shape=(seq_len, key_dim))`
+`key = keras.Input(shape=(seq_len, key_dim))`
+`value = keras.Input(shape=(seq_len, value_dim))`
+
+`mha = keras.layers.MultiHeadAttention(num_heads=num_heads, key_dim=key_dim//num_heads)`
+`attn_out = mha(query=query, value=value, key=key)`
+```
+
+which yields:
+_The last dimension of `query_shape` and `value_shape` must be equal, but are 16, 8. Received: query_shape={query_shape}, value_shape={value_shape}_
+
+I realise that the former has a static batch shape of 32 while the latter a dynamic one, is that where the problem lies? 
+Or perhaps the former uses the torch version of [MultiHeadAttention ](https://keras.io/api/layers/attention_layers/multi_head_attention/)in which, according to to this [issue](https://github.com/pytorch/pytorch/pull/39402), the assertion has been removed?
+
+</problem_statement>
+
+Do not stop until you have made code changes that resolve the problem statement. Do not ask for clarifications.
+========================================================================================================================
+AGENT:
+Starting to analyze the problem statement. The issue is about an inconsistent assertion in keras.layers.MultiHeadAttention where the assertion `query_shape==value_shape` is only sometimes activated depending on whether torch tensors or keras tensors are used as inputs.
+========================================================================================================================
+AGENT:
+<thinking>
+Let me analyze the problem statement:
+
+1. The user is reporting that when using `keras.layers.MultiHeadAttention`, there's an inconsistent behavior:
+   - When using torch tensors directly (with different dimensions for query/key vs value), no assertion error occurs
+   - When using keras.Input tensors (with the same different dimensions), an assertion error occurs
+
+2. The error message is: "The last dimension of `query_shape` and `value_shape` must be equal, but are 16, 8."
+
+3. This seems to be a bug where the assertion is incorrectly checking that query and value have the same last dimension, but according to the MultiHeadAttention API, this shouldn't be required. The query and key should have compatible dimensions (for computing attention scores), but the value can have a different dimension.
+
+Let me first look at the MultiHeadAttention implementation to understand the issue.
+</thinking>
+
+EXPLORE WORKSPACE: Let me first look at the MultiHeadAttention implementation to understand the issue.
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- keras/src/layers/attention/multi_head_attention.py
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened keras/src/layers/attention/multi_head_attention.py:\n\n````python\n   0 import collections\n...\n   6 from keras.src import backend\n...\n  18 @keras_export("keras.layers.MultiHeadAttention")\n  19 class MultiHeadAttention(Layer):\n...\n  97     def __init__(\n...\n 143     @property\n 144     def num_heads(self):\n...\n 147     @property\n 148     def key_dim(self):\n...\n 151     @property\n 152     def value_dim(self):\n...\n 155     @property\n 156     def dropout(self)...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+I need to expand the relevant code chunks to understand the issue. Let me look at the `build` method and the `call` method to see where the assertion is happening.
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: keras/src/layers/attention/multi_head_attention.py
+patterns:
+- build
+- call
+- _build_from_signature
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in keras/src/layers/attention/multi_head_attention.py:
+
+````python
+   0 import collections
+...
+   6 from keras.src import backend
+...
+  18 @keras_export("keras.layers.MultiHeadAttention")
+  19 class MultiHeadAttention(Layer):
+  20     """MultiHeadAttention layer.
+  21 
+  22     This is an implementation of multi-headed attention as described in the
+  23     paper "Attention is all you Need"
+  24     [Vaswani et al., 2017](https://arxiv.org/abs/1706.03762).
+  25 ...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Now I can see the issue. Looking at the `compute_output_shape` method (lines 582-608), there's a check:
+
+```python
+if query_shape[-1] != value_shape[-1]:
+    raise ValueError(
+        "The last dimension of `query_shape` and `value_shape` "
+        f"must be equal, but are {query_shape[-1]}, {value_shape[-1]}. "
+        "Received: query_shape={query_shape}, value_shape={value_shape}"
+    )
+```
+
+This assertion is incorrect! According to the MultiHeadAttention documentation and the standard attention mechanism:
+- Query and Key should have compatible dimensions (for computing attention scores)
+- Value can have a different dimension
+
+Looking at the `build` method, we can see that:
+- `_query_dense` projects query to `[num_heads, key_dim]`
+- `_key_dense` projects key to `[num_heads, key_dim]`
+- `_value_dense` projects value to `[num_heads, value_dim]`
+
+So the input dimensions of query, key, and value don't need to match - they're all projected to the appropriate dimensions. The assertion in `compute_output_shape` is wrong.
+
+The reason the error only occurs with Keras tensors (symbolic inputs) and not with torch tensors is that:
+1. When using torch tensors directly, the layer is built and called without going through `compute_output_shape` or `compute_output_spec`
+2. When using Keras Input tensors (symbolic), the `compute_output_spec` method is called, which in turn calls `compute_output_shape`, triggering the incorrect assertion
+
+Let me also check the test file to understand the expected behavior better.
+</thinking>
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- keras/src/layers/attention/multi_head_attention_test.py
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened keras/src/layers/attention/multi_head_attention_test.py:\n\n````python\n   0 import os\n...\n   4 from absl.testing import parameterized\n...\n  16 class MultiHeadAttentionTest(testing.TestCase, parameterized.TestCase):\n  17     def test_basics(self):\n...\n  53     @parameterized.named_parameters(\n...\n  67     def test_high_dim_attention(\n...\n  93     @parameterized.named_parameters(\n...\n 107     def test_compute_output_shape(\n...\n 131     @parameterized.named_par...
+```
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: keras/src/layers/attention/multi_head_attention_test.py
+patterns:
+- test_compute_output_shape
+- test_shape_mismatch_error
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in keras/src/layers/attention/multi_head_attention_test.py:
+
+````python
+   0 import os
+...
+   4 from absl.testing import parameterized
+...
+  16 class MultiHeadAttentionTest(testing.TestCase, parameterized.TestCase):
+  17     def test_basics(self):
+...
+  53     @parameterized.named_parameters(
+...
+  67     def test_high_dim_attention(
+...
+  93     @parameterized.named_parameters(
+...
+ 107     def test_compute_output_shape(
+ 108         self, query_dims, value_dim...
+```
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: keras/src/layers/attention/multi_head_attention_test.py
+line_ranges:
+- - 93
+  - 150
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in keras/src/layers/attention/multi_head_attention_test.py:
+
+````python
+   0 import os
+...
+   4 from absl.testing import parameterized
+...
+  16 class MultiHeadAttentionTest(testing.TestCase, parameterized.TestCase):
+  17     def test_basics(self):
+...
+  53     @parameterized.named_parameters(
+...
+  67     def test_high_dim_attention(
+...
+  93     @parameterized.named_parameters(
+  94         ("without_key_same_proj", (4, 8), (2, 8), None, None),
+  95         ("w...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Now I understand the issue better. Looking at the test cases:
+
+1. In `test_compute_output_shape`, all the test cases have query and value with the same last dimension (8 in all cases). This is because the current implementation incorrectly requires `query_shape[-1] == value_shape[-1]`.
+
+2. In `test_shape_mismatch_error`, the test case `("query_value_dim_mismatch", (2, 4, 8), (2, 2, 7), 2)` expects an error when query has last dim 8 and value has last dim 7. But this is actually a valid use case! The query and value don't need to have the same last dimension.
+
+The issue is that the assertion in `compute_output_shape` is incorrect. According to the MultiHeadAttention mechanism:
+- Query is projected to `[num_heads, key_dim]`
+- Key is projected to `[num_heads, key_dim]`
+- Value is projected to `[num_heads, value_dim]`
+
+So the input dimensions of query, key, and value can all be different - they're all projected to the appropriate dimensions by the dense layers.
+
+The correct behavior should be:
+1. Query and Key should have compatible shapes for attention computation (same sequence dimensions except for the last one)
+2. Value and Key should have compatible shapes (same sequence dimensions except for the last one)
+3. The last dimension of query, key, and value can all be different
+
+Let me verify this by looking at the build method more carefully. The build method doesn't have this assertion - it just builds the projection layers based on the input shapes. The assertion is only in `compute_output_shape`.
+
+So the fix should be:
+1. Remove the incorrect assertion `query_shape[-1] != value_shape[-1]` from `compute_output_shape`
+2. Update the test cases to reflect the correct behavior
+
+Let me also check if there are any other places where this assertion might be needed or if there are any dependencies on this behavior.
+</thinking>
+========================================================================================================================
+AGENT:
+I've identified the issue. The `compute_output_shape` method in MultiHeadAttention has an incorrect assertion that requires `query_shape[-1] == value_shape[-1]`. This is wrong because in MultiHeadAttention, query, key, and value are all projected to appropriate dimensions, so their input dimensions don't need to match. I'll now fix this issue.
+========================================================================================================================
+AGENT:
+Let me first create a minimal reproduction script to verify the issue:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && pip install -e . -q 2>&1 | tail -5
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python -c \"\nimport os\nos.environ['KERAS_BACKEND'] =\
+  \ 'numpy'\nimport keras\n\nbatch_size = 32\nseq_len = 256\nkey_dim = 16\nvalue_dim\
+  \ = 8\nnum_heads = 8\n\n# Test with keras Input tensors (symbolic) - this should\
+  \ work but currently fails\nquery = keras.Input(shape=(seq_len, key_dim))\nkey =\
+  \ keras.Input(shape=(seq_len, key_dim))\nvalue = keras.Input(shape=(seq_len, value_dim))\n\
+  \nmha = keras.layers.MultiHeadAttention(num_heads=num_heads, key_dim=key_dim//num_heads)\n\
+  try:\n    attn_out = mha(query=query, value=value, key=key)\n    print('SUCCESS:\
+  \ No error with symbolic tensors')\nexcept ValueError as e:\n    print(f'ERROR:\
+  \ {e}')\n\"\n"
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Traceback (most recent call last):
+  File "<string>", line 4, in <module>
+  File "/workspace/keras/__init__.py", line 4, in <module>
+    from keras.api import DTypePolicy
+  File "/workspace/keras/api/__init__.py", line 7, in <module>
+    from keras.api import _tf_keras
+  File "/workspace/keras/api/_tf_keras/__init__.py", line 1, in <module>
+    from keras.api._tf_keras import keras
+  File "/workspace/keras/api/_tf_keras/keras/__init__.py", line 7, in <module>
+    from keras.api import activation...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: pip install jax jaxlib numpy -q 2>&1 | tail -3
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python -c \"\nimport os\nos.environ['KERAS_BACKEND'] =\
+  \ 'numpy'\nimport keras\n\nbatch_size = 32\nseq_len = 256\nkey_dim = 16\nvalue_dim\
+  \ = 8\nnum_heads = 8\n\n# Test with keras Input tensors (symbolic) - this should\
+  \ work but currently fails\nquery = keras.Input(shape=(seq_len, key_dim))\nkey =\
+  \ keras.Input(shape=(seq_len, key_dim))\nvalue = keras.Input(shape=(seq_len, value_dim))\n\
+  \nmha = keras.layers.MultiHeadAttention(num_heads=num_heads, key_dim=key_dim//num_heads)\n\
+  try:\n    attn_out = mha(query=query, value=value, key=key)\n    print('SUCCESS:\
+  \ No error with symbolic tensors')\nexcept ValueError as e:\n    print(f'ERROR:\
+  \ {e}')\n\"\n"
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+ERROR: Exception encountered when calling MultiHeadAttention.call().
+
+[1mThe last dimension of `query_shape` and `value_shape` must be equal, but are 16, 8. Received: query_shape={query_shape}, value_shape={value_shape}[0m
+
+Arguments received by MultiHeadAttention.call():
+  • args=<class 'inspect._empty'>
+  • kwargs={'query': '<KerasTensor shape=(None, 256, 16), dtype=float32, sparse=False, name=keras_tensor>', 'value': '<KerasTensor shape=(None, 256, 8), dtype=float32, sparse=False, name=kera...
+```
+========================================================================================================================
+AGENT:
+I've confirmed the issue. Now let me fix it by removing the incorrect assertion from `compute_output_shape`:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: keras/src/layers/attention/multi_head_attention.py
+find: "    def compute_output_shape(\n        self,\n        query_shape,\n      \
+  \  value_shape,\n        key_shape=None,\n    ):\n        if key_shape is None:\n\
+  \            key_shape = value_shape\n\n        if query_shape[-1] != value_shape[-1]:\n\
+  \            raise ValueError(\n                \"The last dimension of `query_shape`\
+  \ and `value_shape` \"\n                f\"must be equal, but are {query_shape[-1]},\
+  \ {value_shape[-1]}. \"\n                \"Received: query_shape={query_shape},\
+  \ value_shape={value_shape}\"\n            )\n\n        if value_shape[1:-1] !=\
+  \ key_shape[1:-1]:\n            raise ValueError(\n                \"All dimensions\
+  \ of `value` and `key`, except the last one, \"\n                f\"must be equal.\
+  \ Received: value_shape={value_shape} and \"\n                f\"key_shape={key_shape}\"\
+  \n            )\n\n        if self._output_shape:\n            return query_shape[:-1]\
+  \ + self._output_shape\n\n        return query_shape"
+replace: "    def compute_output_shape(\n        self,\n        query_shape,\n   \
+  \     value_shape,\n        key_shape=None,\n    ):\n        if key_shape is None:\n\
+  \            key_shape = value_shape\n\n        if value_shape[1:-1] != key_shape[1:-1]:\n\
+  \            raise ValueError(\n                \"All dimensions of `value` and\
+  \ `key`, except the last one, \"\n                f\"must be equal. Received: value_shape={value_shape}\
+  \ and \"\n                f\"key_shape={key_shape}\"\n            )\n\n        if\
+  \ self._output_shape:\n            return query_shape[:-1] + self._output_shape\n\
+  \n        return query_shape"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in keras/src/layers/attention/multi_head_attention.py:
+
+--- keras/src/layers/attention/multi_head_attention.py
++++ keras/src/layers/attention/multi_head_attention.py
+@@ -589,13 +589,6 @@
+         if key_shape is None:
+             key_shape = value_shape
+ 
+-        if query_shape[-1] != value_shape[-1]:
+-            raise ValueError(
+-                "The last dimension of `query_shape` and `value_shape` "
+-                f"must be equal, but are {query_shape[-1]}, {v...
+```
+========================================================================================================================
+AGENT:
+Now I need to update the test file to remove the test case that expects an error when query and value have different last dimensions:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: keras/src/layers/attention/multi_head_attention_test.py
+find: "    @parameterized.named_parameters(\n        (\"query_value_dim_mismatch\"\
+  , (2, 4, 8), (2, 2, 7), 2),\n        (\"key_value_dim_mismatch\", (2, 4, 8), (2,\
+  \ 2, 8), (2, 1, 7)),\n        (\n            \"key_value_dim_mismatch_high_dim\"\
+  ,\n            (2, 4, 2, 3, 8),\n            (2, 1, 1, 5, 8),\n            (2, 1,\
+  \ 15, 5, 2),\n        ),\n    )\n    def test_shape_mismatch_error(self, query_shape,\
+  \ value_shape, key_shape):"
+replace: "    @parameterized.named_parameters(\n        (\"key_value_dim_mismatch\"\
+  , (2, 4, 8), (2, 2, 8), (2, 1, 7)),\n        (\n            \"key_value_dim_mismatch_high_dim\"\
+  ,\n            (2, 4, 2, 3, 8),\n            (2, 1, 1, 5, 8),\n            (2, 1,\
+  \ 15, 5, 2),\n        ),\n    )\n    def test_shape_mismatch_error(self, query_shape,\
+  \ value_shape, key_shape):"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in keras/src/layers/attention/multi_head_attention_test.py:
+
+--- keras/src/layers/attention/multi_head_attention_test.py
++++ keras/src/layers/attention/multi_head_attention_test.py
+@@ -130,7 +130,6 @@
+         self.assertEqual(output.shape, comp_output_shape)
+ 
+     @parameterized.named_parameters(
+-        ("query_value_dim_mismatch", (2, 4, 8), (2, 2, 7), 2),
+         ("key_value_dim_mismatch", (2, 4, 8), (2, 2, 8), (2, 1, 7)),
+         (
+             "key_value_dim_...
+```
+========================================================================================================================
+AGENT:
+Now let me verify the fix works:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python -c \"\nimport os\nos.environ['KERAS_BACKEND'] =\
+  \ 'numpy'\nimport keras\n\nbatch_size = 32\nseq_len = 256\nkey_dim = 16\nvalue_dim\
+  \ = 8\nnum_heads = 8\n\n# Test with keras Input tensors (symbolic) - this should\
+  \ work now\nquery = keras.Input(shape=(seq_len, key_dim))\nkey = keras.Input(shape=(seq_len,\
+  \ key_dim))\nvalue = keras.Input(shape=(seq_len, value_dim))\n\nmha = keras.layers.MultiHeadAttention(num_heads=num_heads,\
+  \ key_dim=key_dim//num_heads)\ntry:\n    attn_out = mha(query=query, value=value,\
+  \ key=key)\n    print('SUCCESS: No error with symbolic tensors')\n    print(f'Output\
+  \ shape: {attn_out.shape}')\nexcept ValueError as e:\n    print(f'ERROR: {e}')\n\
+  \"\n"
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+SUCCESS: No error with symbolic tensors
+Output shape: (None, 256, 16)...
+```
+========================================================================================================================
+AGENT:
+The fix works. Now let me also add a test case to ensure that different query and value dimensions work correctly:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: keras/src/layers/attention/multi_head_attention_test.py
+line_ranges:
+- - 93
+  - 130
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in keras/src/layers/attention/multi_head_attention_test.py:
+
+````python
+   0 import os
+...
+   4 from absl.testing import parameterized
+...
+  16 class MultiHeadAttentionTest(testing.TestCase, parameterized.TestCase):
+  17     def test_basics(self):
+...
+  53     @parameterized.named_parameters(
+...
+  67     def test_high_dim_attention(
+...
+  93     @parameterized.named_parameters(
+  94         ("without_key_same_proj", (4, 8), (2, 8), None, None),
+  95         ("w...
+```
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: keras/src/layers/attention/multi_head_attention_test.py
+find: "    @parameterized.named_parameters(\n        (\"without_key_same_proj\", (4,\
+  \ 8), (2, 8), None, None),\n        (\"with_key_same_proj\", (4, 8), (2, 8), (2,\
+  \ 3), None),\n        (\"wihtout_key_different_proj\", (4, 8), (2, 8), None, (3,\
+  \ 4)),\n        (\"with_key_different_proj\", (4, 8), (2, 8), (2, 3), (1, 5)),\n\
+  \        (\"high_dim_same_proj\", (4, 2, 3, 8), (1, 1, 5, 8), (1, 1, 5, 2), None),\n\
+  \        (\n            \"high_dim_different_proj\",\n            (4, 2, 3, 8),\n\
+  \            (1, 1, 5, 8),\n            (1, 1, 5, 2),\n            (3, 2),\n   \
+  \     ),\n    )\n    def test_compute_output_shape(\n        self, query_dims, value_dims,\
+  \ key_dims, output_shape\n    ):"
+replace: "    @parameterized.named_parameters(\n        (\"without_key_same_proj\"\
+  , (4, 8), (2, 8), None, None),\n        (\"with_key_same_proj\", (4, 8), (2, 8),\
+  \ (2, 3), None),\n        (\"wihtout_key_different_proj\", (4, 8), (2, 8), None,\
+  \ (3, 4)),\n        (\"with_key_different_proj\", (4, 8), (2, 8), (2, 3), (1, 5)),\n\
+  \        (\"high_dim_same_proj\", (4, 2, 3, 8), (1, 1, 5, 8), (1, 1, 5, 2), None),\n\
+  \        (\n            \"high_dim_different_proj\",\n            (4, 2, 3, 8),\n\
+  \            (1, 1, 5, 8),\n            (1, 1, 5, 2),\n            (3, 2),\n   \
+  \     ),\n        # Test case where query and value have different last dimensions\n\
+  \        (\"different_qv_dims\", (4, 16), (2, 8), None, None),\n        (\"different_qv_dims_with_key\"\
+  , (4, 16), (2, 8), (2, 12), None),\n    )\n    def test_compute_output_shape(\n\
+  \        self, query_dims, value_dims, key_dims, output_shape\n    ):"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in keras/src/layers/attention/multi_head_attention_test.py:
+
+--- keras/src/layers/attention/multi_head_attention_test.py
++++ keras/src/layers/attention/multi_head_attention_test.py
+@@ -104,6 +104,9 @@
+             (1, 1, 5, 2),
+             (3, 2),
+         ),
++        # Test case where query and value have different last dimensions
++        ("different_qv_dims", (4, 16), (2, 8), None, None),
++        ("different_qv_dims_with_key", (4, 16), (2, 8), (2, 12), None),
+    ...
+```
+========================================================================================================================
+AGENT:
+Now let me run the tests to make sure everything works:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python -m pytest keras/src/layers/attention/multi_head_attention_test.py
+  -v -x 2>&1 | head -100
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+/root/.pyenv/versions/3.11.12/bin/python: No module named pytest...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: pip install pytest absl-py -q 2>&1 | tail -3
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python -m pytest keras/src/layers/attention/multi_head_attention_test.py::MultiHeadAttentionTest::test_compute_output_shape
+  -v 2>&1 | head -60
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+ImportError while loading conftest '/workspace/conftest.py'.
+conftest.py:17: in <module>
+    from keras.src.backend import backend  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+keras/__init__.py:4: in <module>
+    from keras.api import DTypePolicy
+keras/api/__init__.py:7: in <module>
+    from keras.api import _tf_keras
+keras/api/_tf_keras/__init__.py:1: in <module>
+    from keras.api._tf_keras import keras
+keras/api/_tf_keras/keras/__init__.py:7: in <module>
+    from keras.api import a...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: pip install tensorflow -q 2>&1 | tail -3
+timeout: 180
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python -m pytest keras/src/layers/attention/multi_head_attention_test.py::MultiHeadAttentionTest::test_compute_output_shape
+  -v 2>&1
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+============================= test session starts ==============================
+platform linux -- Python 3.11.12, pytest-9.0.1, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python
+cachedir: .pytest_cache
+rootdir: /workspace
+configfile: pyproject.toml
+collecting ... ERROR: not found: /workspace/keras/src/layers/attention/multi_head_attention_test.py::MultiHeadAttentionTest::test_compute_output_shape
+(no match in any of [<UnitTestCase MultiHeadAttentionTest>])
+
+collected 0 items
+
+===========...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python -m pytest keras/src/layers/attention/multi_head_attention_test.py
+  -k "test_compute_output_shape" -v 2>&1
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+============================= test session starts ==============================
+platform linux -- Python 3.11.12, pytest-9.0.1, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python
+cachedir: .pytest_cache
+rootdir: /workspace
+configfile: pyproject.toml
+collecting ... collected 27 items / 19 deselected / 8 selected
+
+keras/src/layers/attention/multi_head_attention_test.py::MultiHeadAttentionTest::test_compute_output_shape_different_qv_dims PASSED [ 12%]
+keras/src/layers/attention/multi_head_at...
+```
+========================================================================================================================
+AGENT:
+All the `test_compute_output_shape` tests pass, including the new test cases for different query and value dimensions. Now let me run the `test_shape_mismatch_error` tests:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python -m pytest keras/src/layers/attention/multi_head_attention_test.py
+  -k "test_shape_mismatch_error" -v 2>&1
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+============================= test session starts ==============================
+platform linux -- Python 3.11.12, pytest-9.0.1, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python
+cachedir: .pytest_cache
+rootdir: /workspace
+configfile: pyproject.toml
+collecting ... collected 27 items / 25 deselected / 2 selected
+
+keras/src/layers/attention/multi_head_attention_test.py::MultiHeadAttentionTest::test_shape_mismatch_error_key_value_dim_mismatch PASSED [ 50%]
+keras/src/layers/attention/multi_he...
+```
+========================================================================================================================
+AGENT:
+Now let me run all the MultiHeadAttention tests to make sure nothing is broken:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python -m pytest keras/src/layers/attention/multi_head_attention_test.py
+  -v 2>&1
+timeout: 180
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+============================= test session starts ==============================
+platform linux -- Python 3.11.12, pytest-9.0.1, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python
+cachedir: .pytest_cache
+rootdir: /workspace
+configfile: pyproject.toml
+collecting ... collected 27 items
+
+keras/src/layers/attention/multi_head_attention_test.py::MultiHeadAttentionTest::test_basics PASSED [  3%]
+keras/src/layers/attention/multi_head_attention_test.py::MultiHeadAttentionTest::test_compute_output_...
+```
+========================================================================================================================
+AGENT:
+All tests pass. Now let me verify the original issue is fixed with a more comprehensive test:
+========================================================================================================================
+TOOL CALL (bash)
+command: 'cd /workspace && python -c "
+
+  import os
+
+  os.environ[''KERAS_BACKEND''] = ''numpy''
+
+  import keras
+
+  import numpy as np
+
+
+  print(''Testing MultiHeadAttention with different query/value dimensions...'')
+
+
+  batch_size = 32
+
+  seq_len = 256
+
+  key_dim = 16
+
+  value_dim = 8
+
+  num_heads = 8
+
+
+  # Test 1: With keras Input tensors (symbolic)
+
+  print(''\\nTest 1: Symbolic tensors (keras.Input)'')
+
+  query = keras.Input(shape=(seq_len, key_dim))
+
+  key = keras.Input(shape=(seq_len, key_dim))
+
+  value = keras.Input(shape=(seq_len, value_dim))
+
+
+  mha = keras.layers.MultiHeadAttention(num_heads=num_heads, key_dim=key_dim//num_heads)
+
+  attn_out = mha(query=query, value=value, key=key)
+
+  print(f''  Query shape: {query.shape}'')
+
+  print(f''  Key shape: {key.shape}'')
+
+  print(f''  Value shape: {value.shape}'')
+
+  print(f''  Output shape: {attn_out.shape}'')
+
+  print(''  SUCCESS!'')
+
+
+  # Test 2: With numpy arrays
+
+  print(''\\nTest 2: Numpy arrays'')
+
+  query_np = np.random.randn(batch_size, seq_len, key_dim).astype(np.float32)
+
+  key_np = np.random.randn(batch_size, seq_len, key_dim).astype(np.float32)
+
+  value_np = np.random.randn(batch_size, seq_len, value_dim).astype(np.float32)
+
+
+  mha2 = keras.layers.MultiHeadAttention(num_heads=num_heads, key_dim=key_dim//num_heads)
+
+  attn_out2 = mha2(query=query_np, value=value_np, key=key_np)
+
+  print(f''  Query shape: {query_np.shape}'')
+
+  print(f''  Key shape: {key_np.shape}'')
+
+  print(f''  Value shape: {value_np.shape}'')
+
+  print(f''  Output shape: {attn_out2.shape}'')
+
+  print(''  SUCCESS!'')
+
+
+  # Test 3: Build a functional model
+
+  print(''\\nTest 3: Functional model'')
+
+  query_input = keras.Input(shape=(seq_len, key_dim), name=''query'')
+
+  key_input = keras.Input(shape=(seq_len, key_dim), name=''key'')
+
+  value_input = keras.Input(shape=(seq_len, value_dim), name=''value'')
+
+
+  mha3 = keras.layers.MultiHeadAttention(num_heads=num_heads, key_dim=key_dim//num_heads)
+
+  output = mha3(query=query_input, value=value_input, key=key_input)
+
+
+  model = keras.Model(inputs=[query_input, key_input, value_input], outputs=output)
+
+  print(f''  Model input shapes: {[inp.shape for inp in model.inputs]}'')
+
+  print(f''  Model output shape: {model.output.shape}'')
+
+
+  # Run inference
+
+  result = model.predict([query_np, key_np, value_np], verbose=0)
+
+  print(f''  Inference result shape: {result.shape}'')
+
+  print(''  SUCCESS!'')
+
+
+  print(''\\nAll tests passed!'')
+
+  "
+
+  '
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Testing MultiHeadAttention with different query/value dimensions...
+
+Test 1: Symbolic tensors (keras.Input)
+  Query shape: (None, 256, 16)
+  Key shape: (None, 256, 16)
+  Value shape: (None, 256, 8)
+  Output shape: (None, 256, 16)
+  SUCCESS!
+
+Test 2: Numpy arrays
+  Query shape: (32, 256, 16)
+  Key shape: (32, 256, 16)
+  Value shape: (32, 256, 8)
+  Output shape: (32, 256, 16)
+  SUCCESS!
+
+Test 3: Functional model
+  Model input shapes: [(None, 256, 16), (None, 256, 16), (None, 256, 8)]
+  Model outpu...
+```
+========================================================================================================================
+AGENT:
+Excellent! The fix works correctly. Let me also review the changes I made to ensure they are correct:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: keras/src/layers/attention/multi_head_attention.py
+patterns:
+- compute_output_shape
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in keras/src/layers/attention/multi_head_attention.py:
+
+````python
+   0 import collections
+...
+   6 from keras.src import backend
+...
+  18 @keras_export("keras.layers.MultiHeadAttention")
+  19 class MultiHeadAttention(Layer):
+  20     """MultiHeadAttention layer.
+  21 
+  22     This is an implementation of multi-headed attention as described in the
+  23     paper "Attention is all you Need"
+  24     [Vaswani et al., 2017](https://arxiv.org/abs/1706.03762).
+  25 ...
+```
+========================================================================================================================
+AGENT:
+The changes look correct. Let me also verify the test file changes:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: keras/src/layers/attention/multi_head_attention_test.py
+line_ranges:
+- - 93
+  - 152
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in keras/src/layers/attention/multi_head_attention_test.py:
+
+````python
+   0 import os
+...
+   4 from absl.testing import parameterized
+...
+  16 class MultiHeadAttentionTest(testing.TestCase, parameterized.TestCase):
+  17     def test_basics(self):
+...
+  53     @parameterized.named_parameters(
+...
+  67     def test_high_dim_attention(
+...
+  93     @parameterized.named_parameters(
+  94         ("without_key_same_proj", (4, 8), (2, 8), None, None),
+  95         ("w...
+```
+========================================================================================================================
+AGENT:
+The changes look correct. Let me run a final comprehensive test to ensure everything works:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python -c \"\nimport os\nos.environ['KERAS_BACKEND'] =\
+  \ 'numpy'\nimport keras\nimport numpy as np\n\nprint('=== Final Verification Tests\
+  \ ===')\nprint()\n\n# Test 1: Original issue - symbolic tensors with different query/value\
+  \ dims\nprint('Test 1: Original issue - symbolic tensors with different query/value\
+  \ dims')\nbatch_size = 32\nseq_len = 256\nkey_dim = 16\nvalue_dim = 8\nnum_heads\
+  \ = 8\n\nquery = keras.Input(shape=(seq_len, key_dim))\nkey = keras.Input(shape=(seq_len,\
+  \ key_dim))\nvalue = keras.Input(shape=(seq_len, value_dim))\n\nmha = keras.layers.MultiHeadAttention(num_heads=num_heads,\
+  \ key_dim=key_dim//num_heads)\nattn_out = mha(query=query, value=value, key=key)\n\
+  print(f'  PASSED: Output shape = {attn_out.shape}')\n\n# Test 2: Same dimensions\
+  \ (should still work)\nprint()\nprint('Test 2: Same dimensions (should still work)')\n\
+  query2 = keras.Input(shape=(seq_len, key_dim))\nkey2 = keras.Input(shape=(seq_len,\
+  \ key_dim))\nvalue2 = keras.Input(shape=(seq_len, key_dim))\n\nmha2 = keras.layers.MultiHeadAttention(num_heads=num_heads,\
+  \ key_dim=key_dim//num_heads)\nattn_out2 = mha2(query=query2, value=value2, key=key2)\n\
+  print(f'  PASSED: Output shape = {attn_out2.shape}')\n\n# Test 3: Key and value\
+  \ dimension mismatch (should raise error)\nprint()\nprint('Test 3: Key and value\
+  \ sequence dimension mismatch (should raise error)')\ntry:\n    layer = keras.layers.MultiHeadAttention(num_heads=4,\
+  \ key_dim=2, value_dim=2)\n    layer.compute_output_shape((2, 4, 8), (2, 2, 8),\
+  \ (2, 1, 7))  # key has different seq dim\n    print('  FAILED: Should have raised\
+  \ ValueError')\nexcept ValueError as e:\n    print(f'  PASSED: Correctly raised\
+  \ ValueError')\n\n# Test 4: Functional model with different query/value dims\nprint()\n\
+  print('Test 4: Functional model with different query/value dims')\nquery_input =\
+  \ keras.Input(shape=(10, 32), name='query')\nkey_input = keras.Input(shape=(20,\
+  \ 32), name='key')\nvalue_input = keras.Input(shape=(20, 16), name='value')\n\n\
+  mha3 = keras.layers.MultiHeadAttention(num_heads=4, key_dim=8, value_dim=4)\noutput\
+  \ = mha3(query=query_input, value=value_input, key=key_input)\n\nmodel = keras.Model(inputs=[query_input,\
+  \ key_input, value_input], outputs=output)\nprint(f'  Model output shape: {model.output.shape}')\n\
+  \n# Run inference\nquery_np = np.random.randn(2, 10, 32).astype(np.float32)\nkey_np\
+  \ = np.random.randn(2, 20, 32).astype(np.float32)\nvalue_np = np.random.randn(2,\
+  \ 20, 16).astype(np.float32)\nresult = model.predict([query_np, key_np, value_np],\
+  \ verbose=0)\nprint(f'  Inference result shape: {result.shape}')\nprint('  PASSED')\n\
+  \nprint()\nprint('=== All tests passed! ===')\n\"\n"
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+=== Final Verification Tests ===
+
+Test 1: Original issue - symbolic tensors with different query/value dims
+  PASSED: Output shape = (None, 256, 16)
+
+Test 2: Same dimensions (should still work)
+  PASSED: Output shape = (None, 256, 16)
+
+Test 3: Key and value sequence dimension mismatch (should raise error)
+  PASSED: Correctly raised ValueError
+
+Test 4: Functional model with different query/value dims
+  Model output shape: (None, 10, 32)
+  Inference result shape: (2, 10, 32)
+  PASSED
+
+=== All test...
+```
+========================================================================================================================
+AGENT:
+All tests pass. Let me provide a summary of the changes made:
+========================================================================================================================
+AGENT:
+Successfully resolved the inconsistent assertion in keras.layers.MultiHeadAttention.
+
+## Problem
+The `compute_output_shape` method in `MultiHeadAttention` had an incorrect assertion that required `query_shape[-1] == value_shape[-1]`. This caused an error when using Keras symbolic tensors (keras.Input) with different dimensions for query and value, but worked fine with regular tensors (like torch tensors) because they bypass the `compute_output_shape` check.
+
+## Root Cause
+In MultiHeadAttention, the query, key, and value inputs are all projected to appropriate dimensions by dense layers:
+- Query is projected to `[num_heads, key_dim]`
+- Key is projected to `[num_heads, key_dim]`
+- Value is projected to `[num_heads, value_dim]`
+
+Therefore, the input dimensions of query, key, and value don't need to match - they're all projected to the appropriate dimensions. The assertion was incorrectly enforcing that query and value have the same last dimension.
+
+## Changes Made
+
+1. **keras/src/layers/attention/multi_head_attention.py**:
+   - Removed the incorrect assertion in `compute_output_shape` that checked `query_shape[-1] != value_shape[-1]`
+   - The remaining check for `value_shape[1:-1] != key_shape[1:-1]` is correct and ensures that key and value have compatible sequence dimensions
+
+2. **keras/src/layers/attention/multi_head_attention_test.py**:
+   - Removed the test case `("query_value_dim_mismatch", (2, 4, 8), (2, 2, 7), 2)` from `test_shape_mismatch_error` since this is now a valid use case
+   - Added two new test cases to `test_compute_output_shape` to verify that different query and value dimensions work correctly:
+     - `("different_qv_dims", (4, 16), (2, 8), None, None)`
+     - `("different_qv_dims_with_key", (4, 16), (2, 8), (2, 12), None)`
+
+All 27 tests in the MultiHeadAttention test file pass after these changes.
