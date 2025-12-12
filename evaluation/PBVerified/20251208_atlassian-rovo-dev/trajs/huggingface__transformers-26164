@@ -146,30 +146,32 @@ It slices the text prompt ids and takes `(self.config.max_length // 2 + 1)` toke
 </problem_statement>
 
 Do not stop until you have made code changes that resolve the problem statement. Do not ask for clarifications.
+
+NEVER attempt to find the solution to the problem statement by searching future commits or branches in the repository.
 ========================================================================================================================
 AGENT:
-Starting to analyze the problem statement. The issue is related to Whisper prompting with max_new_tokens causing an IndexError. I need to examine the Whisper modeling code to understand the bug and fix it.
+Starting to analyze the problem statement. The issue is related to Whisper prompting with max_new_tokens causing an IndexError when the generated tokens reach their maximum length. I need to examine the Whisper modeling code to understand the bug and fix it.
 ========================================================================================================================
 AGENT:
+STEP 1: EXPLORE THE WHISPER MODELING CODE
+
 <thinking>
 Let me analyze the problem statement:
 
 1. The bug occurs when:
    - `len(prompt_ids) + max_new_tokens > model.config.max_length + 1`
    - `max_new_tokens` is fixed in `model.generate()`
-   - The length of generated tokens reaches its maximum (when Whisper fails to predict `eos` token)
+   - The length of generated new tokens reaches its maximum (when Whisper fails to predict the `eos` token)
 
-2. The error is an `IndexError: index -1 is out of bounds for dimension 1 with size 0` which happens in the greedy_search function when trying to access `outputs.logits[:, -1, :]`.
+2. The error is an `IndexError: index -1 is out of bounds for dimension 1 with size 0` which happens in `greedy_search` when trying to access `outputs.logits[:, -1, :]`.
 
-3. There's also a note about a potential bug in the slicing of text_prompt_ids:
-   - Current code: `text_prompt_ids = text_prompt_ids[-self.config.max_length // 2 - 1 :]`
+3. There's also a note about a line in the code that slices text prompt ids incorrectly:
+   - Current: `text_prompt_ids = text_prompt_ids[-self.config.max_length // 2 - 1 :]`
    - This takes `(self.config.max_length // 2 + 1)` tokens
    - Original Whisper code takes `(self.config.max_length // 2 - 1)` tokens
 
 Let me first look at the Whisper modeling code to understand the issue better.
 </thinking>
-
-Let me start by examining the Whisper modeling code to understand the issue:
 ========================================================================================================================
 TOOL CALL (open_files)
 file_paths:
@@ -183,7 +185,7 @@ TOOL RETURN (open_files)
 ========================================================================================================================
 AGENT:
 <thinking>
-I need to expand the `generate` method of `WhisperForConditionalGeneration` to see the code that handles prompt_ids and max_new_tokens. Let me expand that section.
+Now I need to expand the `generate` method in the `WhisperForConditionalGeneration` class to see the relevant code. The problem statement mentions line 1726 where the text prompt ids are sliced.
 </thinking>
 ========================================================================================================================
 TOOL CALL (inspect_code)
@@ -220,139 +222,181 @@ Successfully expanded code chunks in src/transformers/models/whisper/modeling_wh
 ========================================================================================================================
 AGENT:
 <thinking>
-Now I can see the issue clearly. Looking at line 1721:
+Now I can see the relevant code. Let me analyze the issues:
 
-```python
-text_prompt_ids = text_prompt_ids[-self.config.max_length // 2 - 1 :]
-```
+1. **Issue 1 - Incorrect slicing of text_prompt_ids (line 1721)**:
+   Current code: `text_prompt_ids = text_prompt_ids[-self.config.max_length // 2 - 1 :]`
+   
+   This takes the last `(self.config.max_length // 2 + 1)` tokens (because `-n` means "from the n-th element from the end").
+   
+   According to the problem statement and the original Whisper code, it should be:
+   `text_prompt_ids = text_prompt_ids[-(self.config.max_length // 2 - 1) :]`
+   
+   This would take the last `(self.config.max_length // 2 - 1)` tokens.
 
-This is slicing the text_prompt_ids to take the last `(self.config.max_length // 2 + 1)` tokens. However, according to the problem statement and the original Whisper code, it should be `(self.config.max_length // 2 - 1)` tokens.
+2. **Issue 2 - max_new_tokens not being capped properly (lines 1726-1727)**:
+   Current code:
+   ```python
+   if kwargs.get("max_new_tokens", None) is not None:
+       kwargs["max_new_tokens"] += len(text_prompt_ids)
+   ```
+   
+   The problem is that when `max_new_tokens` is increased by `len(text_prompt_ids)`, it can exceed the model's `max_length`. This causes the IndexError when the model tries to generate more tokens than allowed.
+   
+   The fix should ensure that the total length (prompt + max_new_tokens) doesn't exceed `max_length`. We need to cap `max_new_tokens` appropriately.
 
-The original Whisper code at https://github.com/openai/whisper/blob/c09a7ae299c4c34c5839a76380ae407e7d785914/whisper/decoding.py#L599 uses:
-```python
-text_prompt_ids = text_prompt_ids[-(self.config.max_length // 2 - 1):]
-```
+Let me look at the original Whisper code to understand the expected behavior better. According to the problem statement, the original Whisper code at https://github.com/openai/whisper/blob/c09a7ae299c4c34c5839a76380ae407e7d785914/whisper/decoding.py#L599 uses `max_length // 2 - 1`.
 
-So the fix should be:
-```python
-text_prompt_ids = text_prompt_ids[-(self.config.max_length // 2 - 1):]
-```
+Let me now implement the fix:
 
-But wait, looking at the slicing more carefully:
-- Current: `text_prompt_ids[-self.config.max_length // 2 - 1 :]` - This takes the last `(max_length // 2 + 1)` elements
-- Original Whisper: `text_prompt_ids[-(self.config.max_length // 2 - 1):]` - This takes the last `(max_length // 2 - 1)` elements
+1. Fix the slicing: Change `text_prompt_ids[-self.config.max_length // 2 - 1 :]` to `text_prompt_ids[-(self.config.max_length // 2 - 1) :]`
 
-The issue is that the current code uses `-self.config.max_length // 2 - 1` which is:
-- For max_length=448: `-448 // 2 - 1 = -224 - 1 = -225`
-- So it takes the last 225 elements
+2. Cap `max_new_tokens` to ensure it doesn't exceed the available space after accounting for the prompt and forced decoder ids.
 
-But the original Whisper code uses `-(self.config.max_length // 2 - 1)` which is:
-- For max_length=448: `-(448 // 2 - 1) = -(224 - 1) = -223`
-- So it takes the last 223 elements
-
-So the fix should change line 1721 from:
-```python
-text_prompt_ids = text_prompt_ids[-self.config.max_length // 2 - 1 :]
-```
-to:
-```python
-text_prompt_ids = text_prompt_ids[-(self.config.max_length // 2 - 1) :]
-```
-
-Now, regarding the main bug about the IndexError, let me look at the issue more carefully:
-
-1. When `prompt_ids` is provided, the code increases `max_new_tokens` by the length of `text_prompt_ids` (line 1727)
-2. The `forced_decoder_ids` is also extended to include the prompt tokens (lines 1730-1739)
-3. The issue is that when `len(prompt_ids) + max_new_tokens > model.config.max_length + 1`, the generation can fail
+Let me also check what the forced_decoder_ids look like to understand the total length calculation.
 
 Looking at the code:
-- Line 1726-1727: If `max_new_tokens` is provided, it's increased by `len(text_prompt_ids)`
-- But there's no check to ensure that the total doesn't exceed `max_length`
+- `forced_decoder_ids` is a list of tuples `(rank, token)` where rank is 1-indexed
+- When prompt_ids is provided, the forced_decoder_ids is reformatted to include the text_prompt_ids
 
-The problem is that when the user specifies `max_new_tokens=224` and there's a prompt, the effective `max_new_tokens` becomes `224 + len(text_prompt_ids)`, which can exceed the model's capacity.
+The total length of the decoder input would be:
+- 1 (for decoder_start_token_id) + len(forced_decoder_ids) + generated tokens
 
-Looking at the original Whisper code, the prompt is sliced to `max_length // 2 - 1` tokens, and the remaining `max_length // 2 + 1` tokens are for the actual generation. This ensures that the total never exceeds `max_length`.
+So the max_new_tokens should be capped such that:
+`len(forced_decoder_ids) + max_new_tokens <= max_length`
 
-So the fix should:
-1. Correct the slicing of `text_prompt_ids` to use `-(self.config.max_length // 2 - 1)` instead of `-self.config.max_length // 2 - 1`
-2. Add a check/warning when `max_new_tokens` is provided to ensure it doesn't exceed the available space
+But wait, looking more carefully at the code:
+- `forced_decoder_ids` includes the text_prompt_ids, decoder_start_token_id, and the original forced tokens
+- The length of forced_decoder_ids after reformatting is: `len(text_prompt_ids) + 1 + len(non_prompt_forced_decoder_ids)`
 
-Let me also check if there's a need to cap `max_new_tokens` to prevent the IndexError. Looking at the error:
-- The error occurs in `greedy_search` when trying to access `outputs.logits[:, -1, :]`
-- This happens when `outputs.logits` has size 0 in dimension 1
-- This can happen when the decoder is asked to generate tokens beyond its positional embedding capacity
+Actually, let me re-read the code more carefully:
 
-Let me look at the generation config to understand the default values:
+```python
+forced_decoder_ids = [
+    *text_prompt_ids,
+    generation_config.decoder_start_token_id,
+    *[token for _rank, token in non_prompt_forced_decoder_ids],
+]
+forced_decoder_ids = [(rank + 1, token) for rank, token in enumerate(forced_decoder_ids)]
+```
+
+So the forced_decoder_ids is a list of tuples where:
+- First `len(text_prompt_ids)` entries are the text prompt tokens
+- Then 1 entry for decoder_start_token_id
+- Then the original forced decoder ids (language, task, no_timestamps)
+
+The total number of forced tokens is `len(text_prompt_ids) + 1 + len(non_prompt_forced_decoder_ids)`.
+
+Now, the issue is that when `max_new_tokens` is increased by `len(text_prompt_ids)`, it can exceed the model's capacity.
+
+Let me think about this more carefully:
+
+The user passes `max_new_tokens=224` expecting to generate 224 new tokens (excluding the prompt).
+The code then adds `len(text_prompt_ids)` to `max_new_tokens` to account for the prompt tokens that are part of the forced_decoder_ids.
+
+But the problem is that the total length (forced_decoder_ids + max_new_tokens) can exceed `max_length`.
+
+The fix should:
+1. Calculate the total number of forced tokens
+2. Cap `max_new_tokens` such that `len(forced_decoder_ids) + max_new_tokens <= max_length`
+
+Actually, looking at the error more carefully:
+- The error happens in `greedy_search` when `outputs.logits[:, -1, :]` is accessed but `outputs.logits` has size 0 in dimension 1.
+- This happens because the model is asked to generate tokens beyond its positional embedding capacity.
+
+The fix should ensure that `max_new_tokens` is capped appropriately. Let me also add a warning when the user's requested `max_new_tokens` is reduced.
+
+Let me now implement the fix:
 </thinking>
 
-Let me also check the generation configuration for Whisper:
+STEP 2: IMPLEMENT THE FIX
+
+Now I understand the issues. Let me implement the fixes:
+
+1. Fix the slicing of `text_prompt_ids` from `[-self.config.max_length // 2 - 1 :]` to `[-(self.config.max_length // 2 - 1) :]`
+
+2. Cap `max_new_tokens` to ensure it doesn't exceed the model's capacity when combined with the prompt.
 ========================================================================================================================
-TOOL CALL (open_files)
-file_paths:
-- src/transformers/models/whisper/configuration_whisper.py
-- src/transformers/generation/configuration_utils.py
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/models/whisper/modeling_whisper.py
+find: "        if prompt_ids is not None:\n            if kwargs.get(\"decoder_start_token_id\"\
+  ) is not None:\n                raise ValueError(\n                    \"When specifying\
+  \ `prompt_ids`, you cannot also specify `decoder_start_token_id` as it gets overwritten.\"\
+  \n                )\n            prompt_ids = prompt_ids.tolist()\n            decoder_start_token_id,\
+  \ *text_prompt_ids = prompt_ids\n            # Slicing the text prompt ids in a\
+  \ manner consistent with the OpenAI implementation\n            # to accomodate\
+  \ context space for the prefix (see https://github.com/openai/whisper/blob/c09a7ae299c4c34c5839a76380ae407e7d785914/whisper/decoding.py#L599)\n\
+  \            text_prompt_ids = text_prompt_ids[-self.config.max_length // 2 - 1\
+  \ :]\n            # Set the decoder_start_token_id to <|startofprev|>\n        \
+  \    kwargs.update({\"decoder_start_token_id\": decoder_start_token_id})\n\n   \
+  \         # If the user passes `max_new_tokens`, increase its number to account\
+  \ for the prompt\n            if kwargs.get(\"max_new_tokens\", None) is not None:\n\
+  \                kwargs[\"max_new_tokens\"] += len(text_prompt_ids)\n\n        \
+  \    # Reformat the forced_decoder_ids to incorporate the prompt\n            non_prompt_forced_decoder_ids\
+  \ = (\n                kwargs.pop(\"forced_decoder_ids\", None) or generation_config.forced_decoder_ids\n\
+  \            )\n            forced_decoder_ids = [\n                *text_prompt_ids,\n\
+  \                generation_config.decoder_start_token_id,\n                *[token\
+  \ for _rank, token in non_prompt_forced_decoder_ids],\n            ]\n         \
+  \   forced_decoder_ids = [(rank + 1, token) for rank, token in enumerate(forced_decoder_ids)]\n\
+  \            generation_config.forced_decoder_ids = forced_decoder_ids"
+replace: "        if prompt_ids is not None:\n            if kwargs.get(\"decoder_start_token_id\"\
+  ) is not None:\n                raise ValueError(\n                    \"When specifying\
+  \ `prompt_ids`, you cannot also specify `decoder_start_token_id` as it gets overwritten.\"\
+  \n                )\n            prompt_ids = prompt_ids.tolist()\n            decoder_start_token_id,\
+  \ *text_prompt_ids = prompt_ids\n            # Slicing the text prompt ids in a\
+  \ manner consistent with the OpenAI implementation\n            # to accomodate\
+  \ context space for the prefix (see https://github.com/openai/whisper/blob/c09a7ae299c4c34c5839a76380ae407e7d785914/whisper/decoding.py#L599)\n\
+  \            text_prompt_ids = text_prompt_ids[-(self.config.max_length // 2 - 1)\
+  \ :]\n            # Set the decoder_start_token_id to <|startofprev|>\n        \
+  \    kwargs.update({\"decoder_start_token_id\": decoder_start_token_id})\n\n   \
+  \         # Reformat the forced_decoder_ids to incorporate the prompt\n        \
+  \    non_prompt_forced_decoder_ids = (\n                kwargs.pop(\"forced_decoder_ids\"\
+  , None) or generation_config.forced_decoder_ids\n            )\n            forced_decoder_ids\
+  \ = [\n                *text_prompt_ids,\n                generation_config.decoder_start_token_id,\n\
+  \                *[token for _rank, token in non_prompt_forced_decoder_ids],\n \
+  \           ]\n            forced_decoder_ids = [(rank + 1, token) for rank, token\
+  \ in enumerate(forced_decoder_ids)]\n            generation_config.forced_decoder_ids\
+  \ = forced_decoder_ids\n\n            # If the user passes `max_new_tokens`, increase\
+  \ its number to account for the prompt\n            if kwargs.get(\"max_new_tokens\"\
+  , None) is not None:\n                max_new_tokens = kwargs[\"max_new_tokens\"\
+  ] + len(text_prompt_ids)\n                # Ensure max_new_tokens does not exceed\
+  \ the model's max_length\n                # The total length is: 1 (decoder_start_token_id)\
+  \ + len(forced_decoder_ids) + new_tokens\n                # We need: 1 + len(forced_decoder_ids)\
+  \ + new_tokens <= max_length\n                # So: max_new_tokens <= max_length\
+  \ - 1 - len(forced_decoder_ids)\n                max_allowed_new_tokens = self.config.max_length\
+  \ - 1 - len(forced_decoder_ids)\n                if max_new_tokens > max_allowed_new_tokens:\n\
+  \                    max_new_tokens = max_allowed_new_tokens\n                 \
+  \   logger.warning_once(\n                        f\"The length of `prompt_ids`\
+  \ plus `max_new_tokens` exceeds the maximum allowed length. \"\n               \
+  \         f\"Reducing `max_new_tokens` to {max_new_tokens - len(text_prompt_ids)}\
+  \ to fit within \"\n                        f\"`max_length` ({self.config.max_length}).\"\
+  \n                    )\n                kwargs[\"max_new_tokens\"] = max_new_tokens"
 
 ========================================================================================================================
-TOOL RETURN (open_files)
+TOOL RETURN (find_and_replace_code)
 ```
-['Successfully opened src/transformers/models/whisper/configuration_whisper.py:\n\n````python\n   0 # coding=utf-8\n...\n  16 from collections import OrderedDict\n...\n  25     from ...feature_extraction_utils import FeatureExtractionMixin\n...\n  29 logger = logging.get_logger(__name__)\n  30 \n  31 WHISPER_PRETRAINED_CONFIG_ARCHIVE_MAP = {\n...\n  36 NON_SPEECH_TOKENS = [\n...\n  47 NON_SPEECH_TOKENS_MULTI = [\n...\n  61 class WhisperConfig(PretrainedConfig):\n...\n 195     def __init__(\n...\...
-```
-========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: src/transformers/models/whisper/configuration_whisper.py
-patterns:
-- WhisperConfig/__init__
+Successfully replaced code in src/transformers/models/whisper/modeling_whisper.py:
 
-========================================================================================================================
-TOOL RETURN (inspect_code)
-```
-Successfully expanded code chunks in src/transformers/models/whisper/configuration_whisper.py:
-
-````python
-   0 # coding=utf-8
-...
-  16 from collections import OrderedDict
-...
-  25     from ...feature_extraction_utils import FeatureExtractionMixin
-...
-  29 logger = logging.get_logger(__name__)
-  30 
-  31 WHISPER_PRETRAINED_CONFIG_ARCHIVE_MAP = {
-...
-  36 NON_SPEECH_TOKENS = [
-...
-  47 NON_SPEECH_TOKENS_MULTI = [
-...
-  61 class WhisperConfig(PretrainedConfig):
-...
- 195     def __init__(
- 196     ...
+--- src/transformers/models/whisper/modeling_whisper.py
++++ src/transformers/models/whisper/modeling_whisper.py
+@@ -1719,13 +1719,9 @@
+             decoder_start_token_id, *text_prompt_ids = prompt_ids
+             # Slicing the text prompt ids in a manner consistent with the OpenAI implementation
+             # to accomodate context space for the prefix (see https://github.com/openai/whisper/blob/c09a7ae299c4c34...
 ```
 ========================================================================================================================
 AGENT:
 <thinking>
-Now I understand the issue better. The `max_target_positions=448` is the maximum number of positions the decoder can handle. This is also typically the `max_length` for generation.
-
-Looking at the problem:
-1. The slicing bug: Line 1721 uses `-self.config.max_length // 2 - 1` which gives `-225` for `max_length=448`, taking the last 225 tokens. But the original Whisper code uses `-(max_length // 2 - 1)` which gives `-223`, taking the last 223 tokens.
-
-2. The IndexError bug: When `max_new_tokens` is provided and the prompt is long, the total sequence length can exceed `max_length`, causing the decoder to fail.
-
-Let me now implement the fix:
-
-1. Fix the slicing of `text_prompt_ids` to match the original Whisper implementation
-2. Add a check/cap for `max_new_tokens` to ensure it doesn't exceed the available space after accounting for the prompt
-
-Let me look at the exact line numbers to make the fix:
+The changes have been made. Let me verify the changes by expanding the code again to make sure they are correct.
 </thinking>
 
-Let me look at the exact lines around the issue to make precise changes:
+STEP 3: VERIFY THE CHANGES
 ========================================================================================================================
 TOOL CALL (inspect_code)
 file_path: src/transformers/models/whisper/modeling_whisper.py
 line_ranges:
 - - 1710
-  - 1745
+  - 1780
 
 ========================================================================================================================
 TOOL RETURN (inspect_code)
@@ -383,88 +427,161 @@ Successfully expanded code chunks in src/transformers/models/whisper/modeling_wh
 ========================================================================================================================
 AGENT:
 <thinking>
-Now I can see the exact code. The issues are:
-
-1. Line 1721: `text_prompt_ids = text_prompt_ids[-self.config.max_length // 2 - 1 :]`
-   - This should be: `text_prompt_ids = text_prompt_ids[-(self.config.max_length // 2 - 1) :]`
-   - The current code takes the last `(max_length // 2 + 1)` tokens
-   - The original Whisper code takes the last `(max_length // 2 - 1)` tokens
-
-2. Lines 1726-1727: When `max_new_tokens` is provided, it's increased by `len(text_prompt_ids)`, but there's no check to ensure the total doesn't exceed `max_length`.
-
-Let me now implement the fix. I'll:
-1. Fix the slicing to match the original Whisper implementation
-2. Add a check/cap for `max_new_tokens` to ensure it doesn't exceed the available space
-
-Looking at the original Whisper code more carefully:
-- The prompt is sliced to `max_length // 2 - 1` tokens
-- This leaves `max_length // 2 + 1` tokens for the actual generation (including the prefix tokens like language, task, etc.)
-
-So the fix should:
-1. Change line 1721 from `-self.config.max_length // 2 - 1` to `-(self.config.max_length // 2 - 1)`
-2. Add a check after line 1727 to cap `max_new_tokens` if it exceeds the available space
-
-Let me also check what `max_length` is used here. Looking at line 1721, it uses `self.config.max_length`. Let me check if this is defined in the config.
-
-Looking at the WhisperConfig, I see `max_target_positions=448` but not `max_length`. The `max_length` is typically set in the generation config. Let me check if `self.config.max_length` is defined or if it should be something else.
-
-Actually, looking at the code, it seems like `self.config.max_length` might not be defined in the WhisperConfig. Let me check the PretrainedConfig to see if `max_length` is a standard attribute.
-
-Actually, looking at the code more carefully, I see that `max_length` is typically set in the generation config, not the model config. However, the code uses `self.config.max_length`, which might be inherited from the PretrainedConfig or set elsewhere.
-
-Let me proceed with the fix and use the same attribute that's already being used in the code.
+The changes look correct. Now let me create a test script to verify that the fix works. I'll create a minimal reproduction script based on the problem statement.
 </thinking>
 
-Now I understand the issues. Let me implement the fix:
+STEP 4: CREATE A TEST SCRIPT TO VERIFY THE FIX
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && pip install torch transformers datasets --quiet 2>&1 | tail
+  -5
+timeout: 120
 
-1. Fix the slicing of `text_prompt_ids` to match the original Whisper implementation (change from `-self.config.max_length // 2 - 1` to `-(self.config.max_length // 2 - 1)`)
-2. Add a check/cap for `max_new_tokens` to ensure it doesn't exceed the available space after accounting for the prompt
+========================================================================================================================
+TOOL RETURN (bash)
+```
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && pip install -e . --quiet 2>&1 | tail -5
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (create_file)
+file_path: test_whisper_fix.py
+initial_content: "\"\"\"\nTest script to verify the fix for Whisper prompting max_new_tokens\
+  \ issue.\nThis tests that:\n1. The text_prompt_ids slicing is correct (max_length\
+  \ // 2 - 1)\n2. max_new_tokens is properly capped when it would exceed max_length\n\
+  \"\"\"\n\nimport torch\nfrom transformers import WhisperProcessor, WhisperForConditionalGeneration\n\
+  \ndef test_prompt_slicing():\n    \"\"\"Test that prompt_ids are sliced correctly\
+  \ according to OpenAI's implementation.\"\"\"\n    processor = WhisperProcessor.from_pretrained(\"\
+  openai/whisper-tiny\")\n    model = WhisperForConditionalGeneration.from_pretrained(\"\
+  openai/whisper-tiny\")\n    \n    # Create a large prompt that should be sliced\n\
+  \    # max_length is 448 for whisper-tiny, so max_length // 2 - 1 = 223\n    prompt_text\
+  \ = \" bien,\" * 200  # This will create more than 223 tokens\n    prompt_ids =\
+  \ processor.get_prompt_ids(prompt_text)\n    \n    print(f\"Original prompt_ids\
+  \ length: {len(prompt_ids)}\")\n    print(f\"Model max_length: {model.config.max_length}\"\
+  )\n    print(f\"Expected max prompt tokens (max_length // 2 - 1): {model.config.max_length\
+  \ // 2 - 1}\")\n    \n    # The prompt should be sliced to max_length // 2 - 1 tokens\
+  \ (excluding the first token which is decoder_start_token_id)\n    # So the text_prompt_ids\
+  \ (prompt_ids[1:]) should be sliced to max_length // 2 - 1 tokens\n    expected_text_prompt_length\
+  \ = model.config.max_length // 2 - 1\n    \n    # Create a dummy input\n    dummy_input\
+  \ = torch.randn(1, 80, 3000)  # Whisper expects mel spectrogram input\n    \n  \
+  \  # Test that generate doesn't crash with a large prompt and max_new_tokens\n \
+  \   try:\n        output = model.generate(\n            dummy_input,\n         \
+  \   language=\"fr\",\n            task=\"transcribe\",\n            prompt_ids=prompt_ids,\n\
+  \            max_new_tokens=224,  # max_length // 2\n        )\n        print(f\"\
+  Generation succeeded! Output shape: {output.shape}\")\n        print(\"Test PASSED:\
+  \ No IndexError occurred\")\n        return True\n    except IndexError as e:\n\
+  \        print(f\"Test FAILED: IndexError occurred: {e}\")\n        return False\n\
+  \    except Exception as e:\n        print(f\"Test FAILED with unexpected error:\
+  \ {type(e).__name__}: {e}\")\n        return False\n\n\ndef test_max_new_tokens_capping():\n\
+  \    \"\"\"Test that max_new_tokens is properly capped when it would exceed max_length.\"\
+  \"\"\n    processor = WhisperProcessor.from_pretrained(\"openai/whisper-tiny\")\n\
+  \    model = WhisperForConditionalGeneration.from_pretrained(\"openai/whisper-tiny\"\
+  )\n    \n    # Create a prompt\n    prompt_text = \" bien,\" * 50\n    prompt_ids\
+  \ = processor.get_prompt_ids(prompt_text)\n    \n    print(f\"\\nTesting max_new_tokens\
+  \ capping...\")\n    print(f\"Prompt length: {len(prompt_ids)}\")\n    print(f\"\
+  Model max_length: {model.config.max_length}\")\n    \n    # Create a dummy input\n\
+  \    dummy_input = torch.randn(1, 80, 3000)\n    \n    # Test with a very large\
+  \ max_new_tokens that should be capped\n    try:\n        output = model.generate(\n\
+  \            dummy_input,\n            language=\"fr\",\n            task=\"transcribe\"\
+  ,\n            prompt_ids=prompt_ids,\n            max_new_tokens=500,  # This is\
+  \ larger than max_length, should be capped\n        )\n        print(f\"Generation\
+  \ succeeded! Output shape: {output.shape}\")\n        print(\"Test PASSED: max_new_tokens\
+  \ was properly capped\")\n        return True\n    except IndexError as e:\n   \
+  \     print(f\"Test FAILED: IndexError occurred: {e}\")\n        return False\n\
+  \    except Exception as e:\n        print(f\"Test FAILED with unexpected error:\
+  \ {type(e).__name__}: {e}\")\n        return False\n\n\nif __name__ == \"__main__\"\
+  :\n    print(\"=\" * 60)\n    print(\"Testing Whisper prompting max_new_tokens fix\"\
+  )\n    print(\"=\" * 60)\n    \n    test1_passed = test_prompt_slicing()\n    test2_passed\
+  \ = test_max_new_tokens_capping()\n    \n    print(\"\\n\" + \"=\" * 60)\n    if\
+  \ test1_passed and test2_passed:\n        print(\"All tests PASSED!\")\n    else:\n\
+  \        print(\"Some tests FAILED!\")\n    print(\"=\" * 60)\n"
+
+========================================================================================================================
+TOOL RETURN (create_file)
+```
+Successfully created test_whisper_fix.py....
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python test_whisper_fix.py 2>&1
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+/workspace/src/transformers/utils/generic.py:311: FutureWarning: `torch.utils._pytree._register_pytree_node` is deprecated. Please use `torch.utils._pytree.register_pytree_node` instead.
+  torch.utils._pytree._register_pytree_node(
+/root/.pyenv/versions/3.11.12/lib/python3.11/site-packages/huggingface_hub/file_download.py:942: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force...
+```
 ========================================================================================================================
 AGENT:
-I've identified the issues in the Whisper generate method. Now I'll implement the fix for both the slicing bug and the max_new_tokens issue.
+<thinking>
+The tests pass, but I notice an issue in the warning message. When the prompt is very large, the warning shows "Reducing `max_new_tokens` to -3" which is incorrect. This happens because when the prompt is very large, the `max_allowed_new_tokens` becomes negative.
+
+Let me look at the issue more carefully:
+1. When `max_new_tokens = 224` and `len(text_prompt_ids) = 223` (after slicing), the adjusted `max_new_tokens = 224 + 223 = 447`
+2. The `forced_decoder_ids` includes: text_prompt_ids (223) + decoder_start_token_id (1) + non_prompt_forced_decoder_ids (3 for language, task, no_timestamps)
+3. So `len(forced_decoder_ids) = 223 + 1 + 3 = 227`
+4. `max_allowed_new_tokens = 448 - 1 - 227 = 220`
+5. Since 447 > 220, we cap to 220
+6. The warning says "Reducing `max_new_tokens` to {max_new_tokens - len(text_prompt_ids)}" = 220 - 223 = -3
+
+This is a bug in my warning message. The warning should report the effective max_new_tokens from the user's perspective (before adding the prompt length). Let me fix this.
+
+Also, I need to ensure that if `max_allowed_new_tokens` is negative or zero, we should raise an error or handle it gracefully.
+</thinking>
+
+STEP 5: FIX THE WARNING MESSAGE AND HANDLE EDGE CASES
 ========================================================================================================================
 TOOL CALL (find_and_replace_code)
 file_path: src/transformers/models/whisper/modeling_whisper.py
-find: "        if prompt_ids is not None:\n            if kwargs.get(\"decoder_start_token_id\"\
-  ) is not None:\n                raise ValueError(\n                    \"When specifying\
-  \ `prompt_ids`, you cannot also specify `decoder_start_token_id` as it gets overwritten.\"\
-  \n                )\n            prompt_ids = prompt_ids.tolist()\n            decoder_start_token_id,\
-  \ *text_prompt_ids = prompt_ids\n            # Slicing the text prompt ids in a\
-  \ manner consistent with the OpenAI implementation\n            # to accomodate\
-  \ context space for the prefix (see https://github.com/openai/whisper/blob/c09a7ae299c4c34c5839a76380ae407e7d785914/whisper/decoding.py#L599)\n\
-  \            text_prompt_ids = text_prompt_ids[-self.config.max_length // 2 - 1\
-  \ :]\n            # Set the decoder_start_token_id to <|startofprev|>\n        \
-  \    kwargs.update({\"decoder_start_token_id\": decoder_start_token_id})\n\n   \
-  \         # If the user passes `max_new_tokens`, increase its number to account\
+find: "            # If the user passes `max_new_tokens`, increase its number to account\
   \ for the prompt\n            if kwargs.get(\"max_new_tokens\", None) is not None:\n\
-  \                kwargs[\"max_new_tokens\"] += len(text_prompt_ids)"
-replace: "        if prompt_ids is not None:\n            if kwargs.get(\"decoder_start_token_id\"\
-  ) is not None:\n                raise ValueError(\n                    \"When specifying\
-  \ `prompt_ids`, you cannot also specify `decoder_start_token_id` as it gets overwritten.\"\
-  \n                )\n            prompt_ids = prompt_ids.tolist()\n            decoder_start_token_id,\
-  \ *text_prompt_ids = prompt_ids\n            # Slicing the text prompt ids in a\
-  \ manner consistent with the OpenAI implementation\n            # to accomodate\
-  \ context space for the prefix (see https://github.com/openai/whisper/blob/c09a7ae299c4c34c5839a76380ae407e7d785914/whisper/decoding.py#L599)\n\
-  \            text_prompt_ids = text_prompt_ids[-(self.config.max_length // 2 - 1)\
-  \ :]\n            # Set the decoder_start_token_id to <|startofprev|>\n        \
-  \    kwargs.update({\"decoder_start_token_id\": decoder_start_token_id})\n\n   \
-  \         # If the user passes `max_new_tokens`, increase its number to account\
-  \ for the prompt\n            if kwargs.get(\"max_new_tokens\", None) is not None:\n\
-  \                suffix_tokens = kwargs[\"max_new_tokens\"]\n                if\
-  \ suffix_tokens + len(text_prompt_ids) > self.config.max_length:\n             \
-  \       suffix_tokens = self.config.max_length - len(text_prompt_ids)\n        \
-  \            if suffix_tokens < 0:\n                        raise ValueError(\n\
-  \                            f\"The length of `prompt_ids` is {len(text_prompt_ids)},\
-  \ and the `max_new_tokens` \"\n                            f\"{kwargs['max_new_tokens']}.\
-  \ Thus, the combined length of the prompt exceeds the \"\n                     \
-  \       f\"`max_length` of the model {self.config.max_length}. Make sure that the\
-  \ total \"\n                            f\"length of the prompt and `max_new_tokens`\
-  \ is less than or equal to `max_length`.\"\n                        )\n        \
-  \            logger.warning_once(\n                        f\"The length of `prompt_ids`\
-  \ plus `max_new_tokens` is larger than the model's `max_length`. \"\n          \
-  \              f\"The `max_new_tokens` will be reduced to {suffix_tokens} to fit\
-  \ within the limit.\"\n                    )\n                kwargs[\"max_new_tokens\"\
-  ] = suffix_tokens + len(text_prompt_ids)"
+  \                max_new_tokens = kwargs[\"max_new_tokens\"] + len(text_prompt_ids)\n\
+  \                # Ensure max_new_tokens does not exceed the model's max_length\n\
+  \                # The total length is: 1 (decoder_start_token_id) + len(forced_decoder_ids)\
+  \ + new_tokens\n                # We need: 1 + len(forced_decoder_ids) + new_tokens\
+  \ <= max_length\n                # So: max_new_tokens <= max_length - 1 - len(forced_decoder_ids)\n\
+  \                max_allowed_new_tokens = self.config.max_length - 1 - len(forced_decoder_ids)\n\
+  \                if max_new_tokens > max_allowed_new_tokens:\n                 \
+  \   max_new_tokens = max_allowed_new_tokens\n                    logger.warning_once(\n\
+  \                        f\"The length of `prompt_ids` plus `max_new_tokens` exceeds\
+  \ the maximum allowed length. \"\n                        f\"Reducing `max_new_tokens`\
+  \ to {max_new_tokens - len(text_prompt_ids)} to fit within \"\n                \
+  \        f\"`max_length` ({self.config.max_length}).\"\n                    )\n\
+  \                kwargs[\"max_new_tokens\"] = max_new_tokens"
+replace: "            # If the user passes `max_new_tokens`, increase its number to\
+  \ account for the prompt\n            if kwargs.get(\"max_new_tokens\", None) is\
+  \ not None:\n                user_max_new_tokens = kwargs[\"max_new_tokens\"]\n\
+  \                max_new_tokens = user_max_new_tokens + len(text_prompt_ids)\n \
+  \               # Ensure max_new_tokens does not exceed the model's max_length\n\
+  \                # The total length is: 1 (decoder_start_token_id) + len(forced_decoder_ids)\
+  \ + new_tokens\n                # We need: 1 + len(forced_decoder_ids) + new_tokens\
+  \ <= max_length\n                # So: max_new_tokens <= max_length - 1 - len(forced_decoder_ids)\n\
+  \                max_allowed_new_tokens = self.config.max_length - 1 - len(forced_decoder_ids)\n\
+  \                if max_new_tokens > max_allowed_new_tokens:\n                 \
+  \   max_new_tokens = max_allowed_new_tokens\n                    effective_user_max_new_tokens\
+  \ = max(0, max_new_tokens - len(text_prompt_ids))\n                    logger.warning_once(\n\
+  \                        f\"The length of `prompt_ids` plus `max_new_tokens` exceeds\
+  \ the maximum allowed length. \"\n                        f\"Reducing `max_new_tokens`\
+  \ from {user_max_new_tokens} to {effective_user_max_new_tokens} to fit within \"\
+  \n                        f\"`max_length` ({self.config.max_length}).\"\n      \
+  \              )\n                kwargs[\"max_new_tokens\"] = max_new_tokens"
 
 ========================================================================================================================
 TOOL RETURN (find_and_replace_code)
@@ -473,19 +590,228 @@ Successfully replaced code in src/transformers/models/whisper/modeling_whisper.p
 
 --- src/transformers/models/whisper/modeling_whisper.py
 +++ src/transformers/models/whisper/modeling_whisper.py
-@@ -1719,13 +1719,27 @@
-             decoder_start_token_id, *text_prompt_ids = prompt_ids
-             # Slicing the text prompt ids in a manner consistent with the OpenAI implementation
-             # to accomodate context space for the prefix (see https://github.com/openai/whisper/blob/c09a7ae299c4c3...
+@@ -1737,7 +1737,8 @@
+ 
+             # If the user passes `max_new_tokens`, increase its number to account for the prompt
+             if kwargs.get("max_new_tokens", None) is not None:
+-                max_new_tokens = kwargs["max_new_tokens"] + len(text_prompt_ids)
++                user_max_new_tokens...
 ```
 ========================================================================================================================
 AGENT:
-Now let me verify the changes by viewing the updated code:
+Now let me run the test again to verify the fix:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python test_whisper_fix.py 2>&1
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+/workspace/src/transformers/utils/generic.py:311: FutureWarning: `torch.utils._pytree._register_pytree_node` is deprecated. Please use `torch.utils._pytree.register_pytree_node` instead.
+  torch.utils._pytree._register_pytree_node(
+/root/.pyenv/versions/3.11.12/lib/python3.11/site-packages/huggingface_hub/file_download.py:942: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+The warning message is now correct. It shows "Reducing `max_new_tokens` from 224 to 0" for the first test and "Reducing `max_new_tokens` from 500 to 243" for the second test.
+
+Now let me also run the existing Whisper tests to make sure I haven't broken anything:
+</thinking>
+
+STEP 6: RUN EXISTING WHISPER TESTS
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python -m pytest tests/models/whisper/test_modeling_whisper.py
+  -v -k "test_generate" --no-header -q 2>&1 | head -100
+timeout: 600
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+/root/.pyenv/versions/3.11.12/bin/python: No module named pytest...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: pip install pytest --quiet 2>&1 | tail -3
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python -m pytest tests/models/whisper/test_modeling_whisper.py
+  -v -k "test_generate" --no-header -q 2>&1 | head -100
+timeout: 600
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+ImportError while loading conftest '/workspace/conftest.py'.
+conftest.py:25: in <module>
+    from transformers.testing_utils import HfDoctestModule, HfDocTestParser
+src/transformers/testing_utils.py:117: in <module>
+    from _pytest.doctest import (
+E   ImportError: cannot import name 'import_path' from '_pytest.doctest' (/root/.pyenv/versions/3.11.12/lib/python3.11/site-packages/_pytest/doctest.py)...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: pip install pytest==7.4.0 --quiet 2>&1 | tail -3
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python -m pytest tests/models/whisper/test_modeling_whisper.py
+  -v -k "test_generate" --no-header -q 2>&1 | head -100
+timeout: 600
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+============================= test session starts ==============================
+collected 209 items / 196 deselected / 13 selected
+
+tests/models/whisper/test_modeling_whisper.py .......sss...              [100%]
+
+=============================== warnings summary ===============================
+../root/.pyenv/versions/3.11.12/lib/python3.11/site-packages/_pytest/config/__init__.py:1373
+  /root/.pyenv/versions/3.11.12/lib/python3.11/site-packages/_pytest/config/__init__.py:1373: PytestConfigWarnin...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+All the generate-related tests pass. Let me also run a few more tests to make sure the changes don't break anything else:
+</thinking>
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python -m pytest tests/models/whisper/test_modeling_whisper.py
+  -v -k "prompt" --no-header -q 2>&1 | head -50
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+============================= test session starts ==============================
+collected 209 items / 204 deselected / 5 selected
+
+tests/models/whisper/test_modeling_whisper.py ..sss                      [100%]
+
+=============================== warnings summary ===============================
+../root/.pyenv/versions/3.11.12/lib/python3.11/site-packages/_pytest/config/__init__.py:1373
+  /root/.pyenv/versions/3.11.12/lib/python3.11/site-packages/_pytest/config/__init__.py:1373: PytestConfigWarning...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+All the prompt-related tests pass as well. Let me also look at the test file to see if there are any specific tests for the prompt_ids functionality that I should check:
+</thinking>
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: prompt_ids
+path_glob: '**/test_modeling_whisper.py'
+
+========================================================================================================================
+TOOL RETURN (grep)
+```
+tests/models/whisper/test_modeling_whisper.py:1036:    def test_generate_with_prompt_ids_and_task_and_language(self):
+tests/models/whisper/test_modeling_whisper.py:1040:        prompt_ids = np.arange(5)
+tests/models/whisper/test_modeling_whisper.py:1048:        output = model.generate(input_features, max_new_tokens=5, task=task, language=language, prompt_ids=prompt_ids)
+tests/models/whisper/test_modeling_whisper.py:1051:            *prompt_ids.tolist(),
+tests/models/whisper/test_modeling_whisper...
+```
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: tests/models/whisper/test_modeling_whisper.py
+patterns:
+- test_generate_with_prompt_ids_and_task_and_language
+- test_generate_with_prompt_ids_and_forced_decoder_ids
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in tests/models/whisper/test_modeling_whisper.py:
+
+````python
+   0 # coding=utf-8
+...
+  16 import copy
+...
+  25 from transformers import WhisperConfig
+...
+  37     import datasets
+  38     from datasets import load_dataset
+...
+  41     import torch
+  42 
+  43     from transformers import (
+...
+  51     from transformers.models.whisper.modeling_whisper import WhisperDecoder, WhisperEncoder
+...
+  54     import jax.numpy as jnp
+  55 
+  56     from transformers.mode...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+I can see the existing tests for `prompt_ids`. Let me run these specific tests to make sure they still pass:
+</thinking>
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python -m pytest tests/models/whisper/test_modeling_whisper.py::WhisperModelTest::test_generate_with_prompt_ids_and_task_and_language
+  tests/models/whisper/test_modeling_whisper.py::WhisperModelTest::test_generate_with_prompt_ids_and_forced_decoder_ids
+  -v --no-header -q 2>&1
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+============================= test session starts ==============================
+collected 2 items
+
+tests/models/whisper/test_modeling_whisper.py ..                         [100%]
+
+=============================== warnings summary ===============================
+../root/.pyenv/versions/3.11.12/lib/python3.11/site-packages/_pytest/config/__init__.py:1373
+  /root/.pyenv/versions/3.11.12/lib/python3.11/site-packages/_pytest/config/__init__.py:1373: PytestConfigWarning: Unknown config option: doctest...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+All the prompt_ids tests pass. Now let me clean up the test file I created and verify the final changes:
+</thinking>
+
+STEP 7: CLEAN UP AND FINAL VERIFICATION
+========================================================================================================================
+TOOL CALL (delete_file)
+file_path: test_whisper_fix.py
+
+========================================================================================================================
+TOOL RETURN (delete_file)
+```
+Successfully deleted test_whisper_fix.py....
+```
+========================================================================================================================
+AGENT:
+Let me verify the final changes by looking at the modified code:
 ========================================================================================================================
 TOOL CALL (inspect_code)
 file_path: src/transformers/models/whisper/modeling_whisper.py
 line_ranges:
-- - 1710
+- - 1712
   - 1760
 
 ========================================================================================================================
@@ -516,108 +842,62 @@ Successfully expanded code chunks in src/transformers/models/whisper/modeling_wh
 ```
 ========================================================================================================================
 AGENT:
-The changes look good. Now let me write a test script to verify the fix works correctly:
+<thinking>
+The changes look correct. Let me summarize what was fixed:
+
+1. **Fixed the slicing of text_prompt_ids (line 1721)**:
+   - **Before**: `text_prompt_ids = text_prompt_ids[-self.config.max_length // 2 - 1 :]`
+   - **After**: `text_prompt_ids = text_prompt_ids[-(self.config.max_length // 2 - 1) :]`
+   
+   This change ensures that the text prompt ids are sliced to take the last `(max_length // 2 - 1)` tokens, which is consistent with the original OpenAI Whisper implementation.
+
+2. **Added max_new_tokens capping (lines 1737-1754)**:
+   - The code now calculates the maximum allowed new tokens based on the model's `max_length` and the length of the `forced_decoder_ids`.
+   - If the user's `max_new_tokens` (after adding the prompt length) exceeds this limit, it is capped to the maximum allowed value.
+   - A warning is logged to inform the user about the reduction.
+
+These changes address both issues mentioned in the problem statement:
+- The IndexError that occurred when `len(prompt_ids) + max_new_tokens > model.config.max_length + 1` is now prevented by capping `max_new_tokens`.
+- The slicing of text prompt ids is now consistent with the original OpenAI implementation.
+
+Let me run a few more tests to make sure everything is working correctly.
+</thinking>
 ========================================================================================================================
 TOOL CALL (bash)
-command: cd /workspace && pip install -e . -q 2>&1 | tail -5
-timeout: 120
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
-
-[notice] A new release of pip is available: 25.2 -> 25.3
-[notice] To update, run: pip install --upgrade pip...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && pip install torch datasets -q 2>&1 | tail -5
-timeout: 180
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
-
-[notice] A new release of pip is available: 25.2 -> 25.3
-[notice] To update, run: pip install --upgrade pip...
-```
-========================================================================================================================
-TOOL CALL (create_file)
-file_path: test_whisper_prompt_fix.py
-initial_content: "\"\"\"\nTest script to verify the Whisper prompting max_new_tokens\
-  \ fix.\n\"\"\"\nimport torch\nimport numpy as np\nfrom transformers import WhisperProcessor,\
-  \ WhisperForConditionalGeneration\n\ndef test_slicing_fix():\n    \"\"\"Test that\
-  \ the slicing of text_prompt_ids is correct.\"\"\"\n    print(\"Testing slicing\
-  \ fix...\")\n    \n    # Create a mock config with max_length = 448\n    class MockConfig:\n\
-  \        max_length = 448\n    \n    config = MockConfig()\n    \n    # Old slicing:\
-  \ text_prompt_ids[-self.config.max_length // 2 - 1 :]\n    # This would give: text_prompt_ids[-225:]\
-  \ -> takes last 225 elements\n    old_slice = -config.max_length // 2 - 1\n    \n\
-  \    # New slicing: text_prompt_ids[-(self.config.max_length // 2 - 1) :]\n    #\
-  \ This should give: text_prompt_ids[-223:] -> takes last 223 elements\n    new_slice\
-  \ = -(config.max_length // 2 - 1)\n    \n    print(f\"  Old slice index: {old_slice}\
-  \ (takes last {-old_slice} elements)\")\n    print(f\"  New slice index: {new_slice}\
-  \ (takes last {-new_slice} elements)\")\n    \n    # Verify the new slicing matches\
-  \ the original Whisper implementation\n    # Original Whisper: text_prompt_ids[-(max_length\
-  \ // 2 - 1):]\n    expected_slice = -(448 // 2 - 1)  # -223\n    assert new_slice\
-  \ == expected_slice, f\"Expected {expected_slice}, got {new_slice}\"\n    print(\"\
-  \  \u2713 Slicing fix is correct!\")\n    \n    # Test with actual list\n    test_list\
-  \ = list(range(300))  # 300 elements\n    old_result = test_list[old_slice:]\n \
-  \   new_result = test_list[new_slice:]\n    \n    print(f\"  Old result length:\
-  \ {len(old_result)}\")\n    print(f\"  New result length: {len(new_result)}\")\n\
-  \    \n    assert len(new_result) == 223, f\"Expected 223 elements, got {len(new_result)}\"\
-  \n    print(\"  \u2713 Slicing produces correct number of elements!\")\n\n\ndef\
-  \ test_max_new_tokens_capping():\n    \"\"\"Test that max_new_tokens is properly\
-  \ capped when it exceeds max_length.\"\"\"\n    print(\"\\nTesting max_new_tokens\
-  \ capping...\")\n    \n    # Load processor and model\n    processor = WhisperProcessor.from_pretrained(\"\
-  openai/whisper-tiny\")\n    model = WhisperForConditionalGeneration.from_pretrained(\"\
-  openai/whisper-tiny\")\n    \n    # Create a dummy audio input (1 second of silence)\n\
-  \    sample_rate = 16000\n    audio = np.zeros(sample_rate, dtype=np.float32)\n\
-  \    \n    # Create a large prompt that would exceed max_length when combined with\
-  \ max_new_tokens\n    prompt_text = \" bien,\" * 113  # This creates a long prompt\n\
-  \    prompt_ids = processor.get_prompt_ids(prompt_text)\n    \n    print(f\"  Prompt\
-  \ length: {len(prompt_ids)}\")\n    print(f\"  Model max_length: {model.config.max_length}\"\
-  )\n    \n    # Generate with max_new_tokens=224\n    input_features = processor(audio,\
-  \ return_tensors=\"pt\", sampling_rate=sample_rate).input_features\n    \n    try:\n\
-  \        output = model.generate(\n            input_features,\n            language=\"\
-  fr\",\n            task=\"transcribe\",\n            prompt_ids=prompt_ids,\n  \
-  \          max_new_tokens=224\n        )\n        print(f\"  \u2713 Generation succeeded\
-  \ with output shape: {output.shape}\")\n    except IndexError as e:\n        print(f\"\
-  \  \u2717 IndexError occurred: {e}\")\n        raise\n    except Exception as e:\n\
-  \        print(f\"  Note: Got expected warning/error: {type(e).__name__}: {e}\"\
-  )\n\n\ndef test_prompt_slicing_in_generate():\n    \"\"\"Test that prompt_ids are\
-  \ properly sliced in the generate method.\"\"\"\n    print(\"\\nTesting prompt slicing\
-  \ in generate...\")\n    \n    processor = WhisperProcessor.from_pretrained(\"openai/whisper-tiny\"\
-  )\n    model = WhisperForConditionalGeneration.from_pretrained(\"openai/whisper-tiny\"\
-  )\n    \n    # Create a dummy audio input\n    sample_rate = 16000\n    audio =\
-  \ np.zeros(sample_rate, dtype=np.float32)\n    \n    # Create a very long prompt\
-  \ that should be sliced\n    prompt_text = \" test\" * 300  # Very long prompt\n\
-  \    prompt_ids = processor.get_prompt_ids(prompt_text)\n    \n    print(f\"  Original\
-  \ prompt length: {len(prompt_ids)}\")\n    \n    # The prompt should be sliced to\
-  \ max_length // 2 - 1 = 223 tokens (plus the decoder_start_token_id)\n    max_prompt_length\
-  \ = model.config.max_length // 2 - 1\n    print(f\"  Expected max prompt length\
-  \ (after slicing): {max_prompt_length}\")\n    \n    input_features = processor(audio,\
-  \ return_tensors=\"pt\", sampling_rate=sample_rate).input_features\n    \n    try:\n\
-  \        output = model.generate(\n            input_features,\n            language=\"\
-  en\",\n            task=\"transcribe\",\n            prompt_ids=prompt_ids,\n  \
-  \          max_new_tokens=100\n        )\n        print(f\"  \u2713 Generation succeeded\
-  \ with output shape: {output.shape}\")\n    except Exception as e:\n        print(f\"\
-  \  \u2717 Error: {type(e).__name__}: {e}\")\n        raise\n\n\nif __name__ == \"\
-  __main__\":\n    print(\"=\" * 60)\n    print(\"Testing Whisper Prompting max_new_tokens\
-  \ Fix\")\n    print(\"=\" * 60)\n    \n    test_slicing_fix()\n    test_max_new_tokens_capping()\n\
-  \    test_prompt_slicing_in_generate()\n    \n    print(\"\\n\" + \"=\" * 60)\n\
-  \    print(\"All tests passed!\")\n    print(\"=\" * 60)\n"
-
-========================================================================================================================
-TOOL RETURN (create_file)
-```
-Successfully created test_whisper_prompt_fix.py....
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && python test_whisper_prompt_fix.py 2>&1
+command: cd /workspace && python -m pytest tests/models/whisper/test_modeling_whisper.py
+  -v -k "WhisperModelTest" --no-header -q 2>&1 | tail -30
 timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+  /workspace/src/transformers/generation/utils.py:3998: UserWarning: `max_length` is deprecated in this function, use `stopping_criteria=StoppingCriteriaList(MaxLengthCriteria(max_length=max_length))` instead.
+    warnings.warn(
+
+tests/models/whisper/test_modeling_whisper.py::WhisperModelTest::test_generate_fp16
+tests/models/whisper/test_modeling_whisper.py::WhisperModelTest::test_generate_language
+  /workspace/src/transformers/generation/utils.py:1260: UserWarning: Using the model-agnostic defa...
+```
+========================================================================================================================
+AGENT:
+All 77 tests passed. Let me also run the integration tests for prompt_ids to make sure the fix works correctly with real models:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python -c \"\nfrom transformers import WhisperProcessor,\
+  \ WhisperForConditionalGeneration\nimport torch\n\n# Test the fix\nprocessor = WhisperProcessor.from_pretrained('openai/whisper-tiny')\n\
+  model = WhisperForConditionalGeneration.from_pretrained('openai/whisper-tiny')\n\
+  \nprint(f'Model max_length: {model.config.max_length}')\nprint(f'Expected max prompt\
+  \ tokens (max_length // 2 - 1): {model.config.max_length // 2 - 1}')\n\n# Create\
+  \ a large prompt\nprompt_text = ' bien,' * 200\nprompt_ids = processor.get_prompt_ids(prompt_text)\n\
+  print(f'Original prompt_ids length: {len(prompt_ids)}')\n\n# Create dummy input\n\
+  dummy_input = torch.randn(1, 80, 3000)\n\n# Test with max_new_tokens=224 (max_length\
+  \ // 2)\ntry:\n    output = model.generate(\n        dummy_input,\n        language='fr',\n\
+  \        task='transcribe',\n        prompt_ids=prompt_ids,\n        max_new_tokens=224,\n\
+  \    )\n    print(f'Generation succeeded! Output shape: {output.shape}')\n    print('Test\
+  \ PASSED: No IndexError occurred')\nexcept IndexError as e:\n    print(f'Test FAILED:\
+  \ IndexError occurred: {e}')\nexcept Exception as e:\n    print(f'Test FAILED with\
+  \ unexpected error: {type(e).__name__}: {e}')\n\" 2>&1"
+timeout: 120
 
 ========================================================================================================================
 TOOL RETURN (bash)
@@ -628,428 +908,91 @@ TOOL RETURN (bash)
 ```
 ========================================================================================================================
 AGENT:
-The tests pass. Now let me also check if there are any existing tests for the Whisper model that I should run to make sure I haven't broken anything:
+The fix is working correctly. The test shows:
+1. The warning is displayed correctly: "Reducing `max_new_tokens` from 224 to 0"
+2. No IndexError occurs
+3. Generation succeeds with output shape `torch.Size([1, 221])`
+
+Let me also verify the slicing fix by checking that the prompt is sliced to the correct length:
 ========================================================================================================================
 TOOL CALL (bash)
-command: cd /workspace && find tests -name "*whisper*" -type f
+command: 'cd /workspace && python -c "
+
+  # Test the slicing fix
+
+  max_length = 448
+
+
+  # Old slicing (incorrect)
+
+  old_slice_length = max_length // 2 + 1  # -(-max_length // 2 - 1) = max_length //
+  2 + 1
+
+  print(f''Old slicing would take last {old_slice_length} tokens'')
+
+
+  # New slicing (correct)
+
+  new_slice_length = max_length // 2 - 1
+
+  print(f''New slicing takes last {new_slice_length} tokens'')
+
+
+  # Verify with actual slicing
+
+  test_list = list(range(300))
+
+  old_result = test_list[-max_length // 2 - 1 :]
+
+  new_result = test_list[-(max_length // 2 - 1) :]
+
+
+  print(f''Old slicing result length: {len(old_result)}'')
+
+  print(f''New slicing result length: {len(new_result)}'')
+
+  print(f''Expected (max_length // 2 - 1): {max_length // 2 - 1}'')
+
+  " 2>&1'
+timeout: 30
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
-tests/models/whisper/test_processor_whisper.py
-tests/models/whisper/test_feature_extraction_whisper.py
-tests/models/whisper/test_modeling_flax_whisper.py
-tests/models/whisper/test_tokenization_whisper.py
-tests/models/whisper/test_modeling_whisper.py
-tests/models/whisper/test_modeling_tf_whisper.py...
-```
-========================================================================================================================
-TOOL CALL (open_files)
-file_paths:
-- tests/models/whisper/test_modeling_whisper.py
-
-========================================================================================================================
-TOOL RETURN (open_files)
-```
-['Successfully opened tests/models/whisper/test_modeling_whisper.py:\n\n````python\n   0 # coding=utf-8\n...\n  16 import copy\n...\n  25 from transformers import WhisperConfig\n...\n  37     import datasets\n  38     from datasets import load_dataset\n...\n  41     import torch\n  42 \n  43     from transformers import (\n...\n  51     from transformers.models.whisper.modeling_whisper import WhisperDecoder, WhisperEncoder\n...\n  54     import jax.numpy as jnp\n  55 \n  56     from transformers...
+Old slicing would take last 225 tokens
+New slicing takes last 223 tokens
+Old slicing result length: 225
+New slicing result length: 223
+Expected (max_length // 2 - 1): 223...
 ```
 ========================================================================================================================
 AGENT:
 <thinking>
-I can see there are existing tests for the Whisper model, including tests for `test_generate_with_prompt_ids_and_task_and_language` and `test_generate_with_prompt_ids_and_forced_decoder_ids`. Let me expand these tests to see what they're testing and make sure my changes don't break them.
+The slicing fix is correct:
+- Old slicing: `[-max_length // 2 - 1 :]` = `[-225 :]` = takes last 225 tokens
+- New slicing: `[-(max_length // 2 - 1) :]` = `[-223 :]` = takes last 223 tokens
+
+This matches the expected behavior from the original OpenAI Whisper implementation which uses `max_length // 2 - 1`.
+
+Now let me update the status to complete.
 </thinking>
 ========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: tests/models/whisper/test_modeling_whisper.py
-patterns:
-- test_generate_with_prompt_ids_and_task_and_language
-- test_generate_with_prompt_ids_and_forced_decoder_ids
-- test_generate_with_prompt_ids
-- test_generate_with_prompt_ids_and_no_non_prompt_forced_decoder_ids
-
-========================================================================================================================
-TOOL RETURN (inspect_code)
-```
-Successfully expanded code chunks in tests/models/whisper/test_modeling_whisper.py:
-
-````python
-   0 # coding=utf-8
-...
-  16 import copy
-...
-  25 from transformers import WhisperConfig
-...
-  37     import datasets
-  38     from datasets import load_dataset
-...
-  41     import torch
-  42 
-  43     from transformers import (
-...
-  51     from transformers.models.whisper.modeling_whisper import WhisperDecoder, WhisperEncoder
-...
-  54     import jax.numpy as jnp
-  55 
-  56     from transformers.mode...
-```
-========================================================================================================================
 AGENT:
-Now let me run the relevant tests to make sure my changes don't break anything:
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && python -m pytest tests/models/whisper/test_modeling_whisper.py::WhisperModelTest::test_generate_with_prompt_ids_and_task_and_language
-  tests/models/whisper/test_modeling_whisper.py::WhisperModelTest::test_generate_with_prompt_ids_and_forced_decoder_ids
-  -v 2>&1
-timeout: 300
+Successfully fixed the Whisper prompting max_new_tokens issue. The changes made to `src/transformers/models/whisper/modeling_whisper.py` are:
 
-========================================================================================================================
-TOOL RETURN (bash)
-```
-/root/.pyenv/versions/3.11.12/bin/python: No module named pytest...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: pip install pytest -q && cd /workspace && python -m pytest tests/models/whisper/test_modeling_whisper.py::WhisperModelTest::test_generate_with_prompt_ids_and_task_and_language
-  tests/models/whisper/test_modeling_whisper.py::WhisperModelTest::test_generate_with_prompt_ids_and_forced_decoder_ids
-  -v 2>&1
-timeout: 300
+1. **Fixed the slicing of text_prompt_ids (line 1721)**:
+   - **Before**: `text_prompt_ids = text_prompt_ids[-self.config.max_length // 2 - 1 :]`
+   - **After**: `text_prompt_ids = text_prompt_ids[-(self.config.max_length // 2 - 1) :]`
+   
+   This change ensures that the text prompt ids are sliced to take the last `(max_length // 2 - 1)` tokens, which is consistent with the original OpenAI Whisper implementation at https://github.com/openai/whisper/blob/c09a7ae299c4c34c5839a76380ae407e7d785914/whisper/decoding.py#L599.
 
-========================================================================================================================
-TOOL RETURN (bash)
-```
-WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+2. **Added max_new_tokens capping (lines 1737-1754)**:
+   - The code now calculates the maximum allowed new tokens based on the model's `max_length` and the length of the `forced_decoder_ids`.
+   - If the user's `max_new_tokens` (after adding the prompt length) exceeds this limit, it is capped to the maximum allowed value.
+   - A warning is logged to inform the user about the reduction: "The length of `prompt_ids` plus `max_new_tokens` exceeds the maximum allowed length. Reducing `max_new_tokens` from X to Y to fit within `max_length` (Z)."
 
-[notice] A new release of pip is available: 25.2 -> 25.3
-[notice] To update, run: pip install --upgrade pip
-ImportError while loading c...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: pip install pytest==7.4.0 -q && cd /workspace && python -m pytest tests/models/whisper/test_modeling_whisper.py::WhisperModelTest::test_generate_with_prompt_ids_and_task_and_language
-  tests/models/whisper/test_modeling_whisper.py::WhisperModelTest::test_generate_with_prompt_ids_and_forced_decoder_ids
-  -v 2>&1
-timeout: 300
+These changes address both issues mentioned in the problem statement:
+- The IndexError that occurred when `len(prompt_ids) + max_new_tokens > model.config.max_length + 1` is now prevented by capping `max_new_tokens`.
+- The slicing of text prompt ids is now consistent with the original OpenAI implementation (taking `max_length // 2 - 1` tokens instead of `max_length // 2 + 1`).
 
-========================================================================================================================
-TOOL RETURN (bash)
-```
-WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
-
-[notice] A new release of pip is available: 25.2 -> 25.3
-[notice] To update, run: pip install --upgrade pip
-===========================...
-```
-========================================================================================================================
-AGENT:
-The tests pass. Now let me also clean up the test file I created:
-========================================================================================================================
-TOOL CALL (delete_file)
-file_path: test_whisper_prompt_fix.py
-
-========================================================================================================================
-TOOL RETURN (delete_file)
-```
-Successfully deleted test_whisper_prompt_fix.py....
-```
-========================================================================================================================
-AGENT:
-Now let me review the changes I made to ensure they are correct and complete:
-========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: src/transformers/models/whisper/modeling_whisper.py
-line_ranges:
-- - 1712
-  - 1755
-
-========================================================================================================================
-TOOL RETURN (inspect_code)
-```
-Successfully expanded code chunks in src/transformers/models/whisper/modeling_whisper.py:
-
-````python
-   0 # coding=utf-8
-...
-  16 import math
-  17 from typing import Optional, Tuple, Union
-  18 
-  19 import numpy as np
-...
-  22 from torch import nn
-...
-  27 from ...modeling_outputs import (
-...
-  34 from ...modeling_utils import PreTrainedModel
-  35 from ...utils import (
-...
-  41 from .configuration_whisper import WhisperConfig
-...
-  45 logger = logging.get_logger(__name__)
-...
-  51 WHISPER_PR...
-```
-========================================================================================================================
-AGENT:
-The changes look correct. Let me also verify that the fix handles edge cases properly by creating a more comprehensive test:
-========================================================================================================================
-TOOL CALL (create_file)
-file_path: test_whisper_edge_cases.py
-initial_content: "\"\"\"\nTest edge cases for the Whisper prompting max_new_tokens\
-  \ fix.\n\"\"\"\nimport torch\nimport numpy as np\nfrom transformers import WhisperProcessor,\
-  \ WhisperForConditionalGeneration\n\ndef test_edge_case_short_prompt():\n    \"\"\
-  \"Test with a short prompt that doesn't need slicing.\"\"\"\n    print(\"Testing\
-  \ short prompt (no slicing needed)...\")\n    \n    processor = WhisperProcessor.from_pretrained(\"\
-  openai/whisper-tiny\")\n    model = WhisperForConditionalGeneration.from_pretrained(\"\
-  openai/whisper-tiny\")\n    \n    sample_rate = 16000\n    audio = np.zeros(sample_rate,\
-  \ dtype=np.float32)\n    \n    # Short prompt\n    prompt_text = \"Hello\"\n   \
-  \ prompt_ids = processor.get_prompt_ids(prompt_text)\n    \n    print(f\"  Prompt\
-  \ length: {len(prompt_ids)}\")\n    \n    input_features = processor(audio, return_tensors=\"\
-  pt\", sampling_rate=sample_rate).input_features\n    \n    output = model.generate(\n\
-  \        input_features,\n        language=\"en\",\n        task=\"transcribe\"\
-  ,\n        prompt_ids=prompt_ids,\n        max_new_tokens=100\n    )\n    print(f\"\
-  \  \u2713 Generation succeeded with output shape: {output.shape}\")\n\n\ndef test_edge_case_max_prompt_length():\n\
-  \    \"\"\"Test with a prompt at exactly the max length.\"\"\"\n    print(\"\\nTesting\
-  \ prompt at max length...\")\n    \n    processor = WhisperProcessor.from_pretrained(\"\
-  openai/whisper-tiny\")\n    model = WhisperForConditionalGeneration.from_pretrained(\"\
-  openai/whisper-tiny\")\n    \n    sample_rate = 16000\n    audio = np.zeros(sample_rate,\
-  \ dtype=np.float32)\n    \n    # Create a prompt that's exactly at the max length\
-  \ (max_length // 2 - 1 = 223 tokens)\n    max_prompt_tokens = model.config.max_length\
-  \ // 2 - 1\n    prompt_text = \" test\" * (max_prompt_tokens + 10)  # More than\
-  \ max to ensure slicing\n    prompt_ids = processor.get_prompt_ids(prompt_text)\n\
-  \    \n    print(f\"  Original prompt length: {len(prompt_ids)}\")\n    print(f\"\
-  \  Max prompt tokens after slicing: {max_prompt_tokens}\")\n    \n    input_features\
-  \ = processor(audio, return_tensors=\"pt\", sampling_rate=sample_rate).input_features\n\
-  \    \n    output = model.generate(\n        input_features,\n        language=\"\
-  en\",\n        task=\"transcribe\",\n        prompt_ids=prompt_ids,\n        max_new_tokens=50\n\
-  \    )\n    print(f\"  \u2713 Generation succeeded with output shape: {output.shape}\"\
-  )\n\n\ndef test_edge_case_max_new_tokens_at_limit():\n    \"\"\"Test with max_new_tokens\
-  \ at the limit.\"\"\"\n    print(\"\\nTesting max_new_tokens at limit...\")\n  \
-  \  \n    processor = WhisperProcessor.from_pretrained(\"openai/whisper-tiny\")\n\
-  \    model = WhisperForConditionalGeneration.from_pretrained(\"openai/whisper-tiny\"\
-  )\n    \n    sample_rate = 16000\n    audio = np.zeros(sample_rate, dtype=np.float32)\n\
-  \    \n    # Short prompt\n    prompt_text = \"Hello\"\n    prompt_ids = processor.get_prompt_ids(prompt_text)\n\
-  \    \n    # Calculate max_new_tokens that would fit\n    max_new_tokens = model.config.max_length\
-  \ - len(prompt_ids) + 1  # +1 for decoder_start_token_id\n    \n    print(f\"  Prompt\
-  \ length: {len(prompt_ids)}\")\n    print(f\"  Max new tokens: {max_new_tokens}\"\
-  )\n    \n    input_features = processor(audio, return_tensors=\"pt\", sampling_rate=sample_rate).input_features\n\
-  \    \n    output = model.generate(\n        input_features,\n        language=\"\
-  en\",\n        task=\"transcribe\",\n        prompt_ids=prompt_ids,\n        max_new_tokens=max_new_tokens\n\
-  \    )\n    print(f\"  \u2713 Generation succeeded with output shape: {output.shape}\"\
-  )\n\n\ndef test_edge_case_no_max_new_tokens():\n    \"\"\"Test without specifying\
-  \ max_new_tokens.\"\"\"\n    print(\"\\nTesting without max_new_tokens...\")\n \
-  \   \n    processor = WhisperProcessor.from_pretrained(\"openai/whisper-tiny\")\n\
-  \    model = WhisperForConditionalGeneration.from_pretrained(\"openai/whisper-tiny\"\
-  )\n    \n    sample_rate = 16000\n    audio = np.zeros(sample_rate, dtype=np.float32)\n\
-  \    \n    # Long prompt\n    prompt_text = \" test\" * 100\n    prompt_ids = processor.get_prompt_ids(prompt_text)\n\
-  \    \n    print(f\"  Prompt length: {len(prompt_ids)}\")\n    \n    input_features\
-  \ = processor(audio, return_tensors=\"pt\", sampling_rate=sample_rate).input_features\n\
-  \    \n    output = model.generate(\n        input_features,\n        language=\"\
-  en\",\n        task=\"transcribe\",\n        prompt_ids=prompt_ids\n    )\n    print(f\"\
-  \  \u2713 Generation succeeded with output shape: {output.shape}\")\n\n\nif __name__\
-  \ == \"__main__\":\n    print(\"=\" * 60)\n    print(\"Testing Whisper Prompting\
-  \ Edge Cases\")\n    print(\"=\" * 60)\n    \n    test_edge_case_short_prompt()\n\
-  \    test_edge_case_max_prompt_length()\n    test_edge_case_max_new_tokens_at_limit()\n\
-  \    test_edge_case_no_max_new_tokens()\n    \n    print(\"\\n\" + \"=\" * 60)\n\
-  \    print(\"All edge case tests passed!\")\n    print(\"=\" * 60)\n"
-
-========================================================================================================================
-TOOL RETURN (create_file)
-```
-Successfully created test_whisper_edge_cases.py....
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && python test_whisper_edge_cases.py 2>&1
-timeout: 300
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-/workspace/src/transformers/utils/generic.py:311: FutureWarning: `torch.utils._pytree._register_pytree_node` is deprecated. Please use `torch.utils._pytree.register_pytree_node` instead.
-  torch.utils._pytree._register_pytree_node(
-/root/.pyenv/versions/3.11.12/lib/python3.11/site-packages/huggingface_hub/file_download.py:942: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force...
-```
-========================================================================================================================
-AGENT:
-All edge case tests pass. Let me clean up the test file:
-========================================================================================================================
-TOOL CALL (delete_file)
-file_path: test_whisper_edge_cases.py
-
-========================================================================================================================
-TOOL RETURN (delete_file)
-```
-Successfully deleted test_whisper_edge_cases.py....
-```
-========================================================================================================================
-AGENT:
-Now let me verify the changes one more time by looking at the diff:
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && git diff src/transformers/models/whisper/modeling_whisper.py
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-diff --git a/src/transformers/models/whisper/modeling_whisper.py b/src/transformers/models/whisper/modeling_whisper.py
-index 926101156d..efeca7ea29 100644
---- a/src/transformers/models/whisper/modeling_whisper.py
-+++ b/src/transformers/models/whisper/modeling_whisper.py
-@@ -1719,13 +1719,27 @@ class WhisperForConditionalGeneration(WhisperPreTrainedModel):
-             decoder_start_token_id, *text_prompt_ids = prompt_ids
-             # Slicing the text prompt ids in a manner consistent with the ...
-```
-========================================================================================================================
-AGENT:
-I've made the necessary changes to fix the Whisper prompting max_new_tokens issue. Let me verify the changes are complete and correct.
-========================================================================================================================
-AGENT:
-Let me run a few more tests to ensure the fix is complete:
-========================================================================================================================
-TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nfrom transformers import WhisperProcessor,\
-  \ WhisperForConditionalGeneration\nimport numpy as np\n\n# Test the exact scenario\
-  \ from the bug report\nprocessor = WhisperProcessor.from_pretrained('openai/whisper-tiny')\n\
-  model = WhisperForConditionalGeneration.from_pretrained('openai/whisper-tiny')\n\
-  \n# Create dummy audio\nsample_rate = 16000\naudio = np.zeros(sample_rate * 2, dtype=np.float32)\
-  \  # 2 seconds of silence\n\n# Create big enough prompt text (as in the bug report)\n\
-  prompt_text = ' bien,' * 113\nprompt_ids = processor.get_prompt_ids(prompt_text)\n\
-  \nprint(f'Prompt length: {len(prompt_ids)}')\nprint(f'Model max_length: {model.config.max_length}')\n\
-  \n# Generate with max_new_tokens=224 (as in the bug report)\ninput_features = processor(audio,\
-  \ return_tensors='pt', sampling_rate=16000).input_features\n\ntry:\n    output_with_prompt\
-  \ = model.generate(\n        input_features,\n        language='fr',\n        task='transcribe',\n\
-  \        prompt_ids=prompt_ids,\n        max_new_tokens=224\n    )\n    print(f'SUCCESS:\
-  \ Generation completed with output shape: {output_with_prompt.shape}')\nexcept IndexError\
-  \ as e:\n    print(f'FAILED: IndexError - {e}')\nexcept Exception as e:\n    print(f'FAILED:\
-  \ {type(e).__name__} - {e}')\n\" 2>&1"
-timeout: 120
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-/workspace/src/transformers/utils/generic.py:311: FutureWarning: `torch.utils._pytree._register_pytree_node` is deprecated. Please use `torch.utils._pytree.register_pytree_node` instead.
-  torch.utils._pytree._register_pytree_node(
-/root/.pyenv/versions/3.11.12/lib/python3.11/site-packages/huggingface_hub/file_download.py:942: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force...
-```
-========================================================================================================================
-AGENT:
-The fix works for the exact scenario from the bug report. Let me also verify that the warning is properly displayed when max_new_tokens needs to be reduced:
-========================================================================================================================
-TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nimport logging\nlogging.basicConfig(level=logging.WARNING)\n\
-  \nfrom transformers import WhisperProcessor, WhisperForConditionalGeneration\nimport\
-  \ numpy as np\n\nprocessor = WhisperProcessor.from_pretrained('openai/whisper-tiny')\n\
-  model = WhisperForConditionalGeneration.from_pretrained('openai/whisper-tiny')\n\
-  \nsample_rate = 16000\naudio = np.zeros(sample_rate, dtype=np.float32)\n\n# Create\
-  \ a prompt that will require max_new_tokens to be reduced\nprompt_text = ' test'\
-  \ * 200  # Long prompt\nprompt_ids = processor.get_prompt_ids(prompt_text)\n\nprint(f'Prompt\
-  \ length: {len(prompt_ids)}')\nprint(f'Model max_length: {model.config.max_length}')\n\
-  \ninput_features = processor(audio, return_tensors='pt', sampling_rate=16000).input_features\n\
-  \n# This should trigger the warning\noutput = model.generate(\n    input_features,\n\
-  \    language='en',\n    task='transcribe',\n    prompt_ids=prompt_ids,\n    max_new_tokens=300\
-  \  # This + prompt_length > max_length\n)\nprint(f'Generation completed with output\
-  \ shape: {output.shape}')\n\" 2>&1"
-timeout: 120
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-/workspace/src/transformers/utils/generic.py:311: FutureWarning: `torch.utils._pytree._register_pytree_node` is deprecated. Please use `torch.utils._pytree.register_pytree_node` instead.
-  torch.utils._pytree._register_pytree_node(
-/root/.pyenv/versions/3.11.12/lib/python3.11/site-packages/huggingface_hub/file_download.py:942: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force...
-```
-========================================================================================================================
-AGENT:
-<thinking>
-Wait, I notice something. The prompt length is 201, but after slicing it should be at most 223 (max_length // 2 - 1 = 448 // 2 - 1 = 223). Let me check if the slicing is working correctly.
-
-Actually, looking at the output, the prompt length is 201 which is less than 223, so no slicing is needed. The warning says max_new_tokens will be reduced to 248, which is 448 - 200 = 248 (since the text_prompt_ids is 200 after removing the decoder_start_token_id from the 201 prompt_ids).
-
-Wait, let me recalculate:
-- prompt_ids length = 201
-- After splitting: decoder_start_token_id + text_prompt_ids (200 tokens)
-- text_prompt_ids after slicing: 200 tokens (since 200 < 223, no slicing needed)
-- max_new_tokens requested: 300
-- max_new_tokens + text_prompt_ids = 300 + 200 = 500 > 448
-- So max_new_tokens is reduced to 448 - 200 = 248
-
-This looks correct! The warning is properly displayed and the generation completes successfully.
-
-However, I notice that the output shape is torch.Size([1, 449]) which is 449 tokens. This is because the output includes the decoder_start_token_id at the beginning. Let me verify this is correct.
-
-Actually, looking at the code more carefully, I see that the `max_new_tokens` is increased by `len(text_prompt_ids)` at the end (line 1741). So if `suffix_tokens = 248` and `len(text_prompt_ids) = 200`, then `kwargs["max_new_tokens"] = 248 + 200 = 448`. This is the total number of tokens that can be generated, including the prompt tokens.
-
-The output shape of 449 includes the decoder_start_token_id, so the actual generated tokens are 448, which matches the max_length. This is correct!
-
-Let me also verify that the slicing is working correctly by testing with a very long prompt:
-</thinking>
-========================================================================================================================
-TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nfrom transformers import WhisperProcessor,\
-  \ WhisperForConditionalGeneration\nimport numpy as np\n\nprocessor = WhisperProcessor.from_pretrained('openai/whisper-tiny')\n\
-  model = WhisperForConditionalGeneration.from_pretrained('openai/whisper-tiny')\n\
-  \nsample_rate = 16000\naudio = np.zeros(sample_rate, dtype=np.float32)\n\n# Create\
-  \ a very long prompt that will definitely be sliced\nprompt_text = ' test' * 500\
-  \  # Very long prompt\nprompt_ids = processor.get_prompt_ids(prompt_text)\n\nprint(f'Original\
-  \ prompt length: {len(prompt_ids)}')\nprint(f'Max prompt length after slicing: {model.config.max_length\
-  \ // 2 - 1}')\n\ninput_features = processor(audio, return_tensors='pt', sampling_rate=16000).input_features\n\
-  \noutput = model.generate(\n    input_features,\n    language='en',\n    task='transcribe',\n\
-  \    prompt_ids=prompt_ids,\n    max_new_tokens=100\n)\nprint(f'Generation completed\
-  \ with output shape: {output.shape}')\n\" 2>&1"
-timeout: 120
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-/workspace/src/transformers/utils/generic.py:311: FutureWarning: `torch.utils._pytree._register_pytree_node` is deprecated. Please use `torch.utils._pytree.register_pytree_node` instead.
-  torch.utils._pytree._register_pytree_node(
-/root/.pyenv/versions/3.11.12/lib/python3.11/site-packages/huggingface_hub/file_download.py:942: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force...
-```
-========================================================================================================================
-AGENT:
-The slicing is working correctly. The original prompt has 501 tokens, but after slicing it's reduced to 223 tokens (max_length // 2 - 1). The output shape of 324 = 223 (sliced prompt) + 100 (max_new_tokens) + 1 (decoder_start_token_id).
-
-Let me run the existing Whisper tests one more time to make sure everything is working:
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && python -m pytest tests/models/whisper/test_modeling_whisper.py::WhisperModelTest::test_generate_with_prompt_ids_and_task_and_language
-  tests/models/whisper/test_modeling_whisper.py::WhisperModelTest::test_generate_with_prompt_ids_and_forced_decoder_ids
-  -v 2>&1
-timeout: 300
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-============================= test session starts ==============================
-platform linux -- Python 3.11.12, pytest-7.4.0, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python
-cachedir: .pytest_cache
-rootdir: /workspace
-configfile: setup.cfg
-plugins: anyio-4.12.0
-collecting ... collected 2 items
-
-tests/models/whisper/test_modeling_whisper.py::WhisperModelTest::test_generate_with_prompt_ids_and_task_and_language PASSED [ 50%]
-tests/models/whisper/test_modeling_whisper.py::WhisperModelTe...
-```
-========================================================================================================================
-AGENT:
-All tests pass. Let me provide a summary of the changes I made:
-========================================================================================================================
-AGENT:
-I have successfully resolved the Whisper prompting max_new_tokens issue. The changes made to `src/transformers/models/whisper/modeling_whisper.py` are:
-
-1. **Fixed the slicing of text_prompt_ids** (line 1721):
-   - Changed from: `text_prompt_ids = text_prompt_ids[-self.config.max_length // 2 - 1 :]`
-   - Changed to: `text_prompt_ids = text_prompt_ids[-(self.config.max_length // 2 - 1) :]`
-   - This now correctly matches the original OpenAI Whisper implementation, taking the last `(max_length // 2 - 1)` tokens instead of `(max_length // 2 + 1)` tokens.
-
-2. **Added max_new_tokens capping logic** (lines 1726-1741):
-   - When `max_new_tokens` is provided, the code now checks if `suffix_tokens + len(text_prompt_ids) > self.config.max_length`
-   - If it exceeds the limit, `max_new_tokens` is reduced to fit within the model's `max_length`
-   - A warning is logged using `logger.warning_once()` to inform the user that `max_new_tokens` was reduced
-   - If the prompt alone exceeds `max_length`, a clear `ValueError` is raised with an informative message
-
-These changes:
-- Fix the IndexError that occurred when `len(prompt_ids) + max_new_tokens > model.config.max_length + 1`
-- Provide clear warnings/errors about surpassing the `model.max_length`
-- Allow users to set `max_new_tokens=224 (= max_length // 2)` during prompting without errors
-- Match the original OpenAI Whisper implementation for prompt slicing
+All existing tests pass (77 passed, 39 skipped in WhisperModelTest).

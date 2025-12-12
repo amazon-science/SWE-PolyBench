@@ -8,35 +8,35 @@ and build/deployment, with much more to come.
 
 ## Performance on SWE-PolyBench Verified
 
-The current version of Rovo Dev Agent achieves 50.79% on SWE-PolyBench Verified:
+The current version of Rovo Dev Agent achieves 49.21% on SWE-PolyBench Verified:
 
 ```
-Total resolved: 194/382
-Total pass rate: 50.79%
+Total resolved: 188/382
+Total pass rate: 49.21%
 
 Pass rate by language:
 Python: 63/113 (55.8%)
-JavaScript: 54/100 (54.0%)
-TypeScript: 45/100 (45.0%)
+JavaScript: 51/100 (51.0%)
+TypeScript: 42/100 (42.0%)
 Java: 32/69 (46.4%)
 
 Pass rate by task category:
-Bug Fix: 157/299 (52.5%)
-Feature: 30/70 (42.9%)
+Bug Fix: 152/299 (50.8%)
+Feature: 29/70 (41.4%)
 Refactoring: 7/13 (53.8%)
 
 File retrieval metrics by language:
             file_recall  file_precision  file_f1
 language                                        
-Java               0.72            0.56     0.60
-JavaScript         0.70            0.36     0.44
-Python             0.78            0.68     0.69
-TypeScript         0.62            0.31     0.37
+Java               0.70            0.84     0.73
+JavaScript         0.67            0.77     0.68
+Python             0.79            0.80     0.76
+TypeScript         0.60            0.71     0.60
 
 File retrieval metrics overall:
-file_recall       0.71
-file_precision    0.48
-file_f1           0.52
+file_recall       0.69
+file_precision    0.78
+file_f1           0.69
 ```
 
 ## Technical Report

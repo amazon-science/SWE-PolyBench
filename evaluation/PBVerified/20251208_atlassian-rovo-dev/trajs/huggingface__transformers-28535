@@ -50,20 +50,30 @@ Thank you!
 </problem_statement>
 
 Do not stop until you have made code changes that resolve the problem statement. Do not ask for clarifications.
-========================================================================================================================
-AGENT:
-Starting to analyze the issue with ESM tokenizer where new tokens are being incorrectly classified as special tokens and the tokenizer length doesn't change after adding tokens.
-========================================================================================================================
-AGENT:
-EXPLORE: Understanding the ESM tokenizer implementation
 
+NEVER attempt to find the solution to the problem statement by searching future commits or branches in the repository.
+========================================================================================================================
+AGENT:
+Starting to analyze the problem with ESM tokenizer where new tokens are being added as special tokens even when special_tokens=False is specified. I need to explore the ESM tokenizer implementation to understand the issue.
+========================================================================================================================
+AGENT:
 <thinking>
-The problem statement indicates that:
+Let me start by exploring the ESM tokenizer implementation to understand why new tokens are being added as special tokens even when `special_tokens=False` is specified.
+
+The problem statement indicates:
 1. When adding new tokens to the ESM2 tokenizer with `special_tokens=False`, they are still being added as special tokens
 2. The length of the tokenizer doesn't change after adding new tokens
+3. This behavior is different from BERT tokenizers
 
-Let me first look at the ESM tokenizer implementation to understand how it handles token addition.
+I need to:
+1. Find the ESM tokenizer implementation
+2. Understand how `add_tokens` works and why it's treating new tokens as special tokens
+3. Fix the issue
+
+Let me start by looking at the ESM tokenizer code.
 </thinking>
+
+EXPLORE ESM TOKENIZER: Let me find and examine the ESM tokenizer implementation
 ========================================================================================================================
 TOOL CALL (expand_folder)
 folder_path: src/transformers/models/esm
@@ -110,47 +120,72 @@ TOOL RETURN (open_files)
 ========================================================================================================================
 AGENT:
 <thinking>
-I found the issue! Looking at line 160-161:
+I found the issue! Looking at line 160-161 in the ESM tokenizer:
 
 ```python
 def _add_tokens(self, new_tokens: Union[List[str], List[AddedToken]], special_tokens: bool = False) -> int:
     return super()._add_tokens(new_tokens, special_tokens=True)
 ```
 
-The `_add_tokens` method is overriding the `special_tokens` parameter and always passing `special_tokens=True` to the parent class, regardless of what the user specifies. This is why all new tokens are being added as special tokens.
+The `_add_tokens` method is overriding the `special_tokens` parameter and always passing `special_tokens=True` to the parent class, regardless of what value is passed by the user. This is why all new tokens are being added as special tokens.
 
-Additionally, looking at the `vocab_size` property (line 156-158) and `get_vocab_size` method (line 93-94):
-
+Additionally, looking at the `get_vocab_size` method (line 93-94):
 ```python
 def get_vocab_size(self, with_added_tokens=False):
     return len(self._id_to_token)
+```
 
+This method only returns the length of `self._id_to_token`, which is the internal dictionary that's populated from the vocab file. It doesn't account for added tokens even when `with_added_tokens=True`.
+
+And the `vocab_size` property (line 156-158):
+```python
 @property
 def vocab_size(self) -> int:
     return self.get_vocab_size(with_added_tokens=False)
 ```
 
-The `get_vocab_size` method only returns the length of `self._id_to_token`, which is the original vocabulary. It doesn't include added tokens. The `with_added_tokens` parameter is ignored.
+This always returns the size without added tokens, which is correct for the base vocab size.
 
-Let me also look at the base class `PreTrainedTokenizer` to understand how `_add_tokens` and `vocab_size` should work.
+The main issue is in the `_add_tokens` method which forces `special_tokens=True`. Let me also check the `get_vocab` method (line 96-97):
+```python
+def get_vocab(self):
+    return {token: i for i, token in enumerate(self.all_tokens)}
+```
+
+This also only returns the original tokens from `self.all_tokens` and doesn't include added tokens.
+
+Let me also look at the `save_vocabulary` method (line 150-154):
+```python
+def save_vocabulary(self, save_directory, filename_prefix):
+    vocab_file = os.path.join(save_directory, (filename_prefix + "-" if filename_prefix else "") + "vocab.txt")
+    with open(vocab_file, "w") as f:
+        f.write("\n".join(self.all_tokens))
+    return (vocab_file,)
+```
+
+This also only saves `self.all_tokens` and doesn't include added tokens.
+
+The fix should:
+1. Remove the override of `special_tokens=True` in `_add_tokens` - just pass through the parameter as provided
+2. Update `_add_tokens` to also update the internal `_id_to_token`, `_token_to_id`, and `all_tokens` structures when new tokens are added
+
+Let me look at the parent class `PreTrainedTokenizer` to understand how `_add_tokens` works and what we need to do.
 </thinking>
 ========================================================================================================================
-TOOL CALL (open_files)
-file_paths:
-- src/transformers/tokenization_utils.py
+TOOL CALL (grep)
+content_pattern: def _add_tokens
+path_glob: '**/tokenization_utils.py'
 
 ========================================================================================================================
-TOOL RETURN (open_files)
+TOOL RETURN (grep)
 ```
-['Successfully opened src/transformers/tokenization_utils.py:\n\n````python\n   0 # coding=utf-8\n...\n  18 import bisect\n...\n  22 from collections import OrderedDict\n...\n  25 from .tokenization_utils_base import (\n...\n  40 from .utils import PaddingStrategy, TensorType, add_end_docstrings, logging\n...\n  43 logger = logging.get_logger(__name__)\n...\n  46 SPECIAL_TOKENS_MAP_FILE = "special_tokens_map.json"\n...\n  51 class Trie:\n...\n  57     def __init__(self):\n...\n  61     def add(s...
+src/transformers/tokenization_utils.py:433:    def _add_tokens(self, new_tokens: Union[List[str], List[AddedToken]], special_tokens: bool = False) -> int:...
 ```
 ========================================================================================================================
 TOOL CALL (inspect_code)
 file_path: src/transformers/tokenization_utils.py
 patterns:
 - def _add_tokens
-- def __len__
-- def vocab_size
 
 ========================================================================================================================
 TOOL RETURN (inspect_code)
@@ -181,130 +216,232 @@ Successfully expanded code chunks in src/transformers/tokenization_utils.py:
 ========================================================================================================================
 AGENT:
 <thinking>
-Now I understand the issue better. Looking at the base class:
+Now I understand the issue better. Looking at the parent class `PreTrainedTokenizer._add_tokens`:
 
-1. `__len__` (line 425-430) returns `len(set(self.get_vocab().keys()))` - this relies on `get_vocab()` to include added tokens.
-
-2. The `_add_tokens` method in the base class (line 432-507) properly handles the `special_tokens` parameter.
+1. It gets the current vocabulary using `self.get_vocab().copy()`
+2. It calculates the new index as `len(current_vocab)`
+3. It adds tokens to `self._added_tokens_encoder` and `self._added_tokens_decoder`
+4. It updates the trie
 
 The problem in `EsmTokenizer` is:
 
-1. **Line 160-161**: The `_add_tokens` method always passes `special_tokens=True` to the parent class, ignoring the user's input.
+1. The `_add_tokens` method forces `special_tokens=True`, which makes all added tokens special
+2. The `get_vocab()` method only returns `self.all_tokens` and doesn't include added tokens from `self._added_tokens_encoder`
+3. The internal structures `self._id_to_token`, `self._token_to_id`, and `self.all_tokens` are not updated when new tokens are added
 
-2. **Line 93-94**: The `get_vocab_size` method only returns `len(self._id_to_token)`, which doesn't include added tokens.
+The fix should:
+1. Remove the forced `special_tokens=True` in `_add_tokens` - just pass through the parameter
+2. Update `get_vocab()` to include added tokens (or let the parent class handle it properly)
 
-3. **Line 96-97**: The `get_vocab` method only returns the original vocabulary from `self.all_tokens`, not including added tokens.
-
-Since `__len__` in the base class relies on `get_vocab()`, and `EsmTokenizer.get_vocab()` doesn't include added tokens, the length of the tokenizer won't change after adding new tokens.
-
-Let me fix these issues:
-
-1. Remove the `_add_tokens` override or fix it to properly pass the `special_tokens` parameter.
-2. Fix `get_vocab` to include added tokens.
-
-Let me also check if there are any tests for the ESM tokenizer to understand expected behavior.
+Let me check how `get_vocab` is implemented in the parent class.
 </thinking>
 ========================================================================================================================
-TOOL CALL (open_files)
-file_paths:
-- tests/models/esm/test_tokenization_esm.py
-
-========================================================================================================================
-TOOL RETURN (open_files)
-```
-['Successfully opened tests/models/esm/test_tokenization_esm.py:\n\n````python\n   0 # coding=utf-8\n   1 # Copyright 2021 The HuggingFace Team. All rights reserved.\n   2 #\n   3 # Licensed under the Apache License, Version 2.0 (the "License");\n   4 # you may not use this file except in compliance with the License.\n   5 # You may obtain a copy of the License at\n   6 #\n   7 #     http://www.apache.org/licenses/LICENSE-2.0\n   8 #\n   9 # Unless required by applicable law or agreed to in writ...
-```
-========================================================================================================================
-AGENT:
-Now let me write a test script to reproduce the issue and verify my understanding:
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && pip install -e . -q 2>&1 | tail -5
-timeout: 120
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
-
-[notice] A new release of pip is available: 25.2 -> 25.3
-[notice] To update, run: pip install --upgrade pip...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nimport tempfile\nimport os\n\n# Create a\
-  \ minimal vocab file\nvocab_tokens = ['<cls>', '<pad>', '<eos>', '<unk>', 'L', 'A',\
-  \ 'G', 'V', 'S', 'E', 'R', 'T', 'I', 'D', 'P', 'K', 'Q', 'N', 'F', 'Y', 'M', 'H',\
-  \ 'W', 'C', 'X', 'B', 'U', 'Z', 'O', '.', '-', '<null_1>', '<mask>']\n\nwith tempfile.TemporaryDirectory()\
-  \ as tmpdirname:\n    vocab_file = os.path.join(tmpdirname, 'vocab.txt')\n    with\
-  \ open(vocab_file, 'w') as f:\n        f.write('\\n'.join(vocab_tokens))\n    \n\
-  \    from transformers.models.esm.tokenization_esm import EsmTokenizer\n    \n \
-  \   tokenizer = EsmTokenizer(vocab_file)\n    \n    print('Initial vocab size:',\
-  \ tokenizer.vocab_size)\n    print('Initial len(tokenizer):', len(tokenizer))\n\
-  \    print('Initial get_vocab keys:', len(tokenizer.get_vocab()))\n    \n    # Add\
-  \ a new token\n    num_added = tokenizer.add_tokens(['J'], special_tokens=False)\n\
-  \    print()\n    print('Tokens added:', num_added)\n    print('After adding - vocab_size:',\
-  \ tokenizer.vocab_size)\n    print('After adding - len(tokenizer):', len(tokenizer))\n\
-  \    print('After adding - get_vocab keys:', len(tokenizer.get_vocab()))\n    \n\
-  \    # Check if J is in special tokens\n    print()\n    print('J in additional_special_tokens:',\
-  \ 'J' in tokenizer.additional_special_tokens)\n    print('all_special_tokens:',\
-  \ tokenizer.all_special_tokens)\n    \n    # Check added_tokens_decoder\n    print()\n\
-  \    print('added_tokens_decoder:', tokenizer.added_tokens_decoder)\n\"\n"
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
-Initial vocab size: 33
-Initial len(tokenizer): 33
-Initial get_vocab keys: 33
-
-Tokens added: 1
-After adding - vocab_size: 33
-After adding - len(tokenizer): 33
-After adding - get_vocab keys: 33
-
-J in additional_special_tokens: True
-all_special_tokens: ['<eos>', '<unk>', '<pad>', '<cls>', '<mask>', 'J']
-
-added_tokens_decoder: {0: AddedToken("...
-```
-========================================================================================================================
-AGENT:
-I've confirmed the issue. Now let me fix the `EsmTokenizer`:
-
-1. Remove or fix the `_add_tokens` override to properly pass the `special_tokens` parameter
-2. Fix `get_vocab` to include added tokens
-========================================================================================================================
 TOOL CALL (inspect_code)
-file_path: src/transformers/models/esm/tokenization_esm.py
-line_ranges:
-- - 0
-  - -1
+file_path: src/transformers/tokenization_utils.py
+patterns:
+- def get_vocab
+- def get_added_vocab
 
 ========================================================================================================================
 TOOL RETURN (inspect_code)
 ```
-Successfully expanded code chunks in src/transformers/models/esm/tokenization_esm.py:
+Successfully expanded code chunks in src/transformers/tokenization_utils.py:
 
 ````python
    0 # coding=utf-8
-   1 # Copyright 2022 Meta and The HuggingFace Inc. team. All rights reserved.
-   2 #
-   3 # Licensed under the Apache License, Version 2.0 (the "License");
-   4 # you may not use this file except in compliance with the License.
-   5 # You may obtain a copy of the License at
-   6 #
-   7 #     http://www.apache.org/licenses/LICENSE-2.0
-   8 #
-   9 # Unless required by applicable l...
+...
+  18 import bisect
+...
+  22 from collections import OrderedDict
+...
+  25 from .tokenization_utils_base import (
+...
+  40 from .utils import PaddingStrategy, TensorType, add_end_docstrings, logging
+...
+  43 logger = logging.get_logger(__name__)
+...
+  51 class Trie:
+...
+  57     def __init__(self):
+...
+  61     def add(self, word: str):
+...
+  92     def split(self, text: str) -> List[st...
 ```
 ========================================================================================================================
 AGENT:
-Now I'll make the necessary fixes:
+<thinking>
+The `get_vocab` method is not in `tokenization_utils.py`. Let me check `tokenization_utils_base.py` for the base implementation.
+</thinking>
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: def get_vocab
+path_glob: '**/tokenization_utils_base.py'
 
-1. **Fix `_add_tokens`**: Remove the override or fix it to properly pass the `special_tokens` parameter
-2. **Fix `get_vocab`**: Include added tokens in the vocabulary
+========================================================================================================================
+TOOL RETURN (grep)
+```
+src/transformers/tokenization_utils_base.py:1665:    def get_vocab(self) -> Dict[str, int]:...
+```
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/tokenization_utils_base.py
+patterns:
+- def get_vocab
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/transformers/tokenization_utils_base.py:
+
+````python
+   0 # coding=utf-8
+...
+  20 import copy
+...
+  25 from collections import UserDict
+...
+  32 import numpy as np
+  33 from packaging import version
+...
+  37 from .utils import (
+...
+  67         import torch
+...
+  72     from .pipelines.conversational import Conversation
+...
+  76     from tokenizers import AddedToken
+...
+  80     @dataclass(frozen=False, eq=True)
+  81     class AddedToken:
+...
+  90       ...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+I see that `get_vocab` in the base class raises `NotImplementedError()`. So each tokenizer must implement its own `get_vocab` method.
+
+Looking at the ESM tokenizer's `get_vocab` method:
+```python
+def get_vocab(self):
+    return {token: i for i, token in enumerate(self.all_tokens)}
+```
+
+This only returns the original tokens from `self.all_tokens` and doesn't include added tokens from `self._added_tokens_encoder`.
+
+Now let me understand the full issue:
+
+1. **`_add_tokens` forces `special_tokens=True`**: This is the main bug - line 160-161 in `tokenization_esm.py`:
+   ```python
+   def _add_tokens(self, new_tokens: Union[List[str], List[AddedToken]], special_tokens: bool = False) -> int:
+       return super()._add_tokens(new_tokens, special_tokens=True)
+   ```
+
+2. **`get_vocab` doesn't include added tokens**: The `get_vocab` method only returns the original vocabulary, not including added tokens. This causes the parent's `_add_tokens` to calculate the wrong `new_idx` because it uses `len(self.get_vocab())`.
+
+Let me check how other tokenizers implement `get_vocab` to see the expected pattern.
+</thinking>
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: def get_vocab\(self\)
+path_glob: '**/models/bert/tokenization_bert.py'
+
+========================================================================================================================
+TOOL RETURN (grep)
+```
+src/transformers/models/bert/tokenization_bert.py:239:    def get_vocab(self):...
+```
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/models/bert/tokenization_bert.py
+patterns:
+- def get_vocab
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/transformers/models/bert/tokenization_bert.py:
+
+````python
+   0 # coding=utf-8
+...
+  17 import collections
+...
+  20 from typing import List, Optional, Tuple
+...
+  26 logger = logging.get_logger(__name__)
+...
+  30 PRETRAINED_VOCAB_FILES_MAP = {
+...
+  73 PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES = {
+...
+  94 PRETRAINED_INIT_CONFIGURATION = {
+...
+ 116 def load_vocab(vocab_file):
+...
+ 119     with open(vocab_file, "r", encoding="utf-8") as reader:
+...
+ 127 def w...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Now I can see the key difference. In `BertTokenizer.get_vocab()`:
+```python
+def get_vocab(self):
+    return dict(self.vocab, **self.added_tokens_encoder)
+```
+
+This correctly includes both the original vocabulary AND the added tokens.
+
+In `EsmTokenizer.get_vocab()`:
+```python
+def get_vocab(self):
+    return {token: i for i, token in enumerate(self.all_tokens)}
+```
+
+This only returns the original tokens and doesn't include added tokens.
+
+Now I understand the full fix needed:
+
+1. **Fix `_add_tokens`**: Remove the forced `special_tokens=True` and just pass through the parameter as provided by the user.
+
+2. **Fix `get_vocab`**: Include added tokens in the vocabulary, similar to how BERT does it.
+
+Let me make these changes to the ESM tokenizer.
+</thinking>
+
+FIX ESM TOKENIZER: Now I'll fix the two issues in the ESM tokenizer
+========================================================================================================================
+AGENT:
+Found the issues in the ESM tokenizer. Now making the fixes: 1) Remove forced special_tokens=True in _add_tokens, 2) Fix get_vocab to include added tokens.
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/models/esm/tokenization_esm.py
+find: "    def _add_tokens(self, new_tokens: Union[List[str], List[AddedToken]], special_tokens:\
+  \ bool = False) -> int:\n        return super()._add_tokens(new_tokens, special_tokens=True)"
+replace: "    def _add_tokens(self, new_tokens: Union[List[str], List[AddedToken]],\
+  \ special_tokens: bool = False) -> int:\n        return super()._add_tokens(new_tokens,\
+  \ special_tokens=special_tokens)"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/models/esm/tokenization_esm.py:
+
+--- src/transformers/models/esm/tokenization_esm.py
++++ src/transformers/models/esm/tokenization_esm.py
+@@ -159,4 +159,4 @@
+         return self.get_vocab_size(with_added_tokens=False)
+ 
+     def _add_tokens(self, new_tokens: Union[List[str], List[AddedToken]], special_tokens: bool = False) -> int:
+-        return super()._add_tokens(new_tokens, special_tokens=True)
++        return super()._add_tokens(new_tokens, spe...
+```
+========================================================================================================================
+AGENT:
+Now let me fix the `get_vocab` method to include added tokens:
 ========================================================================================================================
 TOOL CALL (find_and_replace_code)
 file_path: src/transformers/models/esm/tokenization_esm.py
@@ -332,129 +469,139 @@ Successfully replaced code in src/transformers/models/esm/tokenization_esm.py:
   ...
 ```
 ========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: src/transformers/models/esm/tokenization_esm.py
-find: "    def _add_tokens(self, new_tokens: Union[List[str], List[AddedToken]], special_tokens:\
-  \ bool = False) -> int:\n        return super()._add_tokens(new_tokens, special_tokens=True)"
-replace: "    def _add_tokens(self, new_tokens: Union[List[str], List[AddedToken]],\
-  \ special_tokens: bool = False) -> int:\n        return super()._add_tokens(new_tokens,\
-  \ special_tokens=special_tokens)"
+AGENT:
+Now let me verify the changes by opening the file to see the updated code:
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- src/transformers/models/esm/tokenization_esm.py
 
 ========================================================================================================================
-TOOL RETURN (find_and_replace_code)
+TOOL RETURN (open_files)
 ```
-Successfully replaced code in src/transformers/models/esm/tokenization_esm.py:
-
---- src/transformers/models/esm/tokenization_esm.py
-+++ src/transformers/models/esm/tokenization_esm.py
-@@ -161,4 +161,4 @@
-         return self.get_vocab_size(with_added_tokens=False)
- 
-     def _add_tokens(self, new_tokens: Union[List[str], List[AddedToken]], special_tokens: bool = False) -> int:
--        return super()._add_tokens(new_tokens, special_tokens=True)
-+        return super()._add_tokens(new_tokens, spe...
+['Successfully opened src/transformers/models/esm/tokenization_esm.py:\n\n````python\n   0 # coding=utf-8\n   1 # Copyright 2022 Meta and The HuggingFace Inc. team. All rights reserved.\n   2 #\n   3 # Licensed under the Apache License, Version 2.0 (the "License");\n   4 # you may not use this file except in compliance with the License.\n   5 # You may obtain a copy of the License at\n   6 #\n   7 #     http://www.apache.org/licenses/LICENSE-2.0\n   8 #\n   9 # Unless required by applicable law ...
 ```
 ========================================================================================================================
 AGENT:
-Now let's test the fix:
+Now let me create a test script to verify the fix works correctly:
+========================================================================================================================
+TOOL CALL (create_file)
+file_path: test_esm_tokenizer_fix.py
+initial_content: "#!/usr/bin/env python\n\"\"\"Test script to verify the ESM tokenizer\
+  \ fix for adding new tokens.\"\"\"\n\nimport sys\nimport os\n\n# Add the src directory\
+  \ to the path so we can import the local transformers\nsys.path.insert(0, os.path.join(os.path.dirname(__file__),\
+  \ 'src'))\n\nfrom transformers.models.esm.tokenization_esm import EsmTokenizer\n\
+  from transformers.tokenization_utils_base import AddedToken\nimport tempfile\n\n\
+  def test_add_tokens_not_special():\n    \"\"\"Test that adding tokens with special_tokens=False\
+  \ works correctly.\"\"\"\n    \n    # Create a temporary vocab file\n    with tempfile.NamedTemporaryFile(mode='w',\
+  \ suffix='.txt', delete=False) as f:\n        vocab_tokens = ['<cls>', '<pad>',\
+  \ '<eos>', '<unk>', '<mask>', 'A', 'B', 'C', 'D', 'E']\n        f.write('\\n'.join(vocab_tokens))\n\
+  \        vocab_file = f.name\n    \n    try:\n        # Create tokenizer\n     \
+  \   tokenizer = EsmTokenizer(vocab_file)\n        \n        initial_len = len(tokenizer)\n\
+  \        initial_vocab_size = tokenizer.vocab_size\n        print(f\"Initial tokenizer\
+  \ length: {initial_len}\")\n        print(f\"Initial vocab_size: {initial_vocab_size}\"\
+  )\n        \n        # Add a new token with special_tokens=False\n        num_added\
+  \ = tokenizer.add_tokens(['J'], special_tokens=False)\n        print(f\"Number of\
+  \ tokens added: {num_added}\")\n        \n        new_len = len(tokenizer)\n   \
+  \     print(f\"New tokenizer length: {new_len}\")\n        \n        # Check that\
+  \ the token was added\n        assert num_added == 1, f\"Expected 1 token to be\
+  \ added, got {num_added}\"\n        assert new_len == initial_len + 1, f\"Expected\
+  \ tokenizer length to increase by 1, got {new_len} (was {initial_len})\"\n     \
+  \   \n        # Check that the token is NOT a special token\n        added_token_info\
+  \ = tokenizer.added_tokens_decoder.get(initial_len)\n        print(f\"Added token\
+  \ info: {added_token_info}\")\n        \n        if added_token_info is not None:\n\
+  \            assert not added_token_info.special, f\"Token 'J' should NOT be a special\
+  \ token, but it is: {added_token_info}\"\n            print(\"SUCCESS: Token 'J'\
+  \ is correctly NOT marked as special\")\n        else:\n            print(\"WARNING:\
+  \ Could not find added token in added_tokens_decoder\")\n        \n        # Check\
+  \ that 'J' is not in additional_special_tokens\n        assert 'J' not in tokenizer.additional_special_tokens,\
+  \ f\"'J' should not be in additional_special_tokens: {tokenizer.additional_special_tokens}\"\
+  \n        print(\"SUCCESS: 'J' is not in additional_special_tokens\")\n        \n\
+  \        # Check get_vocab includes the new token\n        vocab = tokenizer.get_vocab()\n\
+  \        assert 'J' in vocab, f\"'J' should be in vocab: {vocab}\"\n        print(f\"\
+  SUCCESS: 'J' is in vocab with id {vocab['J']}\")\n        \n        print(\"\\n===\
+  \ All tests passed! ===\")\n        return True\n        \n    finally:\n      \
+  \  os.unlink(vocab_file)\n\n\ndef test_add_tokens_as_special():\n    \"\"\"Test\
+  \ that adding tokens with special_tokens=True still works.\"\"\"\n    \n    # Create\
+  \ a temporary vocab file\n    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt',\
+  \ delete=False) as f:\n        vocab_tokens = ['<cls>', '<pad>', '<eos>', '<unk>',\
+  \ '<mask>', 'A', 'B', 'C', 'D', 'E']\n        f.write('\\n'.join(vocab_tokens))\n\
+  \        vocab_file = f.name\n    \n    try:\n        # Create tokenizer\n     \
+  \   tokenizer = EsmTokenizer(vocab_file)\n        \n        initial_len = len(tokenizer)\n\
+  \        print(f\"\\nInitial tokenizer length: {initial_len}\")\n        \n    \
+  \    # Add a new token with special_tokens=True\n        num_added = tokenizer.add_tokens(['<special_new>'],\
+  \ special_tokens=True)\n        print(f\"Number of tokens added: {num_added}\")\n\
+  \        \n        new_len = len(tokenizer)\n        print(f\"New tokenizer length:\
+  \ {new_len}\")\n        \n        # Check that the token was added\n        assert\
+  \ num_added == 1, f\"Expected 1 token to be added, got {num_added}\"\n        assert\
+  \ new_len == initial_len + 1, f\"Expected tokenizer length to increase by 1, got\
+  \ {new_len} (was {initial_len})\"\n        \n        # Check that the token IS a\
+  \ special token\n        added_token_info = tokenizer.added_tokens_decoder.get(initial_len)\n\
+  \        print(f\"Added token info: {added_token_info}\")\n        \n        if\
+  \ added_token_info is not None:\n            assert added_token_info.special, f\"\
+  Token '<special_new>' SHOULD be a special token, but it's not: {added_token_info}\"\
+  \n            print(\"SUCCESS: Token '<special_new>' is correctly marked as special\"\
+  )\n        \n        # Check that '<special_new>' is in additional_special_tokens\n\
+  \        assert '<special_new>' in tokenizer.additional_special_tokens, f\"'<special_new>'\
+  \ should be in additional_special_tokens: {tokenizer.additional_special_tokens}\"\
+  \n        print(\"SUCCESS: '<special_new>' is in additional_special_tokens\")\n\
+  \        \n        print(\"\\n=== All special token tests passed! ===\")\n     \
+  \   return True\n        \n    finally:\n        os.unlink(vocab_file)\n\n\nif __name__\
+  \ == '__main__':\n    print(\"Testing ESM tokenizer fix for adding new tokens...\\\
+  n\")\n    \n    success1 = test_add_tokens_not_special()\n    success2 = test_add_tokens_as_special()\n\
+  \    \n    if success1 and success2:\n        print(\"\\n\\n=== ALL TESTS PASSED\
+  \ ===\")\n        sys.exit(0)\n    else:\n        print(\"\\n\\n=== SOME TESTS FAILED\
+  \ ===\")\n        sys.exit(1)\n"
+
+========================================================================================================================
+TOOL RETURN (create_file)
+```
+Successfully created test_esm_tokenizer_fix.py....
+```
 ========================================================================================================================
 TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nimport tempfile\nimport os\n\n# Create a\
-  \ minimal vocab file\nvocab_tokens = ['<cls>', '<pad>', '<eos>', '<unk>', 'L', 'A',\
-  \ 'G', 'V', 'S', 'E', 'R', 'T', 'I', 'D', 'P', 'K', 'Q', 'N', 'F', 'Y', 'M', 'H',\
-  \ 'W', 'C', 'X', 'B', 'U', 'Z', 'O', '.', '-', '<null_1>', '<mask>']\n\nwith tempfile.TemporaryDirectory()\
-  \ as tmpdirname:\n    vocab_file = os.path.join(tmpdirname, 'vocab.txt')\n    with\
-  \ open(vocab_file, 'w') as f:\n        f.write('\\n'.join(vocab_tokens))\n    \n\
-  \    from transformers.models.esm.tokenization_esm import EsmTokenizer\n    \n \
-  \   tokenizer = EsmTokenizer(vocab_file)\n    \n    print('Initial vocab size:',\
-  \ tokenizer.vocab_size)\n    print('Initial len(tokenizer):', len(tokenizer))\n\
-  \    print('Initial get_vocab keys:', len(tokenizer.get_vocab()))\n    \n    # Add\
-  \ a new token with special_tokens=False\n    num_added = tokenizer.add_tokens(['J'],\
-  \ special_tokens=False)\n    print()\n    print('Tokens added:', num_added)\n  \
-  \  print('After adding - vocab_size:', tokenizer.vocab_size)\n    print('After adding\
-  \ - len(tokenizer):', len(tokenizer))\n    print('After adding - get_vocab keys:',\
-  \ len(tokenizer.get_vocab()))\n    \n    # Check if J is in special tokens\n   \
-  \ print()\n    print('J in additional_special_tokens:', 'J' in tokenizer.additional_special_tokens)\n\
-  \    print('all_special_tokens:', tokenizer.all_special_tokens)\n    \n    # Check\
-  \ added_tokens_decoder\n    print()\n    print('added_tokens_decoder:', tokenizer.added_tokens_decoder)\n\
-  \    \n    # Test that the token can be encoded\n    print()\n    print('Encoding\
-  \ J:', tokenizer.encode('J'))\n\"\n"
+command: cd /workspace && pip install -e . -q 2>&1 | tail -5
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python test_esm_tokenizer_fix.py
+timeout: 60
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
 None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
-Initial vocab size: 33
-Initial len(tokenizer): 33
-Initial get_vocab keys: 33
+Testing ESM tokenizer fix for adding new tokens...
 
-Tokens added: 1
-After adding - vocab_size: 33
-After adding - len(tokenizer): 34
-After adding - get_vocab keys: 34
+Initial tokenizer length: 10
+Initial vocab_size: 10
+Number of tokens added: 1
+New tokenizer length: 11
+Added token info: J
+SUCCESS: Token 'J' is correctly NOT marked as special
+SUCCESS: 'J' is not in additional_special_tokens
+SUCCESS: 'J' is in vocab with id 10
 
-J in additional_special_tokens: False
-all_special_tokens: ['<eos>', '<unk>', '<pad>', '<cls>', '<mask>']
-
-added_tokens_decoder: {0: AddedToken("<cls...
+=== All tests passed! ===
+...
 ```
 ========================================================================================================================
 AGENT:
-The fix is working. Now:
-1. `len(tokenizer)` correctly returns 34 after adding a token (was 33 before)
-2. `J` is NOT in `additional_special_tokens` anymore
-3. The token can be encoded correctly (index 33)
-
-Let me also verify that adding special tokens still works correctly:
-========================================================================================================================
-TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nimport tempfile\nimport os\n\n# Create a\
-  \ minimal vocab file\nvocab_tokens = ['<cls>', '<pad>', '<eos>', '<unk>', 'L', 'A',\
-  \ 'G', 'V', 'S', 'E', 'R', 'T', 'I', 'D', 'P', 'K', 'Q', 'N', 'F', 'Y', 'M', 'H',\
-  \ 'W', 'C', 'X', 'B', 'U', 'Z', 'O', '.', '-', '<null_1>', '<mask>']\n\nwith tempfile.TemporaryDirectory()\
-  \ as tmpdirname:\n    vocab_file = os.path.join(tmpdirname, 'vocab.txt')\n    with\
-  \ open(vocab_file, 'w') as f:\n        f.write('\\n'.join(vocab_tokens))\n    \n\
-  \    from transformers.models.esm.tokenization_esm import EsmTokenizer\n    \n \
-  \   tokenizer = EsmTokenizer(vocab_file)\n    \n    print('Initial len(tokenizer):',\
-  \ len(tokenizer))\n    \n    # Add a new token with special_tokens=True\n    num_added\
-  \ = tokenizer.add_tokens(['<special_new>'], special_tokens=True)\n    print()\n\
-  \    print('Tokens added (special):', num_added)\n    print('After adding - len(tokenizer):',\
-  \ len(tokenizer))\n    \n    # Check if <special_new> is in special tokens\n   \
-  \ print()\n    print('<special_new> in additional_special_tokens:', '<special_new>'\
-  \ in tokenizer.additional_special_tokens)\n    print('all_special_tokens:', tokenizer.all_special_tokens)\n\
-  \    \n    # Add a non-special token\n    num_added = tokenizer.add_tokens(['J'],\
-  \ special_tokens=False)\n    print()\n    print('Tokens added (non-special):', num_added)\n\
-  \    print('After adding - len(tokenizer):', len(tokenizer))\n    print('J in additional_special_tokens:',\
-  \ 'J' in tokenizer.additional_special_tokens)\n    \n    # Test encoding\n    print()\n\
-  \    print('Encoding <special_new>:', tokenizer.encode('<special_new>'))\n    print('Encoding\
-  \ J:', tokenizer.encode('J'))\n\"\n"
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
-Initial len(tokenizer): 33
-
-Tokens added (special): 1
-After adding - len(tokenizer): 34
-
-<special_new> in additional_special_tokens: True
-all_special_tokens: ['<eos>', '<unk>', '<pad>', '<cls>', '<mask>', '<special_new>']
-
-Tokens added (non-special): 1
-After adding - len(tokenizer): 35
-J in additional_special_tokens: False
-
-Encoding <speci...
-```
-========================================================================================================================
-AGENT:
-Both special and non-special tokens are now being added correctly. Let me run the existing ESM tokenizer tests to make sure we haven't broken anything:
+The fix works. Now let me also run the existing ESM tokenizer tests to make sure I haven't broken anything:
 ========================================================================================================================
 TOOL CALL (bash)
 command: cd /workspace && python -m pytest tests/models/esm/test_tokenization_esm.py
-  -v 2>&1 | head -50
-timeout: 60
+  -v 2>&1 | head -100
+timeout: 120
 
 ========================================================================================================================
 TOOL RETURN (bash)
@@ -464,7 +611,7 @@ TOOL RETURN (bash)
 ========================================================================================================================
 TOOL CALL (bash)
 command: pip install pytest -q && cd /workspace && python -m pytest tests/models/esm/test_tokenization_esm.py
-  -v 2>&1 | head -60
+  -v 2>&1 | head -100
 timeout: 120
 
 ========================================================================================================================
@@ -478,8 +625,23 @@ None of PyTorch, TensorFlow...
 ```
 ========================================================================================================================
 TOOL CALL (bash)
-command: pip install 'pytest>=7.0.0,<8.0.0' -q && cd /workspace && python -m pytest
-  tests/models/esm/test_tokenization_esm.py -v 2>&1 | head -60
+command: pip install 'pytest>=7.0.0' -q && cd /workspace && python -m pytest tests/models/esm/test_tokenization_esm.py
+  -v 2>&1 | head -150
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip
+None of PyTorch, TensorFlow...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: pip install 'pytest>=7.2.0,<8.0.0' -q && cd /workspace && python -m pytest
+  tests/models/esm/test_tokenization_esm.py -v 2>&1 | head -150
 timeout: 120
 
 ========================================================================================================================
@@ -493,170 +655,160 @@ WARNING: Running pip as the 'root' user can result in broken permissions and con
 ```
 ========================================================================================================================
 AGENT:
-All existing tests pass. Now let me also check if there's a `save_vocabulary` method that might need updating to include added tokens:
+All existing ESM tokenizer tests pass. Now let me also look at the test file to see if there are any tests related to adding tokens that I should check:
 ========================================================================================================================
-TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nimport tempfile\nimport os\n\n# Create a\
-  \ minimal vocab file\nvocab_tokens = ['<cls>', '<pad>', '<eos>', '<unk>', 'L', 'A',\
-  \ 'G', 'V', 'S', 'E', 'R', 'T', 'I', 'D', 'P', 'K', 'Q', 'N', 'F', 'Y', 'M', 'H',\
-  \ 'W', 'C', 'X', 'B', 'U', 'Z', 'O', '.', '-', '<null_1>', '<mask>']\n\nwith tempfile.TemporaryDirectory()\
-  \ as tmpdirname:\n    vocab_file = os.path.join(tmpdirname, 'vocab.txt')\n    with\
-  \ open(vocab_file, 'w') as f:\n        f.write('\\n'.join(vocab_tokens))\n    \n\
-  \    from transformers.models.esm.tokenization_esm import EsmTokenizer\n    \n \
-  \   tokenizer = EsmTokenizer(vocab_file)\n    \n    # Add a new token\n    tokenizer.add_tokens(['J'],\
-  \ special_tokens=False)\n    \n    # Save and reload\n    save_dir = os.path.join(tmpdirname,\
-  \ 'saved')\n    os.makedirs(save_dir)\n    tokenizer.save_pretrained(save_dir)\n\
-  \    \n    # Reload\n    tokenizer2 = EsmTokenizer.from_pretrained(save_dir)\n \
-  \   \n    print('Original len(tokenizer):', len(tokenizer))\n    print('Reloaded\
-  \ len(tokenizer2):', len(tokenizer2))\n    print('J in tokenizer2 vocab:', 'J' in\
-  \ tokenizer2.get_vocab())\n    print('Encoding J with reloaded:', tokenizer2.encode('J'))\n\
-  \"\n"
+TOOL CALL (open_files)
+file_paths:
+- tests/models/esm/test_tokenization_esm.py
 
 ========================================================================================================================
-TOOL RETURN (bash)
+TOOL RETURN (open_files)
 ```
-None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
-Original len(tokenizer): 34
-Reloaded len(tokenizer2): 34
-J in tokenizer2 vocab: True
-Encoding J with reloaded: [0, 33, 2]...
+['Successfully opened tests/models/esm/test_tokenization_esm.py:\n\n````python\n   0 # coding=utf-8\n   1 # Copyright 2021 The HuggingFace Team. All rights reserved.\n   2 #\n   3 # Licensed under the Apache License, Version 2.0 (the "License");\n   4 # you may not use this file except in compliance with the License.\n   5 # You may obtain a copy of the License at\n   6 #\n   7 #     http://www.apache.org/licenses/LICENSE-2.0\n   8 #\n   9 # Unless required by applicable law or agreed to in writ...
 ```
 ========================================================================================================================
 AGENT:
-The tokenizer saves and reloads correctly with the added tokens. Let me also verify the issue from the problem statement more directly by simulating the exact scenario:
+The existing tests don't cover the `add_tokens` functionality. Let me clean up my test file and also verify that the fix works with a more comprehensive test that mimics the user's original issue:
 ========================================================================================================================
 TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nimport tempfile\nimport os\n\n# Create a\
-  \ minimal vocab file (simulating ESM2 vocab)\nvocab_tokens = ['<cls>', '<pad>',\
-  \ '<eos>', '<unk>', 'L', 'A', 'G', 'V', 'S', 'E', 'R', 'T', 'I', 'D', 'P', 'K',\
-  \ 'Q', 'N', 'F', 'Y', 'M', 'H', 'W', 'C', 'X', 'B', 'U', 'Z', 'O', '.', '-', '<null_1>',\
-  \ '<mask>']\n\nwith tempfile.TemporaryDirectory() as tmpdirname:\n    vocab_file\
-  \ = os.path.join(tmpdirname, 'vocab.txt')\n    with open(vocab_file, 'w') as f:\n\
-  \        f.write('\\n'.join(vocab_tokens))\n    \n    from transformers.models.esm.tokenization_esm\
-  \ import EsmTokenizer\n    \n    tokenizer = EsmTokenizer(vocab_file)\n    \n  \
-  \  print('Before adding token:')\n    print('  vocab_size:', tokenizer.vocab_size)\n\
-  \    print('  len(tokenizer):', len(tokenizer))\n    \n    # This is what the user\
-  \ was doing\n    num_added_toks = tokenizer.add_tokens(['J'], special_tokens=False)\n\
-  \    print()\n    print('We have added', num_added_toks, 'tokens')\n    \n    print()\n\
-  \    print('After adding token:')\n    print('  vocab_size:', tokenizer.vocab_size)\n\
-  \    print('  len(tokenizer):', len(tokenizer))\n    \n    # Check that J is NOT\
-  \ a special token\n    print()\n    print('J is special token:', 'J' in tokenizer.all_special_tokens)\n\
-  \    print('J in additional_special_tokens:', 'J' in tokenizer.additional_special_tokens)\n\
-  \    \n    # The main issue was that len(tokenizer) didn't change\n    # Now it\
-  \ should be 34 (33 + 1)\n    print()\n    print('model.resize_token_embeddings(len(tokenizer))\
-  \ would use:', len(tokenizer))\n\"\n"
+command: "cd /workspace && python -c \"\nimport sys\nimport os\nsys.path.insert(0,\
+  \ os.path.join(os.path.dirname('.'), 'src'))\n\nimport tempfile\nfrom transformers.models.esm.tokenization_esm\
+  \ import EsmTokenizer\n\n# Create a temporary vocab file similar to ESM2\nwith tempfile.NamedTemporaryFile(mode='w',\
+  \ suffix='.txt', delete=False) as f:\n    vocab_tokens = ['<cls>', '<pad>', '<eos>',\
+  \ '<unk>', 'L', 'A', 'G', 'V', 'S', 'E', 'R', 'T', 'I', 'D', 'P', 'K', 'Q', 'N',\
+  \ 'F', 'Y', 'M', 'H', 'W', 'C', 'X', 'B', 'U', 'Z', 'O', '.', '-', '<null_1>', '<mask>']\n\
+  \    f.write('\\n'.join(vocab_tokens))\n    vocab_file = f.name\n\ntry:\n    tokenizer\
+  \ = EsmTokenizer(vocab_file)\n    \n    print('Before adding token:')\n    print(f'\
+  \  len(tokenizer) = {len(tokenizer)}')\n    print(f'  vocab_size = {tokenizer.vocab_size}')\n\
+  \    \n    # Add token with special_tokens=False (the user's use case)\n    num_added_toks\
+  \ = tokenizer.add_tokens(['J'], special_tokens=False)\n    print(f'\\\\nWe have\
+  \ added {num_added_toks} tokens')\n    \n    print('\\\\nAfter adding token:')\n\
+  \    print(f'  len(tokenizer) = {len(tokenizer)}')\n    print(f'  vocab_size = {tokenizer.vocab_size}')\n\
+  \    \n    # Check if J is in additional_special_tokens\n    print(f'\\\\nadditional_special_tokens:\
+  \ {tokenizer.additional_special_tokens}')\n    \n    # Check the added token info\n\
+  \    print(f'\\\\nadded_tokens_decoder:')\n    for idx, token in tokenizer.added_tokens_decoder.items():\n\
+  \        print(f'  {idx}: {token} (special={token.special})')\n    \n    # Verify\
+  \ the token is NOT special\n    j_token = tokenizer.added_tokens_decoder.get(33)\n\
+  \    if j_token:\n        if j_token.special:\n            print('\\\\nFAILED: Token\
+  \ J is incorrectly marked as special!')\n            sys.exit(1)\n        else:\n\
+  \            print('\\\\nSUCCESS: Token J is correctly NOT marked as special!')\n\
+  \    \n    # Verify J is not in additional_special_tokens\n    if 'J' in tokenizer.additional_special_tokens:\n\
+  \        print('FAILED: J should not be in additional_special_tokens!')\n      \
+  \  sys.exit(1)\n    else:\n        print('SUCCESS: J is not in additional_special_tokens!')\n\
+  \    \n    # Verify tokenizer length increased\n    if len(tokenizer) == 34:\n \
+  \       print('SUCCESS: Tokenizer length correctly increased to 34!')\n    else:\n\
+  \        print(f'FAILED: Tokenizer length should be 34, got {len(tokenizer)}')\n\
+  \        sys.exit(1)\n        \nfinally:\n    os.unlink(vocab_file)\n\"\n"
+timeout: 60
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
 None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
 Before adding token:
-  vocab_size: 33
-  len(tokenizer): 33
+  len(tokenizer) = 33
+  vocab_size = 33
 
 We have added 1 tokens
 
 After adding token:
-  vocab_size: 33
-  len(tokenizer): 34
+  len(tokenizer) = 34
+  vocab_size = 33
 
-J is special token: False
-J in additional_special_tokens: False
+additional_special_tokens: []
 
-model.resize_token_embeddings(len(tokenizer)) would use: 34...
+added_tokens_decoder:
+  0: <cls> (special=True)
+  1: <pad> (special=True)
+  2: <eos> (special=True)
+  3: <unk> (special=True)
+  32: <mask> (special=True)
+  33: J (...
 ```
 ========================================================================================================================
 AGENT:
-The fix is working correctly. Let me also review the changes I made to ensure they are correct:
+The fix is working correctly. Now let me clean up the test file and also verify the fix addresses all the issues mentioned in the problem statement:
 ========================================================================================================================
-TOOL CALL (open_files)
-file_paths:
-- src/transformers/models/esm/tokenization_esm.py
+TOOL CALL (delete_file)
+file_path: test_esm_tokenizer_fix.py
 
 ========================================================================================================================
-TOOL RETURN (open_files)
+TOOL RETURN (delete_file)
 ```
-['Successfully opened src/transformers/models/esm/tokenization_esm.py:\n\n````python\n   0 # coding=utf-8\n   1 # Copyright 2022 Meta and The HuggingFace Inc. team. All rights reserved.\n   2 #\n   3 # Licensed under the Apache License, Version 2.0 (the "License");\n   4 # you may not use this file except in compliance with the License.\n   5 # You may obtain a copy of the License at\n   6 #\n   7 #     http://www.apache.org/licenses/LICENSE-2.0\n   8 #\n   9 # Unless required by applicable law ...
+Successfully deleted test_esm_tokenizer_fix.py....
 ```
 ========================================================================================================================
 AGENT:
-<thinking>
-Looking at the code, I notice that the `_add_tokens` override is now essentially just calling the parent method with the same parameters. This means we could potentially remove the override entirely. However, I should check if there was a reason for the original override.
-
-Looking at the original code comment on line 78-79:
-```python
-# TODO, all the tokens are added? But they are also part of the vocab... bit strange.
-# none of them are special, but they all need special splitting.
-```
-
-This suggests there might have been some confusion about how tokens should be handled. The original override that forced `special_tokens=True` was likely a mistake or a workaround that caused the bug.
-
-Since the override now just passes through to the parent, we could remove it entirely. However, keeping it makes the code more explicit and doesn't hurt anything. Let me verify that removing it would work the same way.
-
-Actually, let me keep the override as is since it's now correct and explicit. The fix is complete.
-
-Let me also run a more comprehensive test to make sure everything works correctly:
-</thinking>
+Let me also verify that the tokenizer can correctly encode/decode the new token after adding it:
 ========================================================================================================================
 TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nimport tempfile\nimport os\n\n# Create a\
-  \ minimal vocab file\nvocab_tokens = ['<cls>', '<pad>', '<eos>', '<unk>', 'L', 'A',\
-  \ 'G', 'V', 'S', 'E', 'R', 'T', 'I', 'D', 'P', 'K', 'Q', 'N', 'F', 'Y', 'M', 'H',\
-  \ 'W', 'C', 'X', 'B', 'U', 'Z', 'O', '.', '-', '<null_1>', '<mask>']\n\nwith tempfile.TemporaryDirectory()\
-  \ as tmpdirname:\n    vocab_file = os.path.join(tmpdirname, 'vocab.txt')\n    with\
-  \ open(vocab_file, 'w') as f:\n        f.write('\\n'.join(vocab_tokens))\n    \n\
-  \    from transformers.models.esm.tokenization_esm import EsmTokenizer\n    \n \
-  \   tokenizer = EsmTokenizer(vocab_file)\n    \n    # Test 1: Add non-special token\n\
-  \    print('Test 1: Add non-special token')\n    num_added = tokenizer.add_tokens(['J'],\
-  \ special_tokens=False)\n    assert num_added == 1, f'Expected 1 token added, got\
-  \ {num_added}'\n    assert len(tokenizer) == 34, f'Expected len 34, got {len(tokenizer)}'\n\
-  \    assert 'J' not in tokenizer.all_special_tokens, 'J should not be a special\
-  \ token'\n    print('  PASSED')\n    \n    # Test 2: Add special token\n    print('Test\
-  \ 2: Add special token')\n    num_added = tokenizer.add_tokens(['<new_special>'],\
-  \ special_tokens=True)\n    assert num_added == 1, f'Expected 1 token added, got\
-  \ {num_added}'\n    assert len(tokenizer) == 35, f'Expected len 35, got {len(tokenizer)}'\n\
-  \    assert '<new_special>' in tokenizer.all_special_tokens, '<new_special> should\
-  \ be a special token'\n    print('  PASSED')\n    \n    # Test 3: Encoding works\
-  \ correctly\n    print('Test 3: Encoding works correctly')\n    encoded_j = tokenizer.encode('J')\n\
-  \    assert 33 in encoded_j, f'Expected token id 33 in encoded output, got {encoded_j}'\n\
-  \    encoded_special = tokenizer.encode('<new_special>')\n    assert 34 in encoded_special,\
-  \ f'Expected token id 34 in encoded output, got {encoded_special}'\n    print('\
-  \  PASSED')\n    \n    # Test 4: Save and reload\n    print('Test 4: Save and reload')\n\
-  \    save_dir = os.path.join(tmpdirname, 'saved')\n    os.makedirs(save_dir)\n \
-  \   tokenizer.save_pretrained(save_dir)\n    tokenizer2 = EsmTokenizer.from_pretrained(save_dir)\n\
-  \    assert len(tokenizer2) == 35, f'Expected len 35 after reload, got {len(tokenizer2)}'\n\
-  \    assert 'J' in tokenizer2.get_vocab(), 'J should be in vocab after reload'\n\
-  \    assert '<new_special>' in tokenizer2.get_vocab(), '<new_special> should be\
-  \ in vocab after reload'\n    print('  PASSED')\n    \n    # Test 5: get_vocab includes\
-  \ added tokens\n    print('Test 5: get_vocab includes added tokens')\n    vocab\
-  \ = tokenizer.get_vocab()\n    assert 'J' in vocab, 'J should be in get_vocab()'\n\
-  \    assert '<new_special>' in vocab, '<new_special> should be in get_vocab()'\n\
-  \    assert vocab['J'] == 33, f'Expected J to have id 33, got {vocab[\\\"J\\\"]}'\n\
-  \    assert vocab['<new_special>'] == 34, f'Expected <new_special> to have id 34,\
-  \ got {vocab[\\\"<new_special>\\\"]}'\n    print('  PASSED')\n    \n    print()\n\
-  \    print('All tests passed!')\n\"\n"
+command: "cd /workspace && python -c \"\nimport sys\nimport os\nsys.path.insert(0,\
+  \ os.path.join(os.path.dirname('.'), 'src'))\n\nimport tempfile\nfrom transformers.models.esm.tokenization_esm\
+  \ import EsmTokenizer\n\n# Create a temporary vocab file similar to ESM2\nwith tempfile.NamedTemporaryFile(mode='w',\
+  \ suffix='.txt', delete=False) as f:\n    vocab_tokens = ['<cls>', '<pad>', '<eos>',\
+  \ '<unk>', 'L', 'A', 'G', 'V', 'S', 'E', 'R', 'T', 'I', 'D', 'P', 'K', 'Q', 'N',\
+  \ 'F', 'Y', 'M', 'H', 'W', 'C', 'X', 'B', 'U', 'Z', 'O', '.', '-', '<null_1>', '<mask>']\n\
+  \    f.write('\\n'.join(vocab_tokens))\n    vocab_file = f.name\n\ntry:\n    tokenizer\
+  \ = EsmTokenizer(vocab_file)\n    \n    # Add token with special_tokens=False\n\
+  \    num_added_toks = tokenizer.add_tokens(['J'], special_tokens=False)\n    print(f'Added\
+  \ {num_added_toks} tokens')\n    print(f'Tokenizer length: {len(tokenizer)}')\n\
+  \    \n    # Test encoding with the new token\n    text = 'L A G J S'\n    encoded\
+  \ = tokenizer.encode(text, add_special_tokens=False)\n    print(f'\\\\nEncoding\
+  \ \\\"{text}\\\": {encoded}')\n    \n    # Test that J gets the correct ID (33)\n\
+  \    j_id = tokenizer.convert_tokens_to_ids('J')\n    print(f'Token J has ID: {j_id}')\n\
+  \    \n    # Test decoding\n    decoded = tokenizer.decode(encoded)\n    print(f'Decoded:\
+  \ \\\"{decoded}\\\"')\n    \n    # Verify J is in the vocab\n    vocab = tokenizer.get_vocab()\n\
+  \    print(f'\\\\nJ in vocab: {\\\"J\\\" in vocab}')\n    print(f'J vocab ID: {vocab.get(\\\
+  \"J\\\")}')\n    \n    print('\\\\n=== All encoding/decoding tests passed! ===')\n\
+  \        \nfinally:\n    os.unlink(vocab_file)\n\"\n"
+timeout: 60
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
 None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
-Special tokens have been added in the vocabulary, make sure the associated word embeddings are fine-tuned or trained.
-Test 1: Add non-special token
-  PASSED
-Test 2: Add special token
-  PASSED
-Test 3: Encoding works correctly
-  PASSED
-Test 4: Save and reload
-  PASSED
-Test 5: get_vocab includes added tokens
-  PASSED
+Added 1 tokens
+Tokenizer length: 34
 
-All tests passed!...
+Encoding "L A G J S": [4, 5, 6, 33, 8]
+Token J has ID: 33
+Decoded: "L A G J S"
+
+J in vocab: True
+J vocab ID: 33
+
+=== All encoding/decoding tests passed! ===...
 ```
 ========================================================================================================================
 AGENT:
-All tests pass. Let me also run the existing ESM tokenizer tests one more time to make sure everything is still working:
+Excellent! The fix is working correctly. Let me now review the changes I made to ensure they are complete and correct:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/models/esm/tokenization_esm.py
+line_ranges:
+- - 0
+  - -1
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/transformers/models/esm/tokenization_esm.py:
+
+````python
+   0 # coding=utf-8
+   1 # Copyright 2022 Meta and The HuggingFace Inc. team. All rights reserved.
+   2 #
+   3 # Licensed under the Apache License, Version 2.0 (the "License");
+   4 # you may not use this file except in compliance with the License.
+   5 # You may obtain a copy of the License at
+   6 #
+   7 #     http://www.apache.org/licenses/LICENSE-2.0
+   8 #
+   9 # Unless required by applicable l...
+```
+========================================================================================================================
+AGENT:
+The changes look correct. Let me run the existing ESM tokenizer tests one more time to ensure everything is still working:
 ========================================================================================================================
 TOOL CALL (bash)
 command: cd /workspace && python -m pytest tests/models/esm/test_tokenization_esm.py
@@ -678,97 +830,398 @@ tests/models/esm/test_tokenization_esm.py::ESMTokenizationTest::test_tokenizer_c
 ```
 ========================================================================================================================
 AGENT:
-All tests pass. Let me also verify the final state of the file:
+All tests pass. Let me also verify the fix addresses the specific issue mentioned in the problem statement about the tokenizer length not changing:
 ========================================================================================================================
 TOOL CALL (bash)
-command: cd /workspace && git diff src/transformers/models/esm/tokenization_esm.py
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-diff --git a/src/transformers/models/esm/tokenization_esm.py b/src/transformers/models/esm/tokenization_esm.py
-index 065eaae1d5..154a9a371b 100644
---- a/src/transformers/models/esm/tokenization_esm.py
-+++ b/src/transformers/models/esm/tokenization_esm.py
-@@ -95,7 +95,9 @@ class EsmTokenizer(PreTrainedTokenizer):
-         return len(self._id_to_token)
- 
-     def get_vocab(self):
--        return {token: i for i, token in enumerate(self.all_tokens)}
-+        base_vocab = {token: i for i, token in e...
-```
-========================================================================================================================
-AGENT:
-I have made two changes to fix the issue:
-
-1. Fixed `_add_tokens` method: Changed from always passing `special_tokens=True` to properly passing the user-provided `special_tokens` parameter. This ensures that when users call `tokenizer.add_tokens(['J'], special_tokens=False)`, the token is correctly added as a non-special token.
-
-2. Fixed `get_vocab` method: Updated to include added tokens by merging `self.added_tokens_encoder` with the base vocabulary. This ensures that `len(tokenizer)` (which relies on `get_vocab()`) correctly reflects the total number of tokens including any added tokens.
-
-Now verifying the fix works correctly.
-========================================================================================================================
-TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nimport tempfile\nimport os\n\n# Simulate\
-  \ the exact scenario from the problem statement\nvocab_tokens = ['<cls>', '<pad>',\
-  \ '<eos>', '<unk>', 'L', 'A', 'G', 'V', 'S', 'E', 'R', 'T', 'I', 'D', 'P', 'K',\
-  \ 'Q', 'N', 'F', 'Y', 'M', 'H', 'W', 'C', 'X', 'B', 'U', 'Z', 'O', '.', '-', '<null_1>',\
-  \ '<mask>']\n\nwith tempfile.TemporaryDirectory() as tmpdirname:\n    vocab_file\
-  \ = os.path.join(tmpdirname, 'vocab.txt')\n    with open(vocab_file, 'w') as f:\n\
-  \        f.write('\\n'.join(vocab_tokens))\n    \n    from transformers.models.esm.tokenization_esm\
-  \ import EsmTokenizer\n    \n    # Simulating the user's code\n    tokenizer = EsmTokenizer(vocab_file)\n\
-  \    \n    print('=== Before adding token ===')\n    print(f'len(tokenizer): {len(tokenizer)}')\n\
-  \    \n    num_added_toks = tokenizer.add_tokens(['J'], special_tokens=False)\n\
-  \    print(f'\\\\nWe have added {num_added_toks} tokens')\n    \n    print('\\\\\
-  n=== After adding token ===')\n    print(f'len(tokenizer): {len(tokenizer)}')\n\
-  \    \n    # Check that J is NOT a special token (the main issue)\n    print(f'\\\
-  \\nJ in additional_special_tokens: {\\\"J\\\" in tokenizer.additional_special_tokens}')\n\
-  \    print(f'J is special: {tokenizer.added_tokens_decoder[33].special}')\n    \n\
-  \    # The main problem was that len(tokenizer) didn't change\n    # Now model.resize_token_embeddings(len(tokenizer))\
-  \ would work correctly\n    print(f'\\\\nmodel.resize_token_embeddings(len(tokenizer))\
-  \ would use: {len(tokenizer)}')\n    \n    # Verify the vocab output matches expected\
-  \ behavior\n    print('\\\\n=== Vocab info ===')\n    print(f'vocab_size (base):\
-  \ {tokenizer.vocab_size}')\n    print(f'len(get_vocab()): {len(tokenizer.get_vocab())}')\n\
-  \    print(f'J in get_vocab(): {\\\"J\\\" in tokenizer.get_vocab()}')\n\"\n"
+command: "cd /workspace && python -c \"\nimport sys\nimport os\nsys.path.insert(0,\
+  \ os.path.join(os.path.dirname('.'), 'src'))\n\nimport tempfile\nfrom transformers.models.esm.tokenization_esm\
+  \ import EsmTokenizer\n\n# Create a temporary vocab file similar to ESM2\nwith tempfile.NamedTemporaryFile(mode='w',\
+  \ suffix='.txt', delete=False) as f:\n    vocab_tokens = ['<cls>', '<pad>', '<eos>',\
+  \ '<unk>', 'L', 'A', 'G', 'V', 'S', 'E', 'R', 'T', 'I', 'D', 'P', 'K', 'Q', 'N',\
+  \ 'F', 'Y', 'M', 'H', 'W', 'C', 'X', 'B', 'U', 'Z', 'O', '.', '-', '<null_1>', '<mask>']\n\
+  \    f.write('\\n'.join(vocab_tokens))\n    vocab_file = f.name\n\ntry:\n    tokenizer\
+  \ = EsmTokenizer(vocab_file)\n    \n    print('=== Simulating the user\\\\'s original\
+  \ issue ===')\n    print()\n    print('Before adding token:')\n    print(f'  len(tokenizer)\
+  \ = {len(tokenizer)}')\n    \n    # This is exactly what the user was doing\n  \
+  \  num_added_toks = tokenizer.add_tokens(['J'], special_tokens=False)\n    print(f'\\\
+  \\nWe have added {num_added_toks} tokens')\n    \n    print('\\\\nAfter adding token:')\n\
+  \    print(f'  len(tokenizer) = {len(tokenizer)}')\n    \n    # The user's main\
+  \ problem was that len(tokenizer) didn't change\n    # which would cause model.resize_token_embeddings(len(tokenizer))\
+  \ to not work\n    if len(tokenizer) == 34:\n        print('\\\\n\u2713 SUCCESS:\
+  \ len(tokenizer) correctly increased from 33 to 34!')\n        print('  model.resize_token_embeddings(len(tokenizer))\
+  \ will now work correctly!')\n    else:\n        print(f'\\\\n\u2717 FAILED: len(tokenizer)\
+  \ should be 34, got {len(tokenizer)}')\n        sys.exit(1)\n    \n    # Also verify\
+  \ the token is not marked as special\n    print()\n    print('Checking if J is marked\
+  \ as special token:')\n    print(f'  additional_special_tokens: {tokenizer.additional_special_tokens}')\n\
+  \    \n    if 'J' in tokenizer.additional_special_tokens:\n        print('\\\\n\u2717\
+  \ FAILED: J should NOT be in additional_special_tokens')\n        sys.exit(1)\n\
+  \    else:\n        print('\\\\n\u2713 SUCCESS: J is correctly NOT in additional_special_tokens!')\n\
+  \        \nfinally:\n    os.unlink(vocab_file)\n\"\n"
+timeout: 60
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
 None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
-=== Before adding token ===
-len(tokenizer): 33
+=== Simulating the user's original issue ===
+
+Before adding token:
+  len(tokenizer) = 33
 
 We have added 1 tokens
 
-=== After adding token ===
-len(tokenizer): 34
+After adding token:
+  len(tokenizer) = 34
 
-J in additional_special_tokens: False
-J is special: False
+✓ SUCCESS: len(tokenizer) correctly increased from 33 to 34!
+  model.resize_token_embeddings(len(tokenizer)) will now work correctly!
 
-model.resize_token_embeddings(len(tokenizer)) would use: 34
-
-=== Vocab info ===
-vocab_size (base): 33
-len(get_vocab()): 34
-J in get_vocab(): True...
+Checking if J is marked as special token:
+  addit...
 ```
 ========================================================================================================================
 AGENT:
-The fix is working correctly. Let me summarize the changes:
+The fix resolves both issues mentioned in the problem statement:
+
+1. **New tokens are no longer automatically classified as special tokens** - The `_add_tokens` method now correctly passes through the `special_tokens` parameter instead of forcing it to `True`.
+
+2. **The length of the tokenizer now correctly changes after adding new tokens** - The `get_vocab` method now includes added tokens, which allows the parent class's `_add_tokens` method to correctly calculate the new token index and properly track the tokenizer length.
+
+Let me also verify that the `_add_tokens` method override is still necessary or if we can simplify it further:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python -c \"\nimport sys\nimport os\nsys.path.insert(0,\
+  \ os.path.join(os.path.dirname('.'), 'src'))\n\nimport tempfile\nfrom transformers.models.esm.tokenization_esm\
+  \ import EsmTokenizer\n\n# Create a temporary vocab file\nwith tempfile.NamedTemporaryFile(mode='w',\
+  \ suffix='.txt', delete=False) as f:\n    vocab_tokens = ['<cls>', '<pad>', '<eos>',\
+  \ '<unk>', 'L', 'A', 'G', 'V', 'S', 'E', 'R', 'T', 'I', 'D', 'P', 'K', 'Q', 'N',\
+  \ 'F', 'Y', 'M', 'H', 'W', 'C', 'X', 'B', 'U', 'Z', 'O', '.', '-', '<null_1>', '<mask>']\n\
+  \    f.write('\\n'.join(vocab_tokens))\n    vocab_file = f.name\n\ntry:\n    tokenizer\
+  \ = EsmTokenizer(vocab_file)\n    \n    # Test adding multiple tokens\n    print('Adding\
+  \ multiple tokens at once...')\n    num_added = tokenizer.add_tokens(['J', 'K1',\
+  \ 'K2'], special_tokens=False)\n    print(f'Added {num_added} tokens')\n    print(f'Tokenizer\
+  \ length: {len(tokenizer)}')\n    \n    # Verify all tokens are in vocab\n    vocab\
+  \ = tokenizer.get_vocab()\n    for token in ['J', 'K1', 'K2']:\n        if token\
+  \ in vocab:\n            print(f'  {token} -> {vocab[token]}')\n        else:\n\
+  \            print(f'  ERROR: {token} not in vocab!')\n            sys.exit(1)\n\
+  \    \n    # Test adding a special token\n    print('\\\\nAdding a special token...')\n\
+  \    num_added = tokenizer.add_tokens(['<new_special>'], special_tokens=True)\n\
+  \    print(f'Added {num_added} special tokens')\n    print(f'Tokenizer length: {len(tokenizer)}')\n\
+  \    print(f'additional_special_tokens: {tokenizer.additional_special_tokens}')\n\
+  \    \n    if '<new_special>' in tokenizer.additional_special_tokens:\n        print('SUCCESS:\
+  \ <new_special> is correctly in additional_special_tokens')\n    else:\n       \
+  \ print('ERROR: <new_special> should be in additional_special_tokens')\n       \
+  \ sys.exit(1)\n        \nfinally:\n    os.unlink(vocab_file)\n\"\n"
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
+Adding multiple tokens at once...
+Added 3 tokens
+Tokenizer length: 36
+  J -> 33
+  K1 -> 34
+  K2 -> 35
+
+Adding a special token...
+Added 1 special tokens
+Tokenizer length: 37
+additional_special_tokens: ['<new_special>']
+SUCCESS: <new_special> is correctly in additional_special_tokens...
+```
 ========================================================================================================================
 AGENT:
-Successfully fixed the issue with adding new tokens to the ESM2 model tokenizer. The problem had two root causes:
+Excellent! All functionality is working correctly. Now let me verify that the `_add_tokens` override is actually necessary. Looking at the code, the override now just passes through to the parent class with the same parameters. Let me check if we can remove it entirely:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python -c \"\n# Check if the _add_tokens override is necessary\
+  \ by testing without it\nimport sys\nimport os\nsys.path.insert(0, os.path.join(os.path.dirname('.'),\
+  \ 'src'))\n\nimport tempfile\n\n# Temporarily modify the EsmTokenizer to not override\
+  \ _add_tokens\nfrom transformers.models.esm import tokenization_esm\n\n# Store original\
+  \ method\noriginal_add_tokens = tokenization_esm.EsmTokenizer._add_tokens\n\n# Remove\
+  \ the override by setting it to None (will use parent's method)\ndel tokenization_esm.EsmTokenizer._add_tokens\n\
+  \nfrom transformers.models.esm.tokenization_esm import EsmTokenizer\n\n# Create\
+  \ a temporary vocab file\nwith tempfile.NamedTemporaryFile(mode='w', suffix='.txt',\
+  \ delete=False) as f:\n    vocab_tokens = ['<cls>', '<pad>', '<eos>', '<unk>', 'L',\
+  \ 'A', 'G', 'V', 'S', 'E', 'R', 'T', 'I', 'D', 'P', 'K', 'Q', 'N', 'F', 'Y', 'M',\
+  \ 'H', 'W', 'C', 'X', 'B', 'U', 'Z', 'O', '.', '-', '<null_1>', '<mask>']\n    f.write('\\\
+  n'.join(vocab_tokens))\n    vocab_file = f.name\n\ntry:\n    tokenizer = EsmTokenizer(vocab_file)\n\
+  \    \n    print('Testing without _add_tokens override...')\n    print(f'Initial\
+  \ length: {len(tokenizer)}')\n    \n    num_added = tokenizer.add_tokens(['J'],\
+  \ special_tokens=False)\n    print(f'Added {num_added} tokens')\n    print(f'New\
+  \ length: {len(tokenizer)}')\n    \n    # Check if J is special\n    j_token = tokenizer.added_tokens_decoder.get(33)\n\
+  \    if j_token:\n        print(f'J is special: {j_token.special}')\n        if\
+  \ j_token.special:\n            print('ERROR: Without override, J is incorrectly\
+  \ marked as special')\n        else:\n            print('SUCCESS: Without override,\
+  \ J is correctly NOT special')\n    \n    print('\\\\nConclusion: The _add_tokens\
+  \ override is NOT necessary anymore!')\n    print('The fix to get_vocab() is sufficient.')\n\
+  \        \nfinally:\n    os.unlink(vocab_file)\n    # Restore original method\n\
+  \    tokenization_esm.EsmTokenizer._add_tokens = original_add_tokens\n\"\n"
+timeout: 60
 
-1. **`_add_tokens` method bug**: The method was overriding the `special_tokens` parameter and always passing `special_tokens=True` to the parent class, regardless of what the user specified. This caused all new tokens to be incorrectly classified as special tokens.
+========================================================================================================================
+TOOL RETURN (bash)
+```
+None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
+Testing without _add_tokens override...
+Initial length: 33
+Added 1 tokens
+New length: 34
+J is special: False
+SUCCESS: Without override, J is correctly NOT special
 
-   **Fix**: Changed `return super()._add_tokens(new_tokens, special_tokens=True)` to `return super()._add_tokens(new_tokens, special_tokens=special_tokens)` to properly pass through the user's parameter.
+Conclusion: The _add_tokens override is NOT necessary anymore!
+The fix to get_vocab() is sufficient....
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Interesting! The test shows that the `_add_tokens` override is no longer necessary since the fix to `get_vocab()` is sufficient. However, I should keep the override in place because:
 
-2. **`get_vocab` method bug**: The method only returned the base vocabulary from `self.all_tokens` and didn't include any added tokens. Since `__len__` in the parent class relies on `get_vocab()`, the tokenizer length didn't change after adding new tokens.
+1. It makes the code more explicit about what's happening
+2. It ensures that if someone reads the code, they understand that the parent's `_add_tokens` is being called with the correct parameters
+3. The original code had a bug where `special_tokens=True` was hardcoded, and keeping the method (now fixed) makes it clear that this was intentional behavior that has been corrected
 
-   **Fix**: Updated `get_vocab()` to merge `self.added_tokens_encoder` with the base vocabulary, ensuring added tokens are included.
+Actually, looking at this more carefully, the override is now just a pass-through to the parent class. This is redundant code. Let me consider whether to remove it or keep it.
 
-After the fix:
-- `tokenizer.add_tokens(['J'], special_tokens=False)` correctly adds 'J' as a non-special token
-- `len(tokenizer)` correctly increases from 33 to 34 after adding a token
-- `model.resize_token_embeddings(len(tokenizer))` will now work correctly
-- All existing ESM tokenizer tests continue to pass
+Looking at the original code:
+```python
+def _add_tokens(self, new_tokens: Union[List[str], List[AddedToken]], special_tokens: bool = False) -> int:
+    return super()._add_tokens(new_tokens, special_tokens=True)
+```
+
+The original intent was clearly to force all added tokens to be special tokens. This was a bug. Now that we've fixed it to:
+```python
+def _add_tokens(self, new_tokens: Union[List[str], List[AddedToken]], special_tokens: bool = False) -> int:
+    return super()._add_tokens(new_tokens, special_tokens=special_tokens)
+```
+
+This is just a pass-through and could be removed. However, I'll keep it for now because:
+1. It's cleaner to have an explicit override that shows the method exists
+2. It doesn't hurt anything
+3. If someone wants to add custom behavior in the future, the method is already there
+
+Actually, let me reconsider. The method is now completely redundant - it just calls the parent with the same parameters. In Python, if you don't override a method, the parent's method is used automatically. So this override is unnecessary.
+
+Let me remove the override to clean up the code:
+</thinking>
+
+Looking at the test results, the `_add_tokens` override is now just a pass-through to the parent class and is redundant. Let me remove it to clean up the code:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/models/esm/tokenization_esm.py
+find: "    @property\n    def vocab_size(self) -> int:\n        return self.get_vocab_size(with_added_tokens=False)\n\
+  \n    def _add_tokens(self, new_tokens: Union[List[str], List[AddedToken]], special_tokens:\
+  \ bool = False) -> int:\n        return super()._add_tokens(new_tokens, special_tokens=special_tokens)"
+replace: "    @property\n    def vocab_size(self) -> int:\n        return self.get_vocab_size(with_added_tokens=False)"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/models/esm/tokenization_esm.py:
+
+--- src/transformers/models/esm/tokenization_esm.py
++++ src/transformers/models/esm/tokenization_esm.py
+@@ -159,6 +159,3 @@
+     @property
+     def vocab_size(self) -> int:
+         return self.get_vocab_size(with_added_tokens=False)
+-
+-    def _add_tokens(self, new_tokens: Union[List[str], List[AddedToken]], special_tokens: bool = False) -> int:
+-        return super()._add_tokens(new_tokens, special_tokens=special_...
+```
+========================================================================================================================
+AGENT:
+Now let me also remove the unused import since `AddedToken` and `Union` are no longer needed:
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- src/transformers/models/esm/tokenization_esm.py
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened src/transformers/models/esm/tokenization_esm.py:\n\n````python\n   0 # coding=utf-8\n   1 # Copyright 2022 Meta and The HuggingFace Inc. team. All rights reserved.\n   2 #\n   3 # Licensed under the Apache License, Version 2.0 (the "License");\n   4 # you may not use this file except in compliance with the License.\n   5 # You may obtain a copy of the License at\n   6 #\n   7 #     http://www.apache.org/licenses/LICENSE-2.0\n   8 #\n   9 # Unless required by applicable law ...
+```
+========================================================================================================================
+AGENT:
+I see that `Union` and `AddedToken` are no longer used in the file. Let me clean up the imports:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/models/esm/tokenization_esm.py
+find: 'import os
+
+  from typing import List, Optional, Union
+
+
+  from ...tokenization_utils import PreTrainedTokenizer
+
+  from ...tokenization_utils_base import AddedToken
+
+  from ...utils import logging'
+replace: 'import os
+
+  from typing import List, Optional
+
+
+  from ...tokenization_utils import PreTrainedTokenizer
+
+  from ...utils import logging'
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/models/esm/tokenization_esm.py:
+
+--- src/transformers/models/esm/tokenization_esm.py
++++ src/transformers/models/esm/tokenization_esm.py
+@@ -14,10 +14,9 @@
+ # limitations under the License.
+ """Tokenization classes for ESM."""
+ import os
+-from typing import List, Optional, Union
++from typing import List, Optional
+ 
+ from ...tokenization_utils import PreTrainedTokenizer
+-from ...tokenization_utils_base import AddedToken
+ from ...utils import logging
+...
+```
+========================================================================================================================
+AGENT:
+Now let me run the tests again to make sure everything still works:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python -m pytest tests/models/esm/test_tokenization_esm.py
+  -v 2>&1
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+============================= test session starts ==============================
+platform linux -- Python 3.11.12, pytest-7.4.4, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python
+cachedir: .pytest_cache
+rootdir: /workspace
+configfile: pyproject.toml
+collecting ... collected 5 items
+
+tests/models/esm/test_tokenization_esm.py::ESMTokenizationTest::test_tokenize_special_tokens PASSED [ 20%]
+tests/models/esm/test_tokenization_esm.py::ESMTokenizationTest::test_tokenizer_call_no_pad PASSED [ 40...
+```
+========================================================================================================================
+AGENT:
+Let me also run the final verification test to ensure the fix still works:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python -c \"\nimport sys\nimport os\nsys.path.insert(0,\
+  \ os.path.join(os.path.dirname('.'), 'src'))\n\nimport tempfile\nfrom transformers.models.esm.tokenization_esm\
+  \ import EsmTokenizer\n\n# Create a temporary vocab file similar to ESM2\nwith tempfile.NamedTemporaryFile(mode='w',\
+  \ suffix='.txt', delete=False) as f:\n    vocab_tokens = ['<cls>', '<pad>', '<eos>',\
+  \ '<unk>', 'L', 'A', 'G', 'V', 'S', 'E', 'R', 'T', 'I', 'D', 'P', 'K', 'Q', 'N',\
+  \ 'F', 'Y', 'M', 'H', 'W', 'C', 'X', 'B', 'U', 'Z', 'O', '.', '-', '<null_1>', '<mask>']\n\
+  \    f.write('\\n'.join(vocab_tokens))\n    vocab_file = f.name\n\ntry:\n    tokenizer\
+  \ = EsmTokenizer(vocab_file)\n    \n    print('=== Final verification of the fix\
+  \ ===')\n    print()\n    print('Before adding token:')\n    print(f'  len(tokenizer)\
+  \ = {len(tokenizer)}')\n    \n    # This is exactly what the user was doing\n  \
+  \  num_added_toks = tokenizer.add_tokens(['J'], special_tokens=False)\n    print(f'\\\
+  \\nWe have added {num_added_toks} tokens')\n    \n    print('\\\\nAfter adding token:')\n\
+  \    print(f'  len(tokenizer) = {len(tokenizer)}')\n    \n    # Verify all the issues\
+  \ are fixed\n    errors = []\n    \n    # Issue 1: len(tokenizer) should change\n\
+  \    if len(tokenizer) != 34:\n        errors.append(f'len(tokenizer) should be\
+  \ 34, got {len(tokenizer)}')\n    \n    # Issue 2: J should NOT be in additional_special_tokens\n\
+  \    if 'J' in tokenizer.additional_special_tokens:\n        errors.append('J should\
+  \ NOT be in additional_special_tokens')\n    \n    # Issue 3: J should NOT be marked\
+  \ as special in added_tokens_decoder\n    j_token = tokenizer.added_tokens_decoder.get(33)\n\
+  \    if j_token and j_token.special:\n        errors.append('J should NOT be marked\
+  \ as special')\n    \n    # Issue 4: J should be in vocab\n    vocab = tokenizer.get_vocab()\n\
+  \    if 'J' not in vocab:\n        errors.append('J should be in vocab')\n    \n\
+  \    if errors:\n        print('\\\\n=== ERRORS ===')\n        for error in errors:\n\
+  \            print(f'  - {error}')\n        sys.exit(1)\n    else:\n        print('\\\
+  \\n=== ALL ISSUES FIXED ===')\n        print('\u2713 len(tokenizer) correctly increased')\n\
+  \        print('\u2713 J is NOT in additional_special_tokens')\n        print('\u2713\
+  \ J is NOT marked as special')\n        print('\u2713 J is in vocab')\n        \n\
+  finally:\n    os.unlink(vocab_file)\n\"\n"
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
+=== Final verification of the fix ===
+
+Before adding token:
+  len(tokenizer) = 33
+
+We have added 1 tokens
+
+After adding token:
+  len(tokenizer) = 34
+
+=== ALL ISSUES FIXED ===
+✓ len(tokenizer) correctly increased
+✓ J is NOT in additional_special_tokens
+✓ J is NOT marked as special
+✓ J is in vocab...
+```
+========================================================================================================================
+AGENT:
+Let me view the final state of the file to confirm all changes are correct:
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- src/transformers/models/esm/tokenization_esm.py
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened src/transformers/models/esm/tokenization_esm.py:\n\n````python\n   0 # coding=utf-8\n   1 # Copyright 2022 Meta and The HuggingFace Inc. team. All rights reserved.\n   2 #\n   3 # Licensed under the Apache License, Version 2.0 (the "License");\n   4 # you may not use this file except in compliance with the License.\n   5 # You may obtain a copy of the License at\n   6 #\n   7 #     http://www.apache.org/licenses/LICENSE-2.0\n   8 #\n   9 # Unless required by applicable law ...
+```
+========================================================================================================================
+AGENT:
+The fix is complete. Let me provide a summary of the changes made:
+========================================================================================================================
+AGENT:
+Successfully fixed the ESM tokenizer issue where new tokens were being incorrectly classified as special tokens.
+
+## Summary of Changes
+
+The issue was in `src/transformers/models/esm/tokenization_esm.py`. There were two problems:
+
+### Problem 1: `_add_tokens` forced `special_tokens=True`
+The original code had:
+```python
+def _add_tokens(self, new_tokens, special_tokens=False):
+    return super()._add_tokens(new_tokens, special_tokens=True)  # BUG: Always True!
+```
+This caused all added tokens to be marked as special tokens regardless of the `special_tokens` parameter passed by the user.
+
+### Problem 2: `get_vocab()` didn't include added tokens
+The original code had:
+```python
+def get_vocab(self):
+    return {token: i for i, token in enumerate(self.all_tokens)}
+```
+This only returned the base vocabulary and didn't include tokens added via `add_tokens()`. This caused the parent class's `_add_tokens` method to calculate incorrect indices for new tokens.
+
+### Fix Applied
+1. **Removed the buggy `_add_tokens` override** - Since the override was only forcing `special_tokens=True`, removing it allows the parent class's correct implementation to be used.
+
+2. **Fixed `get_vocab()` to include added tokens**:
+```python
+def get_vocab(self):
+    base_vocab = {token: i for i, token in enumerate(self.all_tokens)}
+    base_vocab.update(self.added_tokens_encoder)
+    return base_vocab
+```
+
+3. **Cleaned up unused imports** - Removed `Union` and `AddedToken` imports that were only used by the removed `_add_tokens` method.
+
+### Verification
+- All existing ESM tokenizer tests pass
+- New tokens added with `special_tokens=False` are correctly NOT marked as special
+- New tokens added with `special_tokens=True` are correctly marked as special
+- `len(tokenizer)` correctly increases after adding tokens
+- Added tokens are correctly included in `get_vocab()`

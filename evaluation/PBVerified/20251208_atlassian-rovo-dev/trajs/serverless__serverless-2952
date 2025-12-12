@@ -271,21 +271,23 @@ IMO there are two solutions that would be helpful in solving the issue:
 </problem_statement>
 
 Do not stop until you have made code changes that resolve the problem statement. Do not ask for clarifications.
+
+NEVER attempt to find the solution to the problem statement by searching future commits or branches in the repository.
 ========================================================================================================================
 AGENT:
-Starting to analyze the problem statement. The issue is about IAM policy size exceeding the maximum limit when deploying functions with many stream events. The problem is that Serverless creates a separate policy statement for each stream event, which is verbose and causes the policy to exceed AWS's 10240 byte limit. The solution suggested is to consolidate all stream ARNs into a single policy statement with a Resource array.
+Starting to analyze the problem statement. The issue is that when deploying functions with many stream events (50+), Serverless creates individual IAM policy statements for each stream, causing the policy to exceed AWS's 10240 byte limit. The solution should consolidate these statements by grouping resources with the same actions into a single statement.
 ========================================================================================================================
 AGENT:
-EXPLORATION: Understanding the codebase structure
+STEP 1: EXPLORE THE CODEBASE
 
 <thinking>
-Based on the problem statement, I need to find where the IAM policy statements are being generated for stream events. The issue is that for each stream event (DynamoDB or Kinesis), a separate policy statement is created with the same actions but different resources. This causes the policy to grow too large when there are many stream events.
+Based on the problem statement, I need to find where the IAM policy statements are generated for stream events. The issue is that Serverless creates a separate policy statement for each stream event, which causes the policy to exceed AWS's 10240 byte limit when there are many streams.
 
 Looking at the workspace structure, I can see:
 1. `lib/plugins/aws/deploy/compile/events/stream/` - This likely contains the stream event compilation logic
 2. `lib/plugins/aws/deploy/lib/mergeIamTemplates.js` - This might be where IAM templates are merged
 
-Let me start by exploring the stream event compilation code to understand how IAM statements are being generated.
+Let me start by exploring the stream event compilation code and the IAM template merging code.
 </thinking>
 ========================================================================================================================
 TOOL CALL (open_files)
@@ -300,19 +302,21 @@ TOOL RETURN (open_files)
 ```
 ========================================================================================================================
 AGENT:
-ANALYSIS: Understanding the problem
+STEP 2: ANALYZE THE CODE
 
 <thinking>
-Now I can clearly see the issue. In `lib/plugins/aws/deploy/compile/events/stream/index.js`, the `compileStreamEvents` method creates a new policy statement for each stream event (lines 94-117) and then concatenates it to the existing statements (lines 119-135).
+Now I understand the issue. Looking at the `compileStreamEvents` method in `lib/plugins/aws/deploy/compile/events/stream/index.js`:
 
-The problem is that for each stream event, a separate statement is created with the same actions but different resources. This is very verbose and causes the policy to exceed AWS's 10240 byte limit when there are many stream events.
+1. For each stream event, it creates a separate `streamStatement` object (lines 94-117)
+2. It then concatenates this statement to the PolicyDocument statements (lines 119-134)
 
-The solution is to consolidate all stream ARNs into a single policy statement per stream type (dynamodb or kinesis). Instead of creating a new statement for each stream, we should:
-1. Check if a statement with the same actions already exists
-2. If it does, add the new resource ARN to the existing statement's Resource array
-3. If it doesn't, create a new statement with the Resource as an array
+The problem is that each stream event creates a separate policy statement with the same actions but different resources. This is very verbose and causes the policy to exceed AWS's 10240 byte limit when there are many streams.
 
-Let me look at the test file to understand the expected behavior better and ensure my fix doesn't break existing tests.
+The solution should be to consolidate these statements by:
+1. Grouping all DynamoDB stream ARNs into a single statement with a Resource array
+2. Grouping all Kinesis stream ARNs into a single statement with a Resource array
+
+Let me look at the test file to understand the expected behavior better, and then implement the fix.
 </thinking>
 ========================================================================================================================
 TOOL CALL (open_files)
@@ -352,44 +356,103 @@ Successfully expanded code chunks in lib/plugins/aws/deploy/compile/events/strea
 ```
 ========================================================================================================================
 AGENT:
-IMPLEMENTATION: Modifying the stream events compilation
+STEP 3: IMPLEMENT THE FIX
 
 <thinking>
-Now I understand the current behavior and the tests. Looking at the tests:
+Now I understand the issue and the expected behavior. The current implementation creates a separate IAM policy statement for each stream event. The fix should consolidate these statements by:
 
-1. Lines 281-301: Test for DynamoDB stream - expects a single statement with a single Resource string
-2. Lines 436-456: Test for Kinesis stream - expects a single statement with a single Resource string
+1. Collecting all DynamoDB stream ARNs into a single statement with a Resource array
+2. Collecting all Kinesis stream ARNs into a single statement with a Resource array
 
-The current implementation creates a separate statement for each stream event. The fix should consolidate all stream ARNs of the same type into a single statement with a Resource array.
+Looking at the current code in `lib/plugins/aws/deploy/compile/events/stream/index.js`:
 
-Here's my plan:
-1. Instead of creating a new statement for each stream and concatenating it, I need to:
-   - Check if a statement with the same actions already exists
-   - If it does, add the new resource ARN to the existing statement's Resource array
-   - If it doesn't, create a new statement with the Resource as an array
-
-Let me modify the `compileStreamEvents` method in `lib/plugins/aws/deploy/compile/events/stream/index.js`.
-
-The key change is in lines 119-134 where the statement is added. Instead of:
 ```javascript
-this.serverless.service.provider.compiledCloudFormationTemplate
-  .Resources
-  .IamPolicyLambdaExecution
-  .Properties
-  .PolicyDocument
-  .Statement = statement.concat([streamStatement]);
+// create type specific PolicyDocument statements
+let streamStatement = {};
+if (streamType === 'dynamodb') {
+  streamStatement = {
+    Effect: 'Allow',
+    Action: [
+      'dynamodb:GetRecords',
+      'dynamodb:GetShardIterator',
+      'dynamodb:DescribeStream',
+      'dynamodb:ListStreams',
+    ],
+    Resource: EventSourceArn,
+  };
+} else {
+  streamStatement = {
+    Effect: 'Allow',
+    Action: [
+      'kinesis:GetRecords',
+      'kinesis:GetShardIterator',
+      'kinesis:DescribeStream',
+      'kinesis:ListStreams',
+    ],
+    Resource: EventSourceArn,
+  };
+}
+
+// update the PolicyDocument statements (if default policy is used)
+if (this.serverless.service.provider.compiledCloudFormationTemplate
+  .Resources.IamPolicyLambdaExecution) {
+  const statement = this.serverless.service.provider.compiledCloudFormationTemplate
+    .Resources
+    .IamPolicyLambdaExecution
+    .Properties
+    .PolicyDocument
+    .Statement;
+
+  this.serverless.service.provider.compiledCloudFormationTemplate
+    .Resources
+    .IamPolicyLambdaExecution
+    .Properties
+    .PolicyDocument
+    .Statement = statement.concat([streamStatement]);
+}
 ```
 
-I need to:
-1. Find an existing statement with the same Effect and Action
-2. If found, add the Resource to that statement's Resource array
-3. If not found, create a new statement with Resource as an array
+The fix should:
+1. Instead of creating a new statement for each stream, check if a statement with the same actions already exists
+2. If it exists, add the new ARN to the Resource array
+3. If it doesn't exist, create a new statement with the ARN as the first element in a Resource array
 
-Let me implement this fix.
+Let me implement this fix. I need to modify the code to:
+1. Look for an existing statement with the same Effect and Action
+2. If found, add the new ARN to the Resource array
+3. If not found, create a new statement with the ARN in a Resource array
+
+Actually, looking at the test cases, I see that the expected behavior for a single stream is:
+```javascript
+const iamRoleStatements = [
+  {
+    Effect: 'Allow',
+    Action: [
+      'dynamodb:GetRecords',
+      'dynamodb:GetShardIterator',
+      'dynamodb:DescribeStream',
+      'dynamodb:ListStreams',
+    ],
+    Resource: 'arn:aws:dynamodb:region:account:table/foo/stream/1',
+  },
+];
+```
+
+So for a single stream, the Resource is a string, not an array. I need to update the tests to expect an array for consistency, or I can keep backward compatibility by only using an array when there are multiple streams.
+
+Let me think about this more carefully. The simplest approach is to:
+1. Always use an array for Resource
+2. Check if a statement with the same actions already exists
+3. If it exists, add the new ARN to the Resource array
+4. If not found, create a new statement with the ARN in a Resource array
+
+This will require updating the tests to expect an array for Resource.
+
+Let me implement the fix now.
 </thinking>
 ========================================================================================================================
 AGENT:
-I've analyzed the code and understand the issue. The current implementation creates a separate IAM policy statement for each stream event, which causes the policy to exceed AWS's 10240 byte limit when there are many stream events. I will now modify the code to consolidate all stream ARNs of the same type (dynamodb or kinesis) into a single policy statement with a Resource array.
+I've analyzed the code and understand the issue. Now I'll implement the fix to consolidate IAM policy statements by grouping resources with the same actions into a single statement with a Resource array.
 ========================================================================================================================
 TOOL CALL (find_and_replace_code)
 file_path: lib/plugins/aws/deploy/compile/events/stream/index.js
@@ -412,37 +475,33 @@ find: "            // create type specific PolicyDocument statements\n          
   \                .Resources\n                .IamPolicyLambdaExecution\n       \
   \         .Properties\n                .PolicyDocument\n                .Statement\
   \ = statement.concat([streamStatement]);\n            }"
-replace: "            // update the branding PolicyDocument statements (if default\
-  \ policy is used)\n            if (this.serverless.service.provider.compiledCloudFormationTemplate\n\
+replace: "            // update the PolicyDocument statements (if default policy is\
+  \ used)\n            if (this.serverless.service.provider.compiledCloudFormationTemplate\n\
   \              .Resources.IamPolicyLambdaExecution) {\n              const statement\
   \ = this.serverless.service.provider.compiledCloudFormationTemplate\n          \
   \      .Resources\n                .IamPolicyLambdaExecution\n                .Properties\n\
   \                .PolicyDocument\n                .Statement;\n\n              //\
-  \ create type specific PolicyDocument statements\n              // and consolidate\
-  \ resources into a single statement\n              if (streamType === 'dynamodb')\
-  \ {\n                const dynamodbStreamStatement = statement.find((s) =>\n   \
-  \               s.Action && s.Action[0] === 'dynamodb:GetRecords');\n          \
-  \      if (dynamodbStreamStatement) {\n                  // convert Resource to\
-  \ array if it's a string\n                  if (!Array.isArray(dynamodbStreamStatement.Resource))\
-  \ {\n                    dynamodbStreamStatement.Resource = [dynamodbStreamStatement.Resource];\n\
-  \                  }\n                  dynamodbStreamStatement.Resource.push(EventSourceArn);\n\
-  \                } else {\n                  statement.push({\n                \
-  \    Effect: 'Allow',\n                    Action: [\n                      'dynamodb:GetRecords',\n\
-  \                      'dynamodb:GetShardIterator',\n                      'dynamodb:DescribeStream',\n\
-  \                      'dynamodb:ListStreams',\n                    ],\n       \
-  \             Resource: [EventSourceArn],\n                  });\n             \
-  \   }\n              } else {\n                const kinesisStreamStatement = statement.find((s)\
-  \ =>\n                  s.Action && s.Action[0] === 'kinesis:GetRecords');\n   \
-  \             if (kinesisStreamStatement) {\n                  // convert Resource\
-  \ to array if it's a string\n                  if (!Array.isArray(kinesisStreamStatement.Resource))\
-  \ {\n                    kinesisStreamStatement.Resource = [kinesisStreamStatement.Resource];\n\
-  \                  }\n                  kinesisStreamStatement.Resource.push(EventSourceArn);\n\
-  \                } else {\n                  statement.push({\n                \
-  \    Effect: 'Allow',\n                    Action: [\n                      'kinesis:GetRecords',\n\
-  \                      'kinesis:GetShardIterator',\n                      'kinesis:DescribeStream',\n\
-  \                      'kinesis:ListStreams',\n                    ],\n        \
-  \            Resource: [EventSourceArn],\n                  });\n              \
-  \  }\n              }\n            }"
+  \ create type specific PolicyDocument statements\n              // and look for\
+  \ an existing statement with the same actions\n              if (streamType ===\
+  \ 'dynamodb') {\n                const dynamodbStreamStatement = statement.find((elem)\
+  \ =>\n                  elem.Action[0] === 'dynamodb:GetRecords');\n           \
+  \     if (dynamodbStreamStatement) {\n                  dynamodbStreamStatement.Resource.push(EventSourceArn);\n\
+  \                } else {\n                  const newStatement = {\n          \
+  \          Effect: 'Allow',\n                    Action: [\n                   \
+  \   'dynamodb:GetRecords',\n                      'dynamodb:GetShardIterator',\n\
+  \                      'dynamodb:DescribeStream',\n                      'dynamodb:ListStreams',\n\
+  \                    ],\n                    Resource: [EventSourceArn],\n     \
+  \             };\n                  statement.push(newStatement);\n            \
+  \    }\n              } else {\n                const kinesisStreamStatement = statement.find((elem)\
+  \ =>\n                  elem.Action[0] === 'kinesis:GetRecords');\n            \
+  \    if (kinesisStreamStatement) {\n                  kinesisStreamStatement.Resource.push(EventSourceArn);\n\
+  \                } else {\n                  const newStatement = {\n          \
+  \          Effect: 'Allow',\n                    Action: [\n                   \
+  \   'kinesis:GetRecords',\n                      'kinesis:GetShardIterator',\n \
+  \                     'kinesis:DescribeStream',\n                      'kinesis:ListStreams',\n\
+  \                    ],\n                    Resource: [EventSourceArn],\n     \
+  \             };\n                  statement.push(newStatement);\n            \
+  \    }\n              }\n            }"
 
 ========================================================================================================================
 TOOL RETURN (find_and_replace_code)
@@ -451,7 +510,7 @@ Successfully replaced code in lib/plugins/aws/deploy/compile/events/stream/index
 
 --- lib/plugins/aws/deploy/compile/events/stream/index.js
 +++ lib/plugins/aws/deploy/compile/events/stream/index.js
-@@ -91,33 +91,7 @@
+@@ -91,32 +91,6 @@
                }
              `;
  
@@ -465,12 +524,139 @@ Successfully replaced code in lib/plugins/aws/deploy/compile/events/stream/index
 ```
 ========================================================================================================================
 AGENT:
-VERIFICATION: Running the tests to verify the fix
+STEP 4: UPDATE THE TESTS
 
 <thinking>
-Now I need to run the tests to verify that my fix works correctly. The tests expect a single Resource string, but my implementation now uses an array. I need to update the tests to expect an array of resources.
+Now I need to update the tests to expect an array for Resource instead of a string. Let me update the test file.
+</thinking>
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: lib/plugins/aws/deploy/compile/events/stream/index.test.js
+find: "      it('should add the necessary IAM role statements', () => {\n        awsCompileStreamEvents.serverless.service.functions\
+  \ = {\n          first: {\n            events: [\n              {\n            \
+  \    stream: 'arn:aws:dynamodb:region:account:table/foo/stream/1',\n           \
+  \   },\n            ],\n          },\n        };\n\n        const iamRoleStatements\
+  \ = [\n          {\n            Effect: 'Allow',\n            Action: [\n      \
+  \        'dynamodb:GetRecords',\n              'dynamodb:GetShardIterator',\n  \
+  \            'dynamodb:DescribeStream',\n              'dynamodb:ListStreams',\n\
+  \            ],\n            Resource: 'arn:aws:dynamodb:region:account:table/foo/stream/1',\n\
+  \          },\n        ];\n\n        awsCompileStreamEvents.compileStreamEvents();\n\
+  \n        expect(awsCompileStreamEvents.serverless.service.provider\n          .compiledCloudFormationTemplate.Resources\n\
+  \          .IamPolicyLambdaExecution.Properties\n          .PolicyDocument.Statement\n\
+  \        ).to.deep.equal(iamRoleStatements);\n      });\n    });\n\n    describe('when\
+  \ a Kinesis stream ARN is given', () => {"
+replace: "      it('should add the necessary IAM role statements', () => {\n     \
+  \   awsCompileStreamEvents.serverless.service.functions = {\n          first: {\n\
+  \            events: [\n              {\n                stream: 'arn:aws:dynamodb:region:account:table/foo/stream/1',\n\
+  \              },\n            ],\n          },\n        };\n\n        const iamRoleStatements\
+  \ = [\n          {\n            Effect: 'Allow',\n            Action: [\n      \
+  \        'dynamodb:GetRecords',\n              'dynamodb:GetShardIterator',\n  \
+  \            'dynamodb:DescribeStream',\n              'dynamodb:ListStreams',\n\
+  \            ],\n            Resource: [\n              'arn:aws:dynamodb:region:account:table/foo/stream/1',\n\
+  \            ],\n          },\n        ];\n\n        awsCompileStreamEvents.compileStreamEvents();\n\
+  \n        expect(awsCompileStreamEvents.serverless.service.provider\n          .compiledCloudFormationTemplate.Resources\n\
+  \          .IamPolicyLambdaExecution.Properties\n          .PolicyDocument.Statement\n\
+  \        ).to.deep.equal(iamRoleStatements);\n      });\n\n      it('should add\
+  \ a single IAM statement with multiple resources for multiple streams', () => {\n\
+  \        awsCompileStreamEvents.serverless.service.functions = {\n          first:\
+  \ {\n            events: [\n              {\n                stream: 'arn:aws:dynamodb:region:account:table/foo/stream/1',\n\
+  \              },\n              {\n                stream: 'arn:aws:dynamodb:region:account:table/bar/stream/2',\n\
+  \              },\n            ],\n          },\n        };\n\n        const iamRoleStatements\
+  \ = [\n          {\n            Effect: 'Allow',\n            Action: [\n      \
+  \        'dynamodb:GetRecords',\n              'dynamodb:GetShardIterator',\n  \
+  \            'dynamodb:DescribeStream',\n              'dynamodb:ListStreams',\n\
+  \            ],\n            Resource: [\n              'arn:aws:dynamodb:region:account:table/foo/stream/1',\n\
+  \              'arn:aws:dynamodb:region:account:table/bar/stream/2',\n         \
+  \   ],\n          },\n        ];\n\n        awsCompileStreamEvents.compileStreamEvents();\n\
+  \n        expect(awsCompileStreamEvents.serverless.service.provider\n          .compiledCloudFormationTemplate.Resources\n\
+  \          .IamPolicyLambdaExecution.Properties\n          .PolicyDocument.Statement\n\
+  \        ).to.deep.equal(iamRoleStatements);\n      });\n    });\n\n    describe('when\
+  \ a Kinesis stream ARN is given', () => {"
 
-Let me first run the tests to see what fails, then update the tests accordingly.
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in lib/plugins/aws/deploy/compile/events/stream/index.test.js:
+
+--- lib/plugins/aws/deploy/compile/events/stream/index.test.js
++++ lib/plugins/aws/deploy/compile/events/stream/index.test.js
+@@ -288,7 +288,48 @@
+               'dynamodb:DescribeStream',
+               'dynamodb:ListStreams',
+             ],
+-            Resource: 'arn:aws:dynamodb:region:account:table/foo/stream/1',
++            Resource: [
++              'arn:aws:dynamodb:region:account:table/foo/strea...
+```
+========================================================================================================================
+AGENT:
+Now let me update the Kinesis test as well:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: lib/plugins/aws/deploy/compile/events/stream/index.test.js
+find: "      it('should add the necessary IAM role statements', () => {\n        awsCompileStreamEvents.serverless.service.functions\
+  \ = {\n          first: {\n            events: [\n              {\n            \
+  \    stream: 'arn:aws:kinesis:region:account:stream/foo',\n              },\n  \
+  \          ],\n          },\n        };\n\n        const iamRoleStatements = [\n\
+  \          {\n            Effect: 'Allow',\n            Action: [\n            \
+  \  'kinesis:GetRecords',\n              'kinesis:GetShardIterator',\n          \
+  \    'kinesis:DescribeStream',\n              'kinesis:ListStreams',\n         \
+  \   ],\n            Resource: 'arn:aws:kinesis:region:account:stream/foo',\n   \
+  \       },\n        ];\n\n        awsCompileStreamEvents.compileStreamEvents();\n\
+  \n        expect(awsCompileStreamEvents.serverless.service.provider\n          .compiledCloudFormationTemplate.Resources\n\
+  \          .IamPolicyLambdaExecution.Properties\n          .PolicyDocument.Statement\n\
+  \        ).to.deep.equal(iamRoleStatements);\n      });\n    });\n\n    it('should\
+  \ not create event source mapping when stream events are not given', () => {"
+replace: "      it('should add the necessary IAM role statements', () => {\n     \
+  \   awsCompileStreamEvents.serverless.service.functions = {\n          first: {\n\
+  \            events: [\n              {\n                stream: 'arn:aws:kinesis:region:account:stream/foo',\n\
+  \              },\n            ],\n          },\n        };\n\n        const iamRoleStatements\
+  \ = [\n          {\n            Effect: 'Allow',\n            Action: [\n      \
+  \        'kinesis:GetRecords',\n              'kinesis:GetShardIterator',\n    \
+  \          'kinesis:DescribeStream',\n              'kinesis:ListStreams',\n   \
+  \         ],\n            Resource: [\n              'arn:aws:kinesis:region:account:stream/foo',\n\
+  \            ],\n          },\n        ];\n\n        awsCompileStreamEvents.compileStreamEvents();\n\
+  \n        expect(awsCompileStreamEvents.serverless.service.provider\n          .compiledCloudFormationTemplate.Resources\n\
+  \          .IamPolicyLambdaExecution.Properties\n          .PolicyDocument.Statement\n\
+  \        ).to.deep.equal(iamRoleStatements);\n      });\n\n      it('should add\
+  \ a single IAM statement with multiple resources for multiple streams', () => {\n\
+  \        awsCompileStreamEvents.serverless.service.functions = {\n          first:\
+  \ {\n            events: [\n              {\n                stream: 'arn:aws:kinesis:region:account:stream/foo',\n\
+  \              },\n              {\n                stream: 'arn:aws:kinesis:region:account:stream/bar',\n\
+  \              },\n            ],\n          },\n        };\n\n        const iamRoleStatements\
+  \ = [\n          {\n            Effect: 'Allow',\n            Action: [\n      \
+  \        'kinesis:GetRecords',\n              'kinesis:GetShardIterator',\n    \
+  \          'kinesis:DescribeStream',\n              'kinesis:ListStreams',\n   \
+  \         ],\n            Resource: [\n              'arn:aws:kinesis:region:account:stream/foo',\n\
+  \              'arn:aws:kinesis:region:account:stream/bar',\n            ],\n  \
+  \        },\n        ];\n\n        awsCompileStreamEvents.compileStreamEvents();\n\
+  \n        expect(awsCompileStreamEvents.serverless.service.provider\n          .compiledCloudFormationTemplate.Resources\n\
+  \          .IamPolicyLambdaExecution.Properties\n          .PolicyDocument.Statement\n\
+  \        ).to.deep.equal(iamRoleStatements);\n      });\n    });\n\n    it('should\
+  \ not create event source mapping when stream events are not given', () => {"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in lib/plugins/aws/deploy/compile/events/stream/index.test.js:
+
+--- lib/plugins/aws/deploy/compile/events/stream/index.test.js
++++ lib/plugins/aws/deploy/compile/events/stream/index.test.js
+@@ -484,7 +484,9 @@
+               'kinesis:DescribeStream',
+               'kinesis:ListStreams',
+             ],
+-            Resource: 'arn:aws:kinesis:region:account:stream/foo',
++            Resource: [
++              'arn:aws:kinesis:region:account:stream/foo',
++            ],...
+```
+========================================================================================================================
+AGENT:
+STEP 5: RUN THE TESTS
+
+<thinking>
+Now let me run the tests to verify that the changes work correctly.
 </thinking>
 ========================================================================================================================
 TOOL CALL (bash)
@@ -481,7 +667,7 @@ timeout: 120
 TOOL RETURN (bash)
 ```
 
-added 502 packages, and audited 503 packages in 26s
+added 502 packages, and audited 503 packages in 17s
 
 81 packages are looking for funding
   run `npm fund` for details
@@ -496,8 +682,8 @@ To address all issues (including breaking changes), run:
 
 Run `npm audit` for details.
 npm notice
-npm notice New major version of npm available! 10.9.3 -> 11.6.4
-npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.6...
+npm notice New major version of npm available! 10.9.3 -> 11.7.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.7...
 ```
 ========================================================================================================================
 TOOL CALL (bash)
@@ -523,114 +709,13 @@ TOOL RETURN (bash)
 ```
 ========================================================================================================================
 AGENT:
-UPDATING TESTS: Updating the test expectations
-
-<thinking>
-The tests are failing because they expect the Resource to be a string, but my implementation now uses an array. This is the expected behavior change - we want to consolidate resources into an array. I need to update the tests to expect an array.
-
-Let me update the test expectations:
-1. Line 290: Change `Resource: 'arn:aws:dynamodb:region:account:table/foo/stream/1'` to `Resource: ['arn:aws:dynamodb:region:account:table/foo/stream/1']`
-2. Line 445: Change `Resource: 'arn:aws:kinesis:region:account:stream/foo'` to `Resource: ['arn:aws:kinesis:region:account:stream/foo']`
-</thinking>
-========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: lib/plugins/aws/deploy/compile/events/stream/index.test.js
-find: "        const iamRoleStatements = [\n          {\n            Effect: 'Allow',\n\
-  \            Action: [\n              'dynamodb:GetRecords',\n              'dynamodb:GetShardIterator',\n\
-  \              'dynamodb:DescribeStream',\n              'dynamodb:ListStreams',\n\
-  \            ],\n            Resource: 'arn:aws:dynamodb:region:account:table/foo/stream/1',\n\
-  \          },\n        ];"
-replace: "        const iamRoleStatements = [\n          {\n            Effect: 'Allow',\n\
-  \            Action: [\n              'dynamodb:GetRecords',\n              'dynamodb:GetShardIterator',\n\
-  \              'dynamodb:DescribeStream',\n              'dynamodb:ListStreams',\n\
-  \            ],\n            Resource: [\n              'arn:aws:dynamodb:region:account:table/foo/stream/1',\n\
-  \            ],\n          },\n        ];"
-
-========================================================================================================================
-TOOL RETURN (find_and_replace_code)
-```
-Successfully replaced code in lib/plugins/aws/deploy/compile/events/stream/index.test.js:
-
---- lib/plugins/aws/deploy/compile/events/stream/index.test.js
-+++ lib/plugins/aws/deploy/compile/events/stream/index.test.js
-@@ -288,7 +288,9 @@
-               'dynamodb:DescribeStream',
-               'dynamodb:ListStreams',
-             ],
--            Resource: 'arn:aws:dynamodb:region:account:table/foo/stream/1',
-+            Resource: [
-+              'arn:aws:dynamodb:region:account:table/foo/stream...
-```
-========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: lib/plugins/aws/deploy/compile/events/stream/index.test.js
-find: "        const iamRoleStatements = [\n          {\n            Effect: 'Allow',\n\
-  \            Action: [\n              'kinesis:GetRecords',\n              'kinesis:GetShardIterator',\n\
-  \              'kinesis:DescribeStream',\n              'kinesis:ListStreams',\n\
-  \            ],\n            Resource: 'arn:aws:kinesis:region:account:stream/foo',\n\
-  \          },\n        ];"
-replace: "        const iamRoleStatements = [\n          {\n            Effect: 'Allow',\n\
-  \            Action: [\n              'kinesis:GetRecords',\n              'kinesis:GetShardIterator',\n\
-  \              'kinesis:DescribeStream',\n              'kinesis:ListStreams',\n\
-  \            ],\n            Resource: [\n              'arn:aws:kinesis:region:account:stream/foo',\n\
-  \            ],\n          },\n        ];"
-
-========================================================================================================================
-TOOL RETURN (find_and_replace_code)
-```
-Successfully replaced code in lib/plugins/aws/deploy/compile/events/stream/index.test.js:
-
---- lib/plugins/aws/deploy/compile/events/stream/index.test.js
-+++ lib/plugins/aws/deploy/compile/events/stream/index.test.js
-@@ -445,7 +445,9 @@
-               'kinesis:DescribeStream',
-               'kinesis:ListStreams',
-             ],
--            Resource: 'arn:aws:kinesis:region:account:stream/foo',
-+            Resource: [
-+              'arn:aws:kinesis:region:account:stream/foo',
-+            ],...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && npm test -- --grep "AwsCompileStreamEvents" 2>&1
-timeout: 120
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-
-> serverless@1.3.0 test
-> istanbul cover -x '**/*.test.js' node_modules/mocha/bin/_mocha '!(node_modules)/**/*.test.js' -- -R spec --recursive --grep AwsCompileStreamEvents
-
-
-
-  AwsCompileStreamEvents
-    #constructor()
-      ✓ should set the provider variable to be an instance of AwsProvider
-    #compileStreamEvents()
-      ✓ should throw an error if stream event type is not a string or an object
-      ✓ should throw an error if the "arn" property is not given
-      ✓ should not throw error or...
-```
-========================================================================================================================
-AGENT:
-ADDING NEW TEST: Adding a test for multiple streams consolidation
-
-<thinking>
-All tests are passing. Now I should add a new test to verify that multiple stream events of the same type are consolidated into a single statement with a Resource array. This will ensure the fix is properly tested.
-
-Let me add a test that verifies:
-1. Multiple DynamoDB streams are consolidated into a single statement
-2. Multiple Kinesis streams are consolidated into a single statement
-3. DynamoDB and Kinesis streams are kept in separate statements
-</thinking>
+All tests pass. Let me also add a test for mixed DynamoDB and Kinesis streams to ensure they are handled correctly (separate statements for each type):
 ========================================================================================================================
 TOOL CALL (inspect_code)
 file_path: lib/plugins/aws/deploy/compile/events/stream/index.test.js
 line_ranges:
-- - 295
-  - 310
+- - 535
+  - 560
 
 ========================================================================================================================
 TOOL RETURN (inspect_code)
@@ -653,138 +738,7 @@ Successfully expanded code chunks in lib/plugins/aws/deploy/compile/events/strea
 ```
 ========================================================================================================================
 AGENT:
-<thinking>
-Now I need to add a test that verifies multiple stream events are consolidated into a single statement. Let me add a test after the existing "should add the necessary IAM role statements" test in the DynamoDB section.
-</thinking>
-========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: lib/plugins/aws/deploy/compile/events/stream/index.test.js
-find: "      it('should add the necessary IAM role statements', () => {\n        awsCompileStreamEvents.serverless.service.functions\
-  \ = {\n          first: {\n            events: [\n              {\n            \
-  \    stream: 'arn:aws:dynamodb:region:account:table/foo/stream/1',\n           \
-  \   },\n            ],\n          },\n        };\n\n        const iamRoleStatements\
-  \ = [\n          {\n            Effect: 'Allow',\n            Action: [\n      \
-  \        'dynamodb:GetRecords',\n              'dynamodb:GetShardIterator',\n  \
-  \            'dynamodb:DescribeStream',\n              'dynamodb:ListStreams',\n\
-  \            ],\n            Resource: [\n              'arn:aws:dynamodb:region:account:table/foo/stream/1',\n\
-  \            ],\n          },\n        ];\n\n        awsCompileStreamEvents.compileStreamEvents();\n\
-  \n        expect(awsCompileStreamEvents.serverless.service.provider\n          .compiledCloudFormationTemplate.Resources\n\
-  \          .IamPolicyLambdaExecution.Properties\n          .PolicyDocument.Statement\n\
-  \        ).to.deep.equal(iamRoleStatements);\n      });\n    });\n\n    describe('when\
-  \ a Kinesis stream ARN is given', () => {"
-replace: "      it('should add the necessary IAM role statements', () => {\n     \
-  \   awsCompileStreamEvents.serverless.service.functions = {\n          first: {\n\
-  \            events: [\n              {\n                stream: 'arn:aws:dynamodb:region:account:table/foo/stream/1',\n\
-  \              },\n            ],\n          },\n        };\n\n        const iamRoleStatements\
-  \ = [\n          {\n            Effect: 'Allow',\n            Action: [\n      \
-  \        'dynamodb:GetRecords',\n              'dynamodb:GetShardIterator',\n  \
-  \            'dynamodb:DescribeStream',\n              'dynamodb:ListStreams',\n\
-  \            ],\n            Resource: [\n              'arn:aws:dynamodb:region:account:table/foo/stream/1',\n\
-  \            ],\n          },\n        ];\n\n        awsCompileStreamEvents.compileStreamEvents();\n\
-  \n        expect(awsCompileStreamEvents.serverless.service.provider\n          .compiledCloudFormationTemplate.Resources\n\
-  \          .IamPolicyLambdaExecution.Properties\n          .PolicyDocument.Statement\n\
-  \        ).to.deep.equal(iamRoleStatements);\n      });\n\n      it('should consolidate\
-  \ multiple DynamoDB streams into a single IAM statement', () => {\n        awsCompileStreamEvents.serverless.service.functions\
-  \ = {\n          first: {\n            events: [\n              {\n            \
-  \    stream: 'arn:aws:dynamodb:region:account:table/foo/stream/1',\n           \
-  \   },\n              {\n                stream: 'arn:aws:dynamodb:region:account:table/bar/stream/2',\n\
-  \              },\n              {\n                stream: 'arn:aws:dynamodb:region:account:table/baz/stream/3',\n\
-  \              },\n            ],\n          },\n        };\n\n        const iamRoleStatements\
-  \ = [\n          {\n            Effect: 'Allow',\n            Action: [\n      \
-  \        'dynamodb:GetRecords',\n              'dynamodb:GetShardIterator',\n  \
-  \            'dynamodb:DescribeStream',\n              'dynamodb:ListStreams',\n\
-  \            ],\n            Resource: [\n              'arn:aws:dynamodb:region:account:table/foo/stream/1',\n\
-  \              'arn:aws:dynamodb:region:account:table/bar/stream/2',\n         \
-  \     'arn:aws:dynamodb:region:account:table/baz/stream/3',\n            ],\n  \
-  \        },\n        ];\n\n        awsCompileStreamEvents.compileStreamEvents();\n\
-  \n        expect(awsCompileStreamEvents.serverless.service.provider\n          .compiledCloudFormationTemplate.Resources\n\
-  \          .IamPolicyLambdaExecution.Properties\n          .PolicyDocument.Statement\n\
-  \        ).to.deep.equal(iamRoleStatements);\n      });\n    });\n\n    describe('when\
-  \ a Kinesis stream ARN is given', () => {"
-
-========================================================================================================================
-TOOL RETURN (find_and_replace_code)
-```
-Successfully replaced code in lib/plugins/aws/deploy/compile/events/stream/index.test.js:
-
---- lib/plugins/aws/deploy/compile/events/stream/index.test.js
-+++ lib/plugins/aws/deploy/compile/events/stream/index.test.js
-@@ -302,6 +302,49 @@
-           .PolicyDocument.Statement
-         ).to.deep.equal(iamRoleStatements);
-       });
-+
-+      it('should consolidate multiple DynamoDB streams into a single IAM statement', () => {
-+        awsCompileStreamEvents.serverless.service.functions = {
-+       ...
-```
-========================================================================================================================
-AGENT:
-Now let me add a similar test for Kinesis streams:
-========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: lib/plugins/aws/deploy/compile/events/stream/index.test.js
-find: "      it('should add the necessary IAM role statements', () => {\n        awsCompileStreamEvents.serverless.service.functions\
-  \ = {\n          first: {\n            events: [\n              {\n            \
-  \    stream: 'arn:aws:kinesis:region:account:stream/foo',\n              },\n  \
-  \          ],\n          },\n        };\n\n        const iamRoleStatements = [\n\
-  \          {\n            Effect: 'Allow',\n            Action: [\n            \
-  \  'kinesis:GetRecords',\n              'kinesis:GetShardIterator',\n          \
-  \    'kinesis:DescribeStream',\n              'kinesis:ListStreams',\n         \
-  \   ],\n            Resource: [\n              'arn:aws:kinesis:region:account:stream/foo',\n\
-  \            ],\n          },\n        ];\n\n        awsCompileStreamEvents.compileStreamEvents();\n\
-  \n        expect(awsCompileStreamEvents.serverless.service.provider\n          .compiledCloudFormationTemplate.Resources\n\
-  \          .IamPolicyLambdaExecution.Properties\n          .PolicyDocument.Statement\n\
-  \        ).to.deep.equal(iamRoleStatements);\n      });\n    });\n\n    it('should\
-  \ not create event source mapping when stream events are not given', () => {"
-replace: "      it('should add the necessary IAM role statements', () => {\n     \
-  \   awsCompileStreamEvents.serverless.service.functions = {\n          first: {\n\
-  \            events: [\n              {\n                stream: 'arn:aws:kinesis:region:account:stream/foo',\n\
-  \              },\n            ],\n          },\n        };\n\n        const iamRoleStatements\
-  \ = [\n          {\n            Effect: 'Allow',\n            Action: [\n      \
-  \        'kinesis:GetRecords',\n              'kinesis:GetShardIterator',\n    \
-  \          'kinesis:DescribeStream',\n              'kinesis:ListStreams',\n   \
-  \         ],\n            Resource: [\n              'arn:aws:kinesis:region:account:stream/foo',\n\
-  \            ],\n          },\n        ];\n\n        awsCompileStreamEvents.compileStreamEvents();\n\
-  \n        expect(awsCompileStreamEvents.serverless.service.provider\n          .compiledCloudFormationTemplate.Resources\n\
-  \          .IamPolicyLambdaExecution.Properties\n          .PolicyDocument.Statement\n\
-  \        ).to.deep.equal(iamRoleStatements);\n      });\n\n      it('should consolidate\
-  \ multiple Kinesis streams into a single IAM statement', () => {\n        awsCompileStreamEvents.serverless.service.functions\
-  \ = {\n          first: {\n            events: [\n              {\n            \
-  \    stream: 'arn:aws:kinesis:region:account:stream/foo',\n              },\n  \
-  \            {\n                stream: 'arn:aws:kinesis:region:account:stream/bar',\n\
-  \              },\n              {\n                stream: 'arn:aws:kinesis:region:account:stream/baz',\n\
-  \              },\n            ],\n          },\n        };\n\n        const iamRoleStatements\
-  \ = [\n          {\n            Effect: 'Allow',\n            Action: [\n      \
-  \        'kinesis:GetRecords',\n              'kinesis:GetShardIterator',\n    \
-  \          'kinesis:DescribeStream',\n              'kinesis:ListStreams',\n   \
-  \         ],\n            Resource: [\n              'arn:aws:kinesis:region:account:stream/foo',\n\
-  \              'arn:aws:kinesis:region:account:stream/bar',\n              'arn:aws:kinesis:region:account:stream/baz',\n\
-  \            ],\n          },\n        ];\n\n        awsCompileStreamEvents.compileStreamEvents();\n\
-  \n        expect(awsCompileStreamEvents.serverless.service.provider\n          .compiledCloudFormationTemplate.Resources\n\
-  \          .IamPolicyLambdaExecution.Properties\n          .PolicyDocument.Statement\n\
-  \        ).to.deep.equal(iamRoleStatements);\n      });\n    });\n\n    it('should\
-  \ not create event source mapping when stream events are not given', () => {"
-
-========================================================================================================================
-TOOL RETURN (find_and_replace_code)
-```
-Successfully replaced code in lib/plugins/aws/deploy/compile/events/stream/index.test.js:
-
---- lib/plugins/aws/deploy/compile/events/stream/index.test.js
-+++ lib/plugins/aws/deploy/compile/events/stream/index.test.js
-@@ -502,6 +502,49 @@
-           .PolicyDocument.Statement
-         ).to.deep.equal(iamRoleStatements);
-       });
-+
-+      it('should consolidate multiple Kinesis streams into a single IAM statement', () => {
-+        awsCompileStreamEvents.serverless.service.functions = {
-+        ...
-```
-========================================================================================================================
-AGENT:
-Now let me add a test that verifies DynamoDB and Kinesis streams are kept in separate statements:
+Let me add a test for mixed DynamoDB and Kinesis streams to ensure they are handled correctly:
 ========================================================================================================================
 TOOL CALL (find_and_replace_code)
 file_path: lib/plugins/aws/deploy/compile/events/stream/index.test.js
@@ -829,7 +783,7 @@ Successfully replaced code in lib/plugins/aws/deploy/compile/events/stream/index
 
 --- lib/plugins/aws/deploy/compile/events/stream/index.test.js
 +++ lib/plugins/aws/deploy/compile/events/stream/index.test.js
-@@ -597,5 +597,59 @@
+@@ -589,5 +589,59 @@
          .provider.compiledCloudFormationTemplate.Resources
        ).to.have.any.keys('FirstEventSourceMappingKinesisSomelongname');
      });
@@ -839,7 +793,7 @@ Successfully replaced code in lib/plugins/aws/deploy/compile/events/stream/index
 ```
 ========================================================================================================================
 AGENT:
-Now let me run all the stream event tests to verify everything is working:
+Now let me run the tests again to verify all tests pass:
 ========================================================================================================================
 TOOL CALL (bash)
 command: cd /workspace && npm test -- --grep "AwsCompileStreamEvents" 2>&1
@@ -864,27 +818,7 @@ TOOL RETURN (bash)
 ```
 ========================================================================================================================
 AGENT:
-REVIEW: Reviewing the changes
-
-<thinking>
-All 16 tests are passing. Let me review the changes I made:
-
-1. **Modified `lib/plugins/aws/deploy/compile/events/stream/index.js`**:
-   - Changed the logic to consolidate multiple stream ARNs of the same type (dynamodb or kinesis) into a single IAM policy statement with a Resource array
-   - Instead of creating a new statement for each stream and concatenating it, the code now:
-     - Checks if a statement with the same actions already exists
-     - If it does, adds the new resource ARN to the existing statement's Resource array
-     - If it doesn't, creates a new statement with the Resource as an array
-
-2. **Updated `lib/plugins/aws/deploy/compile/events/stream/index.test.js`**:
-   - Updated existing tests to expect Resource as an array instead of a string
-   - Added new tests to verify:
-     - Multiple DynamoDB streams are consolidated into a single statement
-     - Multiple Kinesis streams are consolidated into a single statement
-     - DynamoDB and Kinesis streams are kept in separate statements
-
-Let me also verify that the modified code file looks correct by viewing it:
-</thinking>
+All 16 tests pass. Let me also verify the modified code looks correct:
 ========================================================================================================================
 TOOL CALL (open_files)
 file_paths:
@@ -897,8 +831,51 @@ TOOL RETURN (open_files)
 ```
 ========================================================================================================================
 AGENT:
+STEP 6: REVIEW CHANGES
+
 <thinking>
-The code looks correct. Let me also run the full test suite to make sure I haven't broken anything else:
+Let me review the changes I made:
+
+1. **Problem**: When deploying functions with many stream events (50+), Serverless creates individual IAM policy statements for each stream, causing the policy to exceed AWS's 10240 byte limit.
+
+2. **Solution**: I modified the `compileStreamEvents` method in `lib/plugins/aws/deploy/compile/events/stream/index.js` to consolidate IAM policy statements by:
+   - Looking for an existing statement with the same actions (DynamoDB or Kinesis)
+   - If found, adding the new ARN to the Resource array
+   - If not found, creating a new statement with the ARN in a Resource array
+
+3. **Changes made**:
+   - Modified `lib/plugins/aws/deploy/compile/events/stream/index.js` to consolidate IAM policy statements
+   - Updated `lib/plugins/aws/deploy/compile/events/stream/index.test.js` to:
+     - Update existing tests to expect Resource as an array instead of a string
+     - Add new tests for multiple DynamoDB streams
+     - Add new tests for multiple Kinesis streams
+     - Add a test for mixed DynamoDB and Kinesis streams
+
+4. **Before the fix**: Each stream event created a separate IAM policy statement like:
+   ```json
+   {
+     "Effect": "Allow",
+     "Action": ["dynamodb:GetRecords", ...],
+     "Resource": "arn:aws:dynamodb:..."
+   }
+   ```
+   This was repeated for each stream, causing the policy to grow linearly with the number of streams.
+
+5. **After the fix**: All streams of the same type are consolidated into a single statement:
+   ```json
+   {
+     "Effect": "Allow",
+     "Action": ["dynamodb:GetRecords", ...],
+     "Resource": [
+       "arn:aws:dynamodb:.../table-1/...",
+       "arn:aws:dynamodb:.../table-2/...",
+       ...
+     ]
+   }
+   ```
+   This significantly reduces the policy size, allowing for many more streams before hitting the 10240 byte limit.
+
+Let me run the full test suite to make sure I haven't broken anything else:
 </thinking>
 ========================================================================================================================
 TOOL CALL (bash)
@@ -926,68 +903,296 @@ Require stack:
 ========================================================================================================================
 AGENT:
 <thinking>
-The test failures are unrelated to my changes - they appear to be pre-existing issues with the test environment (module resolution issues). Let me verify by checking the test summary more specifically for the stream-related tests:
+The test failures seem to be unrelated to my changes - they appear to be pre-existing issues with the test suite (missing module 'testPlugin' and a failing test in Serverless.test.js). Let me run just the stream-related tests to confirm my changes are working correctly:
 </thinking>
 ========================================================================================================================
 TOOL CALL (bash)
-command: cd /workspace && npm test 2>&1 | grep -E "(passing|failing|AwsCompileStreamEvents)"
-  | head -30
-timeout: 180
+command: cd /workspace && npm test -- --grep "stream" 2>&1
+timeout: 120
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
-    AwsCompileStreamEvents
-  765 passing (14s)
-  6 failing...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && npm test 2>&1 | grep -A 5 "failing"
-timeout: 180
 
-========================================================================================================================
-TOOL RETURN (bash)
-```
-  6 failing
+> serverless@1.3.0 test
+> istanbul cover -x '**/*.test.js' node_modules/mocha/bin/_mocha '!(node_modules)/**/*.test.js' -- -R spec --recursive --grep stream
 
-  1) Utils "before each" hook:
-     Uncaught ServerlessError: Provider "invalid" is not supported. Valid values for provider are: aws, azure, google, openwhisk. Please provide one of those values to the "provider" property in serverless.yml.
-      at lib/classes/Service.js:9:4852...
+
+
+  AwsCompileStreamEvents
+    #compileStreamEvents()
+      ✓ should throw an error if stream event type is not a string or an object
+      ✓ should not create event source mapping when stream events are not given
+      ✓ should not add the IAM role statements when stream events are not given
+      ✓ should remove all non-alphanumerics fro...
 ```
 ========================================================================================================================
 AGENT:
+All stream-related tests pass. Let me also run the IAM-related tests to make sure the changes don't break anything there:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test -- --grep "IAM" 2>&1
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+> serverless@1.3.0 test
+> istanbul cover -x '**/*.test.js' node_modules/mocha/bin/_mocha '!(node_modules)/**/*.test.js' -- -R spec --recursive --grep IAM
+
+
+
+  AwsCompileStreamEvents
+    #compileStreamEvents()
+      ✓ should not throw error if custom IAM role is set in function
+      ✓ should not throw error if custom IAM role is set in provider
+      ✓ should not add the IAM role statements when stream events are not given
+      ✓ should create separate IAM statements for DynamoDB and Kinesis s...
+```
+========================================================================================================================
+AGENT:
+All IAM-related tests pass as well. Let me also verify that the compile events tests pass:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test -- --grep "compile" 2>&1 | tail -60
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+      ✓ should add a "Fn::GetAtt" Object provider role
+      ✓ should add an ARN function role
+      ✓ should add a logical role name function role
+      ✓ should add a "Fn::GetAtt" Object function role
+      ✓ should add a "Fn::ImportValue" Object function role
+      ✓ should prefer function declared role over provider declared role
+      ✓ should add function declared roles
+      ✓ should add function declared role and fill in with provider role
+      ✓ should throw an error if the function ha...
+```
+========================================================================================================================
+AGENT:
+All 117 compile-related tests pass. Let me now verify the fix by creating a simple test script that simulates the scenario from the problem statement:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cat > /tmp/test_stream_consolidation.js << 'EOF'\n'use strict';\n\nconst\
+  \ AwsCompileStreamEvents = require('./lib/plugins/aws/deploy/compile/events/stream/index');\n\
+  const Serverless = require('./lib/Serverless');\nconst AwsProvider = require('./lib/plugins/aws/provider/awsProvider');\n\
+  \n// Create a serverless instance\nconst serverless = new Serverless();\nserverless.service.provider.compiledCloudFormationTemplate\
+  \ = {\n  Resources: {\n    IamPolicyLambdaExecution: {\n      Properties: {\n  \
+  \      PolicyDocument: {\n          Statement: [],\n        },\n      },\n    },\n\
+  \  },\n};\nserverless.setProvider('aws', new AwsProvider(serverless));\nconst awsCompileStreamEvents\
+  \ = new AwsCompileStreamEvents(serverless);\nawsCompileStreamEvents.serverless.service.service\
+  \ = 'ddb-backup';\n\n// Create 50+ stream events (simulating the problem scenario)\n\
+  const streamEvents = [];\nfor (let i = 1; i <= 55; i++) {\n  streamEvents.push({\n\
+  \    stream: `arn:aws:dynamodb:us-east-1:123456789:table/table-${i}/stream/2016-01-01T00:00:00.000`,\n\
+  \  });\n}\n\nawsCompileStreamEvents.serverless.service.functions = {\n  backup:\
+  \ {\n    events: streamEvents,\n  },\n};\n\n// Compile the stream events\nawsCompileStreamEvents.compileStreamEvents();\n\
+  \n// Get the IAM policy statements\nconst statements = awsCompileStreamEvents.serverless.service.provider\n\
+  \  .compiledCloudFormationTemplate.Resources\n  .IamPolicyLambdaExecution.Properties\n\
+  \  .PolicyDocument.Statement;\n\nconsole.log('Number of IAM policy statements:',\
+  \ statements.length);\nconsole.log('Number of resources in the first statement:',\
+  \ statements[0].Resource.length);\n\n// Calculate the approximate size of the policy\n\
+  const policySize = JSON.stringify(statements).length;\nconsole.log('Approximate\
+  \ policy size (bytes):', policySize);\n\n// Verify the fix\nif (statements.length\
+  \ === 1 && statements[0].Resource.length === 55) {\n  console.log('\\n\u2713 SUCCESS:\
+  \ All 55 stream ARNs are consolidated into a single IAM statement!');\n  console.log('\
+  \  This significantly reduces the policy size and avoids the 10240 byte limit.');\n\
+  } else {\n  console.log('\\n\u2717 FAILURE: Stream ARNs are not consolidated properly.');\n\
+  \  process.exit(1);\n}\nEOF\ncd /workspace && node /tmp/test_stream_consolidation.js"
+timeout: 30
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+node:internal/modules/cjs/loader:1368
+  throw err;
+  ^
+
+Error: Cannot find module './lib/plugins/aws/deploy/compile/events/stream/index'
+Require stack:
+- /tmp/test_stream_consolidation.js
+    at Function._resolveFilename (node:internal/modules/cjs/loader:1365:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1021:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1026:22)
+    at Function._load (node:internal/modules/cjs/loader:1175:37)
+    at TracingChannel.traceSy...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: "cat > /workspace/test_stream_consolidation.js << 'EOF'\n'use strict';\n\n\
+  const AwsCompileStreamEvents = require('./lib/plugins/aws/deploy/compile/events/stream/index');\n\
+  const Serverless = require('./lib/Serverless');\nconst AwsProvider = require('./lib/plugins/aws/provider/awsProvider');\n\
+  \n// Create a serverless instance\nconst serverless = new Serverless();\nserverless.service.provider.compiledCloudFormationTemplate\
+  \ = {\n  Resources: {\n    IamPolicyLambdaExecution: {\n      Properties: {\n  \
+  \      PolicyDocument: {\n          Statement: [],\n        },\n      },\n    },\n\
+  \  },\n};\nserverless.setProvider('aws', new AwsProvider(serverless));\nconst awsCompileStreamEvents\
+  \ = new AwsCompileStreamEvents(serverless);\nawsCompileStreamEvents.serverless.service.service\
+  \ = 'ddb-backup';\n\n// Create 50+ stream events (simulating the problem scenario)\n\
+  const streamEvents = [];\nfor (let i = 1; i <= 55; i++) {\n  streamEvents.push({\n\
+  \    stream: `arn:aws:dynamodb:us-east-1:123456789:table/table-${i}/stream/2016-01-01T00:00:00.000`,\n\
+  \  });\n}\n\nawsCompileStreamEvents.serverless.service.functions = {\n  backup:\
+  \ {\n    events: streamEvents,\n  },\n};\n\n// Compile the stream events\nawsCompileStreamEvents.compileStreamEvents();\n\
+  \n// Get the IAM policy statements\nconst statements = awsCompileStreamEvents.serverless.service.provider\n\
+  \  .compiledCloudFormationTemplate.Resources\n  .IamPolicyLambdaExecution.Properties\n\
+  \  .PolicyDocument.Statement;\n\nconsole.log('Number of IAM policy statements:',\
+  \ statements.length);\nconsole.log('Number of resources in the first statement:',\
+  \ statements[0].Resource.length);\n\n// Calculate the approximate size of the policy\n\
+  const policySize = JSON.stringify(statements).length;\nconsole.log('Approximate\
+  \ policy size (bytes):', policySize);\n\n// Verify the fix\nif (statements.length\
+  \ === 1 && statements[0].Resource.length === 55) {\n  console.log('\\n\u2713 SUCCESS:\
+  \ All 55 stream ARNs are consolidated into a single IAM statement!');\n  console.log('\
+  \  This significantly reduces the policy size and avoids the 10240 byte limit.');\n\
+  } else {\n  console.log('\\n\u2717 FAILURE: Stream ARNs are not consolidated properly.');\n\
+  \  process.exit(1);\n}\nEOF\ncd /workspace && node test_stream_consolidation.js"
+timeout: 30
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Number of IAM policy statements: 1
+Number of resources in the first statement: 55
+Approximate policy size (bytes): 4809
+
+✓ SUCCESS: All 55 stream ARNs are consolidated into a single IAM statement!
+  This significantly reduces the policy size and avoids the 10240 byte limit....
+```
+========================================================================================================================
+AGENT:
+The fix is working correctly. Let me clean up the test file and also compare the policy size before and after the fix:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cat > /workspace/test_stream_consolidation.js << 'EOF'\n'use strict';\n\n\
+  // This script demonstrates the fix for the \"Maximum policy size of 10240 bytes\
+  \ exceeded\" issue\n// when deploying functions with many stream events.\n\nconst\
+  \ AwsCompileStreamEvents = require('./lib/plugins/aws/deploy/compile/events/stream/index');\n\
+  const Serverless = require('./lib/Serverless');\nconst AwsProvider = require('./lib/plugins/aws/provider/awsProvider');\n\
+  \n// Create a serverless instance\nconst serverless = new Serverless();\nserverless.service.provider.compiledCloudFormationTemplate\
+  \ = {\n  Resources: {\n    IamPolicyLambdaExecution: {\n      Properties: {\n  \
+  \      PolicyDocument: {\n          Statement: [],\n        },\n      },\n    },\n\
+  \  },\n};\nserverless.setProvider('aws', new AwsProvider(serverless));\nconst awsCompileStreamEvents\
+  \ = new AwsCompileStreamEvents(serverless);\nawsCompileStreamEvents.serverless.service.service\
+  \ = 'ddb-backup';\n\n// Create 55 stream events (simulating the problem scenario)\n\
+  const streamEvents = [];\nfor (let i = 1; i <= 55; i++) {\n  streamEvents.push({\n\
+  \    stream: `arn:aws:dynamodb:us-east-1:123456789:table/table-${i}/stream/2016-01-01T00:00:00.000`,\n\
+  \  });\n}\n\nawsCompileStreamEvents.serverless.service.functions = {\n  backup:\
+  \ {\n    events: streamEvents,\n  },\n};\n\n// Compile the stream events\nawsCompileStreamEvents.compileStreamEvents();\n\
+  \n// Get the IAM policy statements\nconst statements = awsCompileStreamEvents.serverless.service.provider\n\
+  \  .compiledCloudFormationTemplate.Resources\n  .IamPolicyLambdaExecution.Properties\n\
+  \  .PolicyDocument.Statement;\n\nconsole.log('=== After Fix (Consolidated Statements)\
+  \ ===');\nconsole.log('Number of IAM policy statements:', statements.length);\n\
+  console.log('Number of resources in the first statement:', statements[0].Resource.length);\n\
+  \n// Calculate the approximate size of the policy\nconst policySize = JSON.stringify(statements).length;\n\
+  console.log('Approximate policy size (bytes):', policySize);\n\n// Calculate what\
+  \ the old policy size would have been (one statement per stream)\nconst oldStyleStatements\
+  \ = streamEvents.map(event => ({\n  Effect: 'Allow',\n  Action: [\n    'dynamodb:GetRecords',\n\
+  \    'dynamodb:GetShardIterator',\n    'dynamodb:DescribeStream',\n    'dynamodb:ListStreams',\n\
+  \  ],\n  Resource: event.stream,\n}));\nconst oldPolicySize = JSON.stringify(oldStyleStatements).length;\n\
+  \nconsole.log('\\n=== Before Fix (Separate Statements) ===');\nconsole.log('Number\
+  \ of IAM policy statements:', oldStyleStatements.length);\nconsole.log('Approximate\
+  \ policy size (bytes):', oldPolicySize);\n\nconsole.log('\\n=== Comparison ===');\n\
+  console.log('Policy size reduction:', Math.round((1 - policySize / oldPolicySize)\
+  \ * 100) + '%');\nconsole.log('AWS limit: 10240 bytes');\nconsole.log('Old approach\
+  \ would exceed limit:', oldPolicySize > 10240 ? 'YES' : 'NO');\nconsole.log('New\
+  \ approach exceeds limit:', policySize > 10240 ? 'YES' : 'NO');\n\n// Verify the\
+  \ fix\nif (statements.length === 1 && statements[0].Resource.length === 55) {\n\
+  \  console.log('\\n\u2713 SUCCESS: All 55 stream ARNs are consolidated into a single\
+  \ IAM statement!');\n} else {\n  console.log('\\n\u2717 FAILURE: Stream ARNs are\
+  \ not consolidated properly.');\n  process.exit(1);\n}\nEOF\ncd /workspace && node\
+  \ test_stream_consolidation.js"
+timeout: 30
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+=== After Fix (Consolidated Statements) ===
+Number of IAM policy statements: 1
+Number of resources in the first statement: 55
+Approximate policy size (bytes): 4809
+
+=== Before Fix (Separate Statements) ===
+Number of IAM policy statements: 55
+Approximate policy size (bytes): 12367
+
+=== Comparison ===
+Policy size reduction: 61%
+AWS limit: 10240 bytes
+Old approach would exceed limit: YES
+New approach exceeds limit: NO
+
+✓ SUCCESS: All 55 stream ARNs are consolidated into a single IAM statement!...
+```
+========================================================================================================================
+AGENT:
+Excellent! The fix reduces the policy size by 61%, from 12367 bytes (which exceeds the 10240 byte limit) to 4809 bytes (well under the limit). Let me clean up the test file:
+========================================================================================================================
+TOOL CALL (bash)
+command: rm /workspace/test_stream_consolidation.js
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+...
+```
+========================================================================================================================
+AGENT:
+STEP 7: FINAL REVIEW
+
 <thinking>
-The 6 failing tests are unrelated to my changes - they are pre-existing issues with the test environment. The AwsCompileStreamEvents tests are all passing (as shown in the earlier test run with 16 passing tests).
+Let me do a final review of the changes I made:
 
-Let me also verify that there are no typos in my code by fixing the comment that says "branding" instead of something more appropriate:
+1. **Modified file**: `lib/plugins/aws/deploy/compile/events/stream/index.js`
+   - Changed the IAM policy statement generation to consolidate multiple stream ARNs into a single statement with a Resource array
+   - For DynamoDB streams: looks for an existing statement with `dynamodb:GetRecords` action and adds the new ARN to its Resource array
+   - For Kinesis streams: looks for an existing statement with `kinesis:GetRecords` action and adds the new ARN to its Resource array
+   - If no existing statement is found, creates a new one with the ARN in a Resource array
+
+2. **Modified test file**: `lib/plugins/aws/deploy/compile/events/stream/index.test.js`
+   - Updated existing tests to expect Resource as an array instead of a string
+   - Added new tests for multiple DynamoDB streams consolidation
+   - Added new tests for multiple Kinesis streams consolidation
+   - Added a test for mixed DynamoDB and Kinesis streams (separate statements for each type)
+
+The fix addresses the problem statement by:
+1. Consolidating all stream ARNs of the same type into a single IAM policy statement with a Resource array
+2. This significantly reduces the policy size (61% reduction in the test case)
+3. Allows deploying functions with 50+ stream events without exceeding AWS's 10240 byte policy limit
+
+Let me verify the changes one more time by looking at the final code:
 </thinking>
 ========================================================================================================================
-TOOL CALL (find_and_replace_code)
+TOOL CALL (inspect_code)
 file_path: lib/plugins/aws/deploy/compile/events/stream/index.js
-find: '            // update the branding PolicyDocument statements (if default policy
-  is used)'
-replace: '            // update the PolicyDocument statements (if default policy is
-  used)'
+line_ranges:
+- - 0
+  - -1
 
 ========================================================================================================================
-TOOL RETURN (find_and_replace_code)
+TOOL RETURN (inspect_code)
 ```
-Successfully replaced code in lib/plugins/aws/deploy/compile/events/stream/index.js:
+Successfully expanded code chunks in lib/plugins/aws/deploy/compile/events/stream/index.js:
 
---- lib/plugins/aws/deploy/compile/events/stream/index.js
-+++ lib/plugins/aws/deploy/compile/events/stream/index.js
-@@ -91,7 +91,7 @@
-               }
-             `;
- 
--            // update the branding PolicyDocument statements (if default policy is used)
-+            // update the PolicyDocument statements (if default policy is used)
-             if (this.serverless.service.provider.compiledCloudFormationTe...
+````javascript
+   0 'use strict';
+   1 
+   2 const _ = require('lodash');
+   3 
+   4 class AwsCompileStreamEvents {
+   5   constructor(serverless) {
+   6     this.serverless = serverless;
+   7     this.provider = this.serverless.getProvider('aws');
+   8 
+   9     this.hooks = {
+  10       'deploy:compileEvents': this.compileStreamEvents.bind(this),
+  11     };
+  12   }
+  13 
+  14   compileStreamEvents() ...
 ```
 ========================================================================================================================
 AGENT:
-Now let me run the stream tests one more time to confirm everything is still working:
+I've implemented the fix to consolidate IAM policy statements for stream events. Now running final verification tests to ensure everything works correctly.
 ========================================================================================================================
 TOOL CALL (bash)
 command: cd /workspace && npm test -- --grep "AwsCompileStreamEvents" 2>&1
@@ -1012,68 +1217,94 @@ TOOL RETURN (bash)
 ```
 ========================================================================================================================
 AGENT:
-FINAL REVIEW: Verifying the complete solution
+All 16 tests pass. Let me also verify that the changes don't break any other tests in the codebase by running a broader set of tests:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test -- --grep "deploy" 2>&1 | tail -80
+timeout: 180
 
-<thinking>
-All 16 tests are passing. Let me do a final review of the changes:
+========================================================================================================================
+TOOL RETURN (bash)
+```
+    #cleanupS3Bucket()
+      ✓ should resolve if no deploy
 
-1. **Problem**: When deploying functions with many stream events (DynamoDB or Kinesis), the IAM policy exceeds AWS's 10240 byte limit because Serverless creates a separate policy statement for each stream event.
+  createStack
+    #createStack()
+      ✓ should set the createLater flag and resolve if deployment bucket is provided
+    #writeCreateTemplateToDisk
+      ✓ should resolve if deployment bucket is provided
 
-2. **Solution**: Modified the code to consolidate all stream ARNs of the same type into a single IAM policy statement with a Resource array. This significantly reduces the policy size.
+  uploadArtifacts
+    #uploadArtifacts()
+      ✓ should resolve if no deploy
 
-3. **Changes made**:
-   - `lib/plugins/aws/deploy/compile/events/stream/index.js`: Modified the logic to consolidate stream ARNs into a single statement per stream type
-   - `lib/plugins/aws/deploy/compile/events/stream/index.test.js`: Updated existing tests and added new tests to verify the consolidation behavior
-
-4. **Before the fix**: Each stream event created a separate statement like:
-   ```json
-   {
-     "Action": ["dynamodb:GetRecords", ...],
-     "Resource": "arn:aws:dynamodb:...:table/table-1/stream/...",
-     "Effect": "Allow"
-   },
-   {
-     "Action": ["dynamodb:GetRecords", ...],
-     "Resource": "arn:aws:dynamodb:...:table/table-2/stream/...",
-     "Effect": "Allow"
-   }
-   ```
-
-5. **After the fix**: All stream ARNs of the same type are consolidated into a single statement:
-   ```json
-   {
-     "Action": ["dynamodb:GetRecords", ...],
-     "Resource": [
-       "arn:aws:dynamodb:...:table/table-1/stream/...",
-       "arn:aws:dynamodb:...:table/table-2/stream/..."
-     ],
-     "Effect": "Allow"
-   }
-   ```
-
-This solution addresses the first suggestion from the problem statement: "Serverless should create a single policy statement with all event stream ARNs added to a single `Resource: []` array."
-
-The fix is complete and all tests are passing.
-</thinking>
+  AwsDeployFunction
+    hooks
+Serverless: Deploying function: first...
+      ✓ should run "deploy:function:initialize" promise chain in order
+      ✓ should...
+```
 ========================================================================================================================
 AGENT:
-Successfully resolved the IAM policy size issue for stream events. 
+All deploy-related tests pass. Let me run a final comprehensive test to make sure the changes don't break any other functionality:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test -- --grep "events" 2>&1 | tail -100
+timeout: 180
 
-**Problem**: When deploying functions with many stream events (50+ DynamoDB or Kinesis streams), the IAM policy exceeded AWS's 10240 byte limit because Serverless was creating a separate policy statement for each stream event.
+========================================================================================================================
+TOOL RETURN (bash)
+```
 
-**Solution**: Modified `lib/plugins/aws/deploy/compile/events/stream/index.js` to consolidate all stream ARNs of the same type (dynamodb or kinesis) into a single IAM policy statement with a Resource array.
+> serverless@1.3.0 test
+> istanbul cover -x '**/*.test.js' node_modules/mocha/bin/_mocha '!(node_modules)/**/*.test.js' -- -R spec --recursive --grep events
 
-**Changes made**:
-1. **lib/plugins/aws/deploy/compile/events/stream/index.js**: 
-   - Changed the logic to check if a statement with the same actions already exists
-   - If it exists, adds the new resource ARN to the existing statement's Resource array
-   - If it doesn't exist, creates a new statement with Resource as an array
+
+
+  PluginManager
+    #getEvents()
+      ✓ should get all the matching events for a root level command in the correct order
+      ✓ should get all the matching events for a nested level command in the correct order
+
+  Service
+    #getAllEventsInFunction()
+      ✓ should return an array of events in a specified function
+
+  #compileMethods()...
+```
+========================================================================================================================
+AGENT:
+All tests pass. Let me provide a summary of the changes I made:
+========================================================================================================================
+AGENT:
+Successfully resolved the "Maximum policy size of 10240 bytes exceeded for role" issue.
+
+## Summary of Changes
+
+### Problem
+When deploying functions with many stream events (50+), Serverless was creating individual IAM policy statements for each stream, causing the policy to exceed AWS's 10240 byte limit.
+
+### Solution
+Modified `lib/plugins/aws/deploy/compile/events/stream/index.js` to consolidate IAM policy statements by grouping all stream ARNs of the same type (DynamoDB or Kinesis) into a single statement with a Resource array.
+
+### Changes Made
+
+1. **lib/plugins/aws/deploy/compile/events/stream/index.js**:
+   - Instead of creating a new IAM policy statement for each stream event, the code now:
+     - Looks for an existing statement with the same actions (DynamoDB or Kinesis)
+     - If found, adds the new ARN to the existing statement's Resource array
+     - If not found, creates a new statement with the ARN in a Resource array
 
 2. **lib/plugins/aws/deploy/compile/events/stream/index.test.js**:
-   - Updated existing tests to expect Resource as an array
-   - Added 3 new tests to verify:
-     - Multiple DynamoDB streams are consolidated into a single statement
-     - Multiple Kinesis streams are consolidated into a single statement
-     - DynamoDB and Kinesis streams are kept in separate statements
+   - Updated existing tests to expect Resource as an array instead of a string
+   - Added new tests for multiple DynamoDB streams consolidation
+   - Added new tests for multiple Kinesis streams consolidation
+   - Added a test for mixed DynamoDB and Kinesis streams (separate statements for each type)
 
-**Result**: Instead of creating N separate policy statements for N stream events (each with the same actions but different resources), the code now creates at most 2 statements (one for DynamoDB, one for Kinesis) with all resources consolidated into arrays. This dramatically reduces the policy size and allows scaling past the previous ~50 event limit.
+### Results
+- **Before fix**: 55 stream events would create 55 separate IAM statements (~12,367 bytes, exceeding the 10,240 byte limit)
+- **After fix**: 55 stream events create 1 consolidated IAM statement (~4,809 bytes, well under the limit)
+- **Policy size reduction**: 61%
+
+All 16 stream-related tests pass, confirming the fix works correctly.

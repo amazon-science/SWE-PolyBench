@@ -146,24 +146,35 @@ and we found after executing `run.sh`, the `model.weights.h5` file is deleted.
 </problem_statement>
 
 Do not stop until you have made code changes that resolve the problem statement. Do not ask for clarifications.
+
+NEVER attempt to find the solution to the problem statement by searching future commits or branches in the repository.
 ========================================================================================================================
 AGENT:
-Starting to analyze the problem statement. The issue is related to loading a Keras model from a `.keras` file when multiple processes try to load the same model concurrently. The problem seems to be that during loading, a temporary `model.weights.h5` file is extracted and then deleted, causing race conditions when multiple processes try to load the same model simultaneously.
+Starting to analyze the problem statement. The issue is about a bug in Keras 3.4.0 where loading a model causes a "No such file or directory: 'model.weights.h5'" error when multiple processes try to load the same model concurrently. The issue seems to be related to the saving_lib.py file where a temporary weights file is being extracted and then deleted, causing race conditions.
 ========================================================================================================================
 AGENT:
+STEP 1: ANALYZE THE PROBLEM
+
 <thinking>
-Let me analyze the problem:
+Let me analyze the problem statement:
 
-1. When saving a model with `model.save("model.keras")`, it seems to also create a `model.weights.h5` file in the current directory, which shouldn't happen.
+1. The user is saving a Keras model using `model.save(model_file_path)` where `model_file_path = f"{save_path}/model.keras"`
+2. After saving, there's a strange `model.weights.h5` file generated in the current directory (not inside the .keras file)
+3. When multiple processes try to load the same model concurrently, they get a `FileNotFoundError: [Errno 2] No such file or directory: 'model.weights.h5'`
+4. The error occurs at `weights_file_path.unlink()` in `saving_lib.py` line 353
 
-2. When loading the model, the code extracts `model.weights.h5` to the current directory, loads it, and then deletes it. This causes race conditions when multiple processes try to load the same model.
+The issue seems to be:
+1. When loading a `.keras` file, Keras extracts the weights to a temporary file `model.weights.h5`
+2. After loading, it tries to delete this temporary file
+3. When multiple processes load the same model concurrently, they all extract to the same file path `model.weights.h5` (in the current working directory)
+4. One process deletes the file, and then other processes fail when they try to delete it (or access it)
 
-3. The error occurs at `weights_file_path.unlink()` in `saving_lib.py` line 353.
+The fix should ensure that:
+1. Each process uses a unique temporary file path for extracting weights
+2. Or the extraction happens in a proper temporary directory that's unique per process
 
-I need to look at the saving_lib.py file to understand the issue better.
+Let me look at the saving_lib.py file to understand the current implementation.
 </thinking>
-
-Let me start by examining the saving_lib.py file to understand the issue:
 ========================================================================================================================
 TOOL CALL (open_files)
 file_paths:
@@ -177,58 +188,13 @@ TOOL RETURN (open_files)
 ========================================================================================================================
 AGENT:
 <thinking>
-I need to expand the `_load_model_from_fileobj` function to see the issue. The error occurs at line 353 where `weights_file_path.unlink()` is called. Let me expand that function.
+I need to expand the `_load_model_from_fileobj` function to see the full implementation, especially around line 353 where the error occurs. Let me also look at the `get_temp_dir` function.
 </thinking>
 ========================================================================================================================
 TOOL CALL (inspect_code)
 file_path: keras/src/saving/saving_lib.py
 patterns:
 - _load_model_from_fileobj
-
-========================================================================================================================
-TOOL RETURN (inspect_code)
-```
-Successfully expanded code chunks in keras/src/saving/saving_lib.py:
-
-````python
-   0 """Python-based idempotent model-saving functionality."""
-   1 
-   2 import datetime
-...
-  13 from keras.src import backend
-...
-  28     import h5py
-  29 except ImportError:
-  30     h5py = None
-...
-  40 def save_model(model, filepath, weights_format="h5", zipped=True):
-...
-  98             with file_utils.File(filepath, "wb") as f:
-...
- 101             with open(filepath, "wb") as f:
-...
- 105 def _serialize_mo...
-```
-========================================================================================================================
-AGENT:
-<thinking>
-Now I can see the issue clearly. In the `_load_model_from_fileobj` function:
-
-1. When loading a `.keras` file, it extracts `model.weights.h5` to the working directory (the parent directory of the `.keras` file).
-2. After loading, it deletes the extracted file with `weights_file_path.unlink()`.
-
-The problem is:
-1. When multiple processes try to load the same model concurrently, they all extract `model.weights.h5` to the same location.
-2. One process might delete the file while another is still using it, or one process might try to delete a file that another process already deleted.
-
-The fix should be to extract the weights file to a unique temporary location instead of the working directory. This way, each process will have its own copy of the weights file.
-
-Let me also look at the `get_temp_dir` function to see if there's already a mechanism for creating temporary directories:
-</thinking>
-========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: keras/src/saving/saving_lib.py
-patterns:
 - get_temp_dir
 
 ========================================================================================================================
@@ -258,14 +224,44 @@ Successfully expanded code chunks in keras/src/saving/saving_lib.py:
 ========================================================================================================================
 AGENT:
 <thinking>
-Now I understand the issue better. The `get_temp_dir()` function creates a unique temporary directory using `tempfile.mkdtemp()`. This is exactly what we need to fix the race condition.
+Now I understand the issue clearly. Looking at the `_load_model_from_fileobj` function (lines 300-356):
+
+1. When loading a `.keras` file with H5 weights:
+   - If `fileobj` is a `BufferedReader` (i.e., a regular file), it extracts `model.weights.h5` to the parent directory of the model file (line 316-318)
+   - This creates a file at `working_dir / _VARS_FNAME_H5` which is `model.weights.h5` in the same directory as the model
+   - After loading, it tries to delete this file with `weights_file_path.unlink()` (line 352)
+
+2. The problem is that when multiple processes load the same model concurrently:
+   - They all extract to the same path (`model.weights.h5` in the model's directory)
+   - One process might delete the file while another is still using it
+   - Or one process might delete it, and then another tries to delete it again, causing `FileNotFoundError`
+
+The fix should use a unique temporary directory for each extraction, similar to how `DiskIOStore` uses `get_temp_dir()` to create a unique temporary directory.
+
+Let me look at the full implementation of the problematic section more closely:
+
+```python
+if _VARS_FNAME_H5 in all_filenames:
+    if isinstance(fileobj, io.BufferedReader):
+        # First, extract the model.weights.h5 file, then load it
+        # using h5py.
+        working_dir = pathlib.Path(fileobj.name).parent
+        zf.extract(_VARS_FNAME_H5, working_dir)
+        weights_file_path = working_dir / _VARS_FNAME_H5
+        weights_store = H5IOStore(weights_file_path, mode="r")
+```
+
+The issue is that `working_dir` is set to the parent directory of the model file, which is shared across all processes. Instead, we should use a unique temporary directory.
 
 The fix should be:
-1. Instead of extracting the weights file to the working directory (parent of the `.keras` file), extract it to a unique temporary directory.
-2. This way, each process will have its own copy of the weights file, avoiding race conditions.
+1. Use `get_temp_dir()` to create a unique temporary directory
+2. Extract the weights file to this temporary directory
+3. Delete the temporary directory after loading (or let it be cleaned up automatically)
 
-Let me also check the imports at the top of the file to see if `tempfile` is already imported:
+Let me implement this fix:
 </thinking>
+
+STEP 2: IMPLEMENT THE FIX
 ========================================================================================================================
 TOOL CALL (inspect_code)
 file_path: keras/src/saving/saving_lib.py
@@ -300,82 +296,103 @@ Successfully expanded code chunks in keras/src/saving/saving_lib.py:
 ========================================================================================================================
 AGENT:
 <thinking>
-Now I have a clear understanding of the issue and the fix. The problem is in the `_load_model_from_fileobj` function:
+Now I understand the issue clearly. The problem is in lines 316-318:
 
-1. Lines 316-318: When loading an H5 weights file from a `.keras` archive, it extracts the file to the parent directory of the `.keras` file (working_dir).
-2. Line 352: After loading, it deletes the extracted file.
+```python
+working_dir = pathlib.Path(fileobj.name).parent
+zf.extract(_VARS_FNAME_H5, working_dir)
+weights_file_path = working_dir / _VARS_FNAME_H5
+```
 
-The issue is that when multiple processes load the same model concurrently:
-1. All processes extract to the same location (`working_dir / _VARS_FNAME_H5`)
+This extracts the weights file to the parent directory of the model file, which is shared across all processes. When multiple processes load the same model concurrently:
+1. They all extract to the same path
 2. One process might delete the file while another is still using it
-3. Or one process might try to delete a file that another process already deleted
+3. Or one process might delete it, and then another tries to delete it again
 
-The fix is to extract the weights file to a unique temporary directory instead of the working directory. This is already done for `DiskIOStore` (see line 708), so we should do the same for the H5 weights file.
+The fix should use `get_temp_dir()` to create a unique temporary directory for each extraction. Let me also add `shutil` import to properly clean up the temporary directory.
 
-Let me also check if there's a need to clean up the temporary directory after use. Looking at the `DiskIOStore.close()` method would help:
-</thinking>
-========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: keras/src/saving/saving_lib.py
-patterns:
-- class DiskIOStore
+Looking at the code, I need to:
+1. Import `shutil` at the top of the file (if not already imported)
+2. Change the extraction to use a unique temporary directory
+3. Clean up the temporary directory after loading
 
-========================================================================================================================
-TOOL RETURN (inspect_code)
-```
-Successfully expanded code chunks in keras/src/saving/saving_lib.py:
-
-````python
-   0 """Python-based idempotent model-saving functionality."""
-   1 
-   2 import datetime
-   3 import io
-   4 import json
-   5 import pathlib
-   6 import tempfile
-   7 import warnings
-   8 import zipfile
-   9 
-  10 import ml_dtypes
-  11 import numpy as np
-  12 
-  13 from keras.src import backend
-  14 from keras.src.backend.common import global_state
-  15 from keras.src.layers.layer import Layer
-  16 from keras.src.l...
-```
-========================================================================================================================
-AGENT:
-<thinking>
-Now I can see the `DiskIOStore.close()` method (lines 742-748). It uses `file_utils.rmtree(self.tmp_dir)` to clean up the temporary directory.
-
-Now I need to implement the fix. The fix should:
-1. Extract the weights file to a unique temporary directory instead of the working directory
-2. Clean up the temporary directory after loading (including the weights file)
-
-Let me modify the `_load_model_from_fileobj` function to:
-1. Use `get_temp_dir()` to create a unique temporary directory
-2. Extract the weights file to that temporary directory
-3. Clean up the temporary directory after loading (using `file_utils.rmtree()` or `shutil.rmtree()`)
-
-Let me check if `shutil` is imported or if we should use `file_utils.rmtree`:
+Let me check if `shutil` is already imported:
 </thinking>
 ========================================================================================================================
 TOOL CALL (grep)
-content_pattern: rmtree
+content_pattern: import shutil
 path_glob: '**/saving_lib.py'
 
 ========================================================================================================================
 TOOL RETURN (grep)
 ```
-keras/src/saving/saving_lib.py:749:            file_utils.rmtree(self.tmp_dir)...
+No matches found for pattern 'import shutil'....
 ```
 ========================================================================================================================
 AGENT:
-I've identified the issue. The problem is in the `_load_model_from_fileobj` function where it extracts the weights file to the parent directory of the `.keras` file, causing race conditions when multiple processes load the same model. I will now fix this by extracting to a unique temporary directory instead.
+<thinking>
+I need to add `import shutil` to the imports. Now let me implement the fix:
+
+1. Add `import shutil` to the imports
+2. Modify the `_load_model_from_fileobj` function to:
+   - Use `get_temp_dir()` to create a unique temporary directory
+   - Extract the weights file to this temporary directory
+   - Clean up the temporary directory after loading using `shutil.rmtree()`
+
+Let me make these changes:
+</thinking>
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: keras/src/saving/saving_lib.py
+find: 'import datetime
+
+  import io
+
+  import json
+
+  import pathlib
+
+  import tempfile
+
+  import warnings
+
+  import zipfile'
+replace: 'import datetime
+
+  import io
+
+  import json
+
+  import pathlib
+
+  import shutil
+
+  import tempfile
+
+  import warnings
+
+  import zipfile'
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in keras/src/saving/saving_lib.py:
+
+--- keras/src/saving/saving_lib.py
++++ keras/src/saving/saving_lib.py
+@@ -4,6 +4,7 @@
+ import io
+ import json
+ import pathlib
++import shutil
+ import tempfile
+ import warnings
+ import zipfile
+...
+```
 ========================================================================================================================
 AGENT:
-Now I'll implement the fix. The solution is to extract the weights file to a unique temporary directory instead of the working directory:
+Now let me modify the `_load_model_from_fileobj` function to use a unique temporary directory:
 ========================================================================================================================
 TOOL CALL (find_and_replace_code)
 file_path: keras/src/saving/saving_lib.py
@@ -415,28 +432,27 @@ replace: "def _load_model_from_fileobj(fileobj, custom_objects, compile, safe_mo
   \            if _VARS_FNAME_H5 in all_filenames:\n                if isinstance(fileobj,\
   \ io.BufferedReader):\n                    # First, extract the model.weights.h5\
   \ file, then load it\n                    # using h5py. Use a unique temporary directory\
-  \ to avoid\n                    # race conditions when multiple processes load the\
-  \ same\n                    # model concurrently.\n                    extract_tmp_dir\
-  \ = get_temp_dir()\n                    zf.extract(_VARS_FNAME_H5, extract_tmp_dir)\n\
-  \                    weights_file_path = pathlib.Path(\n                       \
-  \ extract_tmp_dir\n                    ) / _VARS_FNAME_H5\n                    weights_store\
-  \ = H5IOStore(weights_file_path, mode=\"r\")\n                else:\n          \
-  \          # Fall back when `fileobj` is an `io.BytesIO`. Typically,\n         \
-  \           # this usage is for pickling.\n                    weights_store = H5IOStore(_VARS_FNAME_H5,\
-  \ zf, mode=\"r\")\n            elif _VARS_FNAME_NPZ in all_filenames:\n        \
-  \        weights_store = NpzIOStore(_VARS_FNAME_NPZ, zf, mode=\"r\")\n         \
-  \   else:\n                raise ValueError(\n                    f\"Expected a\
-  \ {_VARS_FNAME_H5} or {_VARS_FNAME_NPZ} file.\"\n                )\n\n         \
-  \   if len(all_filenames) > 3:\n                asset_store = DiskIOStore(_ASSETS_DIRNAME,\
-  \ archive=zf, mode=\"r\")\n            else:\n                asset_store = None\n\
-  \n            failed_saveables = set()\n            error_msgs = {}\n          \
-  \  _load_state(\n                model,\n                weights_store=weights_store,\n\
-  \                assets_store=asset_store,\n                inner_path=\"\",\n \
-  \               visited_saveables=set(),\n                failed_saveables=failed_saveables,\n\
-  \                error_msgs=error_msgs,\n            )\n        finally:\n     \
-  \       weights_store.close()\n            if asset_store:\n                asset_store.close()\n\
-  \            if extract_tmp_dir and file_utils.exists(extract_tmp_dir):\n      \
-  \          file_utils.rmtree(extract_tmp_dir)\n\n        if failed_saveables:\n\
+  \ to avoid\n                    # race conditions when loading the same model in\
+  \ parallel.\n                    extract_tmp_dir = get_temp_dir()\n            \
+  \        zf.extract(_VARS_FNAME_H5, extract_tmp_dir)\n                    weights_file_path\
+  \ = (\n                        pathlib.Path(extract_tmp_dir) / _VARS_FNAME_H5\n\
+  \                    )\n                    weights_store = H5IOStore(weights_file_path,\
+  \ mode=\"r\")\n                else:\n                    # Fall back when `fileobj`\
+  \ is an `io.BytesIO`. Typically,\n                    # this usage is for pickling.\n\
+  \                    weights_store = H5IOStore(_VARS_FNAME_H5, zf, mode=\"r\")\n\
+  \            elif _VARS_FNAME_NPZ in all_filenames:\n                weights_store\
+  \ = NpzIOStore(_VARS_FNAME_NPZ, zf, mode=\"r\")\n            else:\n           \
+  \     raise ValueError(\n                    f\"Expected a {_VARS_FNAME_H5} or {_VARS_FNAME_NPZ}\
+  \ file.\"\n                )\n\n            if len(all_filenames) > 3:\n       \
+  \         asset_store = DiskIOStore(_ASSETS_DIRNAME, archive=zf, mode=\"r\")\n \
+  \           else:\n                asset_store = None\n\n            failed_saveables\
+  \ = set()\n            error_msgs = {}\n            _load_state(\n             \
+  \   model,\n                weights_store=weights_store,\n                assets_store=asset_store,\n\
+  \                inner_path=\"\",\n                visited_saveables=set(),\n  \
+  \              failed_saveables=failed_saveables,\n                error_msgs=error_msgs,\n\
+  \            )\n        finally:\n            weights_store.close()\n          \
+  \  if asset_store:\n                asset_store.close()\n            if extract_tmp_dir:\n\
+  \                shutil.rmtree(extract_tmp_dir)\n\n        if failed_saveables:\n\
   \            _raise_loading_failure(error_msgs)\n    return model"
 
 ========================================================================================================================
@@ -446,7 +462,7 @@ Successfully replaced code in keras/src/saving/saving_lib.py:
 
 --- keras/src/saving/saving_lib.py
 +++ keras/src/saving/saving_lib.py
-@@ -308,15 +308,19 @@
+@@ -309,15 +309,18 @@
          )
  
          all_filenames = zf.namelist()
@@ -460,7 +476,15 @@ Successfully replaced code in keras/src/saving/saving_lib.py:
 ```
 ========================================================================================================================
 AGENT:
-Now let me verify the changes by viewing the modified function:
+STEP 3: VERIFY THE FIX
+
+<thinking>
+Now let me verify the fix by:
+1. Looking at the modified code to ensure it's correct
+2. Creating a test script to reproduce the issue and verify the fix works
+
+Let me first review the changes:
+</thinking>
 ========================================================================================================================
 TOOL CALL (inspect_code)
 file_path: keras/src/saving/saving_lib.py
@@ -479,25 +503,33 @@ Successfully expanded code chunks in keras/src/saving/saving_lib.py:
    3 import io
    4 import json
    5 import pathlib
-   6 import tempfile
-   7 import warnings
-   8 import zipfile
-   9 
-  10 import ml_dtypes
-  11 import numpy as np
-  12 
-  13 from keras.src import backend
-  14 from keras.src.backend.common import global_state
-  15 from keras.src.layers.layer import Layer
-  16 from keras.src.l...
+   6 import shutil
+   7 import tempfile
+   8 import warnings
+   9 import zipfile
+  10 
+  11 import ml_dtypes
+  12 import numpy as np
+  13 
+  14 from keras.src import backend
+  15 from keras.src.backend.common import global_state
+  16 from keras.src.layers.layer import Layer
+  ...
 ```
 ========================================================================================================================
 AGENT:
-The changes look good. Now let me create a test script to verify the fix works correctly:
+<thinking>
+The code changes look correct. Now let me create a test script to verify the fix works. I'll create a simple test that:
+1. Creates a simple Keras model
+2. Saves it to a `.keras` file
+3. Loads it concurrently from multiple processes
+4. Verifies that no `FileNotFoundError` occurs
+
+Let me first install the necessary dependencies and then run the test.
+</thinking>
 ========================================================================================================================
 TOOL CALL (bash)
-command: cd /workspace && pip install keras tensorflow h5py numpy --quiet 2>&1 | tail
-  -5
+command: cd /workspace && pip install -e . --quiet 2>&1 | tail -5
 timeout: 120
 
 ========================================================================================================================
@@ -510,75 +542,48 @@ WARNING: Running pip as the 'root' user can result in broken permissions and con
 ```
 ========================================================================================================================
 TOOL CALL (bash)
-command: cd /workspace && pip install -e . --quiet 2>&1 | tail -5
+command: pip install h5py tensorflow --quiet 2>&1 | tail -5
 timeout: 120
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
-tensorflow 2.20.0 requires keras>=3.10.0, but you have keras 3.4.0 which is incompatible.
 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
 
-[notice] A new release of pip is available: 2...
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
 ```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && python -c "import keras; print(keras.__version__)"
-timeout: 30
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-3.4.0...
-```
-========================================================================================================================
-AGENT:
-Now let me create a test script to verify the fix:
 ========================================================================================================================
 TOOL CALL (create_file)
 file_path: test_concurrent_load.py
 initial_content: "\"\"\"Test script to verify concurrent model loading works correctly.\"\
-  \"\"\n\nimport os\nimport tempfile\nimport multiprocessing\nimport time\n\n# Set\
-  \ backend before importing keras\nos.environ[\"KERAS_BACKEND\"] = \"tensorflow\"\
-  \n\nimport numpy as np\nimport keras\nfrom keras import layers\n\n\ndef create_and_save_model(model_path):\n\
-  \    \"\"\"Create a simple model and save it.\"\"\"\n    # Create a simple model\n\
-  \    inputs = keras.Input(shape=(10,))\n    x = layers.Dense(32, activation=\"relu\"\
-  )(inputs)\n    outputs = layers.Dense(1)(x)\n    model = keras.Model(inputs, outputs)\n\
-  \    model.compile(optimizer=\"adam\", loss=\"mse\")\n    \n    # Save the model\n\
-  \    model.save(model_path)\n    print(f\"Model saved to {model_path}\")\n    return\
-  \ model\n\n\ndef load_model_worker(model_path, worker_id, result_queue):\n    \"\
-  \"\"Worker function to load a model.\"\"\"\n    try:\n        model = keras.models.load_model(model_path)\n\
-  \        result_queue.put((worker_id, \"success\", None))\n        print(f\"Worker\
-  \ {worker_id}: Successfully loaded model\")\n    except Exception as e:\n      \
-  \  result_queue.put((worker_id, \"error\", str(e)))\n        print(f\"Worker {worker_id}:\
-  \ Error loading model: {e}\")\n\n\ndef test_concurrent_loading():\n    \"\"\"Test\
-  \ that multiple processes can load the same model concurrently.\"\"\"\n    # Create\
-  \ a temporary directory for the test\n    with tempfile.TemporaryDirectory() as\
-  \ tmpdir:\n        model_path = os.path.join(tmpdir, \"model.keras\")\n        \n\
-  \        # Create and save a model\n        create_and_save_model(model_path)\n\
-  \        \n        # Check that no model.weights.h5 file was created in the directory\n\
-  \        weights_file = os.path.join(tmpdir, \"model.weights.h5\")\n        if os.path.exists(weights_file):\n\
-  \            print(f\"WARNING: Unexpected model.weights.h5 file found at {weights_file}\"\
-  )\n        \n        # Launch multiple processes to load the model concurrently\n\
-  \        num_workers = 4\n        result_queue = multiprocessing.Queue()\n     \
-  \   processes = []\n        \n        for i in range(num_workers):\n           \
-  \ p = multiprocessing.Process(\n                target=load_model_worker,\n    \
-  \            args=(model_path, i, result_queue)\n            )\n            processes.append(p)\n\
-  \        \n        # Start all processes at roughly the same time\n        for p\
-  \ in processes:\n            p.start()\n        \n        # Wait for all processes\
-  \ to complete\n        for p in processes:\n            p.join()\n        \n   \
-  \     # Check that no model.weights.h5 file was created in the directory\n     \
-  \   if os.path.exists(weights_file):\n            print(f\"ERROR: model.weights.h5\
-  \ file found at {weights_file} after loading\")\n        else:\n            print(\"\
-  OK: No model.weights.h5 file left behind\")\n        \n        # Collect results\n\
-  \        results = []\n        while not result_queue.empty():\n            results.append(result_queue.get())\n\
-  \        \n        # Check results\n        errors = [r for r in results if r[1]\
-  \ == \"error\"]\n        if errors:\n            print(f\"\\nERRORS occurred:\"\
-  )\n            for worker_id, status, error in errors:\n                print(f\"\
-  \  Worker {worker_id}: {error}\")\n            return False\n        else:\n   \
-  \         print(f\"\\nAll {num_workers} workers loaded the model successfully!\"\
-  )\n            return True\n\n\nif __name__ == \"__main__\":\n    success = test_concurrent_loading()\n\
-  \    exit(0 if success else 1)\n"
+  \"\"\nimport os\nimport tempfile\nimport multiprocessing\nimport sys\n\n# Set backend\
+  \ before importing keras\nos.environ[\"KERAS_BACKEND\"] = \"tensorflow\"\n\nimport\
+  \ keras\nfrom keras import layers\n\n\ndef create_and_save_model(model_path):\n\
+  \    \"\"\"Create a simple model and save it.\"\"\"\n    model = keras.Sequential([\n\
+  \        layers.Dense(10, activation='relu', input_shape=(5,)),\n        layers.Dense(1)\n\
+  \    ])\n    model.compile(optimizer='adam', loss='mse')\n    model.save(model_path)\n\
+  \    print(f\"Model saved to {model_path}\")\n    return model_path\n\n\ndef load_model_worker(model_path):\n\
+  \    \"\"\"Worker function to load a model.\"\"\"\n    try:\n        model = keras.models.load_model(model_path)\n\
+  \        print(f\"Process {os.getpid()}: Successfully loaded model\")\n        return\
+  \ True\n    except Exception as e:\n        print(f\"Process {os.getpid()}: Failed\
+  \ to load model: {e}\")\n        return False\n\n\ndef test_concurrent_loading():\n\
+  \    \"\"\"Test that multiple processes can load the same model concurrently.\"\"\
+  \"\n    with tempfile.TemporaryDirectory() as tmpdir:\n        model_path = os.path.join(tmpdir,\
+  \ \"model.keras\")\n        \n        # Create and save the model\n        create_and_save_model(model_path)\n\
+  \        \n        # Check that no model.weights.h5 file was created in the temp\
+  \ directory\n        weights_file = os.path.join(tmpdir, \"model.weights.h5\")\n\
+  \        if os.path.exists(weights_file):\n            print(f\"WARNING: Unexpected\
+  \ model.weights.h5 file found at {weights_file}\")\n        \n        # Load the\
+  \ model concurrently from multiple processes\n        num_processes = 4\n      \
+  \  with multiprocessing.Pool(num_processes) as pool:\n            results = pool.map(load_model_worker,\
+  \ [model_path] * num_processes)\n        \n        # Check that all processes succeeded\n\
+  \        if all(results):\n            print(f\"\\nSUCCESS: All {num_processes}\
+  \ processes loaded the model successfully!\")\n            return True\n       \
+  \ else:\n            print(f\"\\nFAILURE: Some processes failed to load the model\"\
+  )\n            return False\n\n\nif __name__ == \"__main__\":\n    # Use spawn to\
+  \ ensure clean process state\n    multiprocessing.set_start_method('spawn', force=True)\n\
+  \    success = test_concurrent_loading()\n    sys.exit(0 if success else 1)\n"
 
 ========================================================================================================================
 TOOL RETURN (create_file)
@@ -593,29 +598,190 @@ timeout: 120
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
-Model saved to /tmp/tmpxa6fiawc/model.keras
-WARNING: Unexpected model.weights.h5 file found at /tmp/tmpxa6fiawc/model.weights.h5
-/workspace/keras/src/saving/saving_lib.py:566: UserWarning: Skipping variable loading for optimizer 'adam', because it has 10 variables whereas the saved optimizer has 2 variables. 
-  saveable.load_own_variables(weights_store.get(inner_path))
-/workspace/keras/src/saving/saving_lib.py:566: UserWarning: Skipping variable loading for optimizer 'adam', because it has 10 va...
+/workspace/keras/src/layers/core/dense.py:87: UserWarning: Do not pass an `input_shape`/`input_dim` argument to a layer. When using Sequential models, prefer using an `Input(shape)` object as the first layer in the model instead.
+  super().__init__(activity_regularizer=activity_regularizer, **kwargs)
+Model saved to /tmp/tmpkjlusgnh/model.keras
+WARNING: Unexpected model.weights.h5 file found at /tmp/tmpkjlusgnh/model.weights.h5
+/workspace/keras/src/saving/saving_lib.py:566: UserWarning: Skipping ...
 ```
 ========================================================================================================================
 AGENT:
 <thinking>
-The concurrent loading test passed - all 4 workers loaded the model successfully without any race condition errors. However, there's still an issue: a `model.weights.h5` file is being created during the save operation, which shouldn't happen.
+The concurrent loading test passed successfully. All 4 processes were able to load the model without any `FileNotFoundError`.
 
-Let me investigate the save operation to understand why this file is being created. The problem statement mentions:
-> One strange thing is it shouldn't generate `model.weights.h5` file. We only save model weights to `model.keras` file
+However, I noticed that there's still a `model.weights.h5` file being created in the model's directory during the save operation. This is a separate issue from the loading issue we fixed, but it's mentioned in the problem statement as "One strange thing is it shouldn't generate `model.weights.h5` file."
 
-Let me look at the save_model function to see if there's an issue there as well.
+Let me investigate the save operation to see if there's an issue there as well. But first, let me verify that the loading fix is working correctly by running a more aggressive concurrent test.
 </thinking>
+========================================================================================================================
+TOOL CALL (create_file)
+file_path: test_concurrent_load_aggressive.py
+initial_content: "\"\"\"Aggressive test script to verify concurrent model loading\
+  \ works correctly.\"\"\"\nimport os\nimport tempfile\nimport multiprocessing\nimport\
+  \ sys\nimport time\n\n# Set backend before importing keras\nos.environ[\"KERAS_BACKEND\"\
+  ] = \"tensorflow\"\n\nimport keras\nfrom keras import layers\n\n\ndef create_and_save_model(model_path):\n\
+  \    \"\"\"Create a simple model and save it.\"\"\"\n    model = keras.Sequential([\n\
+  \        layers.Dense(10, activation='relu', input_shape=(5,)),\n        layers.Dense(1)\n\
+  \    ])\n    model.compile(optimizer='adam', loss='mse')\n    model.save(model_path)\n\
+  \    print(f\"Model saved to {model_path}\")\n    return model_path\n\n\ndef load_model_worker(args):\n\
+  \    \"\"\"Worker function to load a model multiple times.\"\"\"\n    model_path,\
+  \ num_loads = args\n    try:\n        for i in range(num_loads):\n            model\
+  \ = keras.models.load_model(model_path)\n        print(f\"Process {os.getpid()}:\
+  \ Successfully loaded model {num_loads} times\")\n        return True\n    except\
+  \ Exception as e:\n        print(f\"Process {os.getpid()}: Failed to load model:\
+  \ {e}\")\n        import traceback\n        traceback.print_exc()\n        return\
+  \ False\n\n\ndef test_concurrent_loading():\n    \"\"\"Test that multiple processes\
+  \ can load the same model concurrently.\"\"\"\n    with tempfile.TemporaryDirectory()\
+  \ as tmpdir:\n        model_path = os.path.join(tmpdir, \"model.keras\")\n     \
+  \   \n        # Create and save the model\n        create_and_save_model(model_path)\n\
+  \        \n        # Load the model concurrently from multiple processes, multiple\
+  \ times each\n        num_processes = 8\n        num_loads_per_process = 5\n   \
+  \     \n        with multiprocessing.Pool(num_processes) as pool:\n            results\
+  \ = pool.map(load_model_worker, [(model_path, num_loads_per_process)] * num_processes)\n\
+  \        \n        # Check that all processes succeeded\n        if all(results):\n\
+  \            print(f\"\\nSUCCESS: All {num_processes} processes loaded the model\
+  \ {num_loads_per_process} times each!\")\n            return True\n        else:\n\
+  \            print(f\"\\nFAILURE: Some processes failed to load the model\")\n \
+  \           return False\n\n\nif __name__ == \"__main__\":\n    # Use spawn to ensure\
+  \ clean process state\n    multiprocessing.set_start_method('spawn', force=True)\n\
+  \    success = test_concurrent_loading()\n    sys.exit(0 if success else 1)\n"
 
-The concurrent loading test passed! All 4 workers loaded the model successfully without any race condition errors. However, I notice there's still a `model.weights.h5` file being created during save, which is a separate issue. Let me investigate the save operation:
+========================================================================================================================
+TOOL RETURN (create_file)
+```
+Successfully created test_concurrent_load_aggressive.py....
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python test_concurrent_load_aggressive.py 2>&1
+timeout: 180
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+/workspace/keras/src/layers/core/dense.py:87: UserWarning: Do not pass an `input_shape`/`input_dim` argument to a layer. When using Sequential models, prefer using an `Input(shape)` object as the first layer in the model instead.
+  super().__init__(activity_regularizer=activity_regularizer, **kwargs)
+Model saved to /tmp/tmpoopfs_sk/model.keras
+/workspace/keras/src/saving/saving_lib.py:566: UserWarning: Skipping variable loading for optimizer 'adam', because it has 10 variables whereas the saved ...
+```
+========================================================================================================================
+AGENT:
+The concurrent loading test passed successfully. Now let me also check if there are any existing tests for the saving_lib module that I should run to make sure my changes don't break anything:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python -m pytest keras/src/saving/saving_lib_test.py -v
+  --tb=short 2>&1 | head -100
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+/root/.pyenv/versions/3.11.12/bin/python: No module named pytest...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: pip install pytest --quiet 2>&1 | tail -3
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python -m pytest keras/src/saving/saving_lib_test.py -v
+  --tb=short 2>&1 | head -150
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+============================= test session starts ==============================
+platform linux -- Python 3.11.12, pytest-9.0.2, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python
+cachedir: .pytest_cache
+rootdir: /workspace
+configfile: pyproject.toml
+collecting ... collected 39 items
+
+keras/src/saving/saving_lib_test.py::SavingTest::test_compile_arg PASSED [  2%]
+keras/src/saving/saving_lib_test.py::SavingTest::test_compile_overridden_warnings_sequential PASSED [  5%]
+keras/src/saving/savi...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+There's one test failure: `test_load_model_exception_raised`. Let me look at this test to understand what it's checking:
+</thinking>
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- keras/src/saving/saving_lib_test.py
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened keras/src/saving/saving_lib_test.py:\n\n````python\n   0 """Tests for Keras python-based idempotent saving functions."""\n   1 \n   2 import json\n...\n   6 from io import BytesIO\n...\n  10 import numpy as np\n...\n  14 from keras.src import ops\n...\n  19 @keras.saving.register_keras_serializable(package="my_custom_package")\n  20 class MyDense(keras.layers.Layer):\n  21     def __init__(self, units, **kwargs):\n...\n  26     def build(self, input_shape):\n...\n  51     d...
+```
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: keras/src/saving/saving_lib_test.py
+patterns:
+- test_load_model_exception_raised
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in keras/src/saving/saving_lib_test.py:
+
+````python
+   0 """Tests for Keras python-based idempotent saving functions."""
+   1 
+   2 import json
+...
+   6 from io import BytesIO
+...
+  10 import numpy as np
+...
+  14 from keras.src import ops
+...
+  19 @keras.saving.register_keras_serializable(package="my_custom_package")
+  20 class MyDense(keras.layers.Layer):
+  21     def __init__(self, units, **kwargs):
+...
+  26     def build(self, input_shape):
+...
+  51     def c...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+I see! The test `test_load_model_exception_raised` is checking that when an exception is raised during model loading, the temporary `model.weights.h5` file is cleaned up and doesn't remain in the model's directory.
+
+The test is:
+```python
+# Ensure we don't leave a bad "model.weights.h5" on the filesystem.
+self.assertTrue(Path(filepath).exists())
+self.assertFalse(Path(filepath).with_name("model.weights.h5").exists())
+```
+
+This test is checking that `model.weights.h5` doesn't exist in the same directory as the model file. With my fix, the weights file is now extracted to a temporary directory and cleaned up there, so the test should pass.
+
+However, the test is failing because there's a `model.weights.h5` file in the model's directory. This suggests that the file is being created during the save operation, not during the load operation.
+
+Let me investigate the save operation to see if there's an issue there. Looking at the problem statement again:
+> "One strange thing is it shouldn't generate `model.weights.h5` file. We only save model weights to `model.keras` file"
+
+This suggests that the save operation is incorrectly creating a `model.weights.h5` file in the model's directory. Let me look at the save operation:
+</thinking>
 ========================================================================================================================
 TOOL CALL (inspect_code)
 file_path: keras/src/saving/saving_lib.py
 patterns:
-- def save_model
+- save_model
+- _save_model_to_fileobj
 
 ========================================================================================================================
 TOOL RETURN (inspect_code)
@@ -629,64 +795,32 @@ Successfully expanded code chunks in keras/src/saving/saving_lib.py:
    3 import io
    4 import json
    5 import pathlib
-   6 import tempfile
-   7 import warnings
-   8 import zipfile
-   9 
-  10 import ml_dtypes
-  11 import numpy as np
-  12 
-  13 from keras.src import backend
-  14 from keras.src.backend.common import global_state
-  15 from keras.src.layers.layer import Layer
-  16 from keras.src.l...
-```
-========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: keras/src/saving/saving_lib.py
-patterns:
-- def _save_model_to_fileobj
-- class H5IOStore
-
-========================================================================================================================
-TOOL RETURN (inspect_code)
-```
-Successfully expanded code chunks in keras/src/saving/saving_lib.py:
-
-````python
-   0 """Python-based idempotent model-saving functionality."""
-   1 
-   2 import datetime
-   3 import io
-   4 import json
-   5 import pathlib
-   6 import tempfile
-   7 import warnings
-   8 import zipfile
-   9 
-  10 import ml_dtypes
-  11 import numpy as np
-  12 
-  13 from keras.src import backend
-  14 from keras.src.backend.common import global_state
-  15 from keras.src.layers.layer import Layer
-  16 from keras.src.l...
+   6 import shutil
+   7 import tempfile
+   8 import warnings
+   9 import zipfile
+  10 
+  11 import ml_dtypes
+  12 import numpy as np
+  13 
+  14 from keras.src import backend
+  15 from keras.src.backend.common import global_state
+  16 from keras.src.layers.layer import Layer
+  ...
 ```
 ========================================================================================================================
 AGENT:
 <thinking>
-Now I can see the issue with the save operation as well. In `_save_model_to_fileobj` (lines 152-204):
+Now I see the issue! Looking at the `_save_model_to_fileobj` function (lines 153-206), I can see that when saving a model:
 
-1. When saving with H5 format and `fileobj` is a `BufferedWriter` (i.e., a regular file), it creates a temporary `model.weights.h5` file in the parent directory of the `.keras` file (line 167-168).
-2. After saving, it writes this file to the zip archive (line 204).
-3. However, it never deletes this temporary file!
+1. If `fileobj` is an `io.BufferedWriter` (i.e., a regular file), it creates a temporary `model.weights.h5` file in the same directory as the model file (lines 165-170)
+2. After saving, it writes this file to the zip archive (line 205)
+3. But it never deletes the temporary file!
 
-This is the same issue - the temporary file should be created in a unique temporary directory and cleaned up after use.
+This is the same issue as the loading problem - the save operation also needs to use a unique temporary directory and clean it up afterwards.
 
-Let me fix this issue as well:
+Let me fix the `_save_model_to_fileobj` function as well:
 </thinking>
-
-I see there's also an issue with the save operation - it creates a temporary `model.weights.h5` file in the parent directory and doesn't clean it up. Let me fix this as well:
 ========================================================================================================================
 TOOL CALL (find_and_replace_code)
 file_path: keras/src/saving/saving_lib.py
@@ -727,29 +861,28 @@ replace: "def _save_model_to_fileobj(model, fileobj, weights_format):\n    confi
   \ == \"h5\":\n                if isinstance(fileobj, io.BufferedWriter):\n     \
   \               # First, open the .h5 file, then write it to `zf` at the\n     \
   \               # end of the function call. Use a unique temporary\n           \
-  \         # directory to avoid race conditions when multiple\n                 \
-  \   # processes save models concurrently.\n                    weights_tmp_dir =\
-  \ get_temp_dir()\n                    weights_file_path = (\n                  \
-  \      pathlib.Path(weights_tmp_dir) / _VARS_FNAME_H5\n                    )\n \
-  \                   weights_store = H5IOStore(weights_file_path, mode=\"w\")\n \
-  \               else:\n                    # Fall back when `fileobj` is an `io.BytesIO`.\
-  \ Typically,\n                    # this usage is for pickling.\n              \
-  \      weights_store = H5IOStore(\n                        _VARS_FNAME_H5, archive=zf,\
-  \ mode=\"w\"\n                    )\n            elif weights_format == \"npz\"\
-  :\n                weights_store = NpzIOStore(\n                    _VARS_FNAME_NPZ,\
-  \ archive=zf, mode=\"w\"\n                )\n            else:\n               \
-  \ raise ValueError(\n                    \"Unknown `weights_format` argument. \"\
-  \n                    \"Expected 'h5' or 'npz'. \"\n                    f\"Received:\
-  \ weights_format={weights_format}\"\n                )\n\n            asset_store\
-  \ = DiskIOStore(_ASSETS_DIRNAME, archive=zf, mode=\"w\")\n\n            _save_state(\n\
-  \                model,\n                weights_store=weights_store,\n        \
-  \        assets_store=asset_store,\n                inner_path=\"\",\n         \
-  \       visited_saveables=set(),\n            )\n        except:\n            #\
-  \ Skip the final `zf.write` if any exception is raised\n            weights_file_path\
+  \         # directory to avoid race conditions when saving models\n            \
+  \        # in parallel.\n                    weights_tmp_dir = get_temp_dir()\n\
+  \                    weights_file_path = (\n                        pathlib.Path(weights_tmp_dir)\
+  \ / _VARS_FNAME_H5\n                    )\n                    weights_store = H5IOStore(weights_file_path,\
+  \ mode=\"w\")\n                else:\n                    # Fall back when `fileobj`\
+  \ is an `io.BytesIO`. Typically,\n                    # this usage is for pickling.\n\
+  \                    weights_store = H5IOStore(\n                        _VARS_FNAME_H5,\
+  \ archive=zf, mode=\"w\"\n                    )\n            elif weights_format\
+  \ == \"npz\":\n                weights_store = NpzIOStore(\n                   \
+  \ _VARS_FNAME_NPZ, archive=zf, mode=\"w\"\n                )\n            else:\n\
+  \                raise ValueError(\n                    \"Unknown `weights_format`\
+  \ argument. \"\n                    \"Expected 'h5' or 'npz'. \"\n             \
+  \       f\"Received: weights_format={weights_format}\"\n                )\n\n  \
+  \          asset_store = DiskIOStore(_ASSETS_DIRNAME, archive=zf, mode=\"w\")\n\n\
+  \            _save_state(\n                model,\n                weights_store=weights_store,\n\
+  \                assets_store=asset_store,\n                inner_path=\"\",\n \
+  \               visited_saveables=set(),\n            )\n        except:\n     \
+  \       # Skip the final `zf.write` if any exception is raised\n            weights_file_path\
   \ = None\n            raise\n        finally:\n            weights_store.close()\n\
   \            asset_store.close()\n            if weights_file_path:\n          \
-  \      zf.write(weights_file_path, weights_file_path.name)\n            if weights_tmp_dir\
-  \ and file_utils.exists(weights_tmp_dir):\n                file_utils.rmtree(weights_tmp_dir)"
+  \      zf.write(weights_file_path, weights_file_path.name)\n            if weights_tmp_dir:\n\
+  \                shutil.rmtree(weights_tmp_dir)"
 
 ========================================================================================================================
 TOOL RETURN (find_and_replace_code)
@@ -758,7 +891,7 @@ Successfully replaced code in keras/src/saving/saving_lib.py:
 
 --- keras/src/saving/saving_lib.py
 +++ keras/src/saving/saving_lib.py
-@@ -160,13 +160,18 @@
+@@ -161,13 +161,18 @@
              f.write(config_json.encode())
  
          weights_file_path = None
@@ -771,40 +904,53 @@ Successfully replaced code in keras/src/saving/saving_lib.py:
 ```
 ========================================================================================================================
 AGENT:
-Now let me verify the changes by viewing the modified function:
+Now let me run the tests again to verify the fix:
 ========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: keras/src/saving/saving_lib.py
-patterns:
-- def _save_model_to_fileobj
+TOOL CALL (bash)
+command: cd /workspace && python -m pytest keras/src/saving/saving_lib_test.py::SavingTest::test_load_model_exception_raised
+  -v --tb=short 2>&1
+timeout: 120
 
 ========================================================================================================================
-TOOL RETURN (inspect_code)
+TOOL RETURN (bash)
 ```
-Successfully expanded code chunks in keras/src/saving/saving_lib.py:
+============================= test session starts ==============================
+platform linux -- Python 3.11.12, pytest-9.0.2, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python
+cachedir: .pytest_cache
+rootdir: /workspace
+configfile: pyproject.toml
+collecting ... collected 1 item
 
-````python
-   0 """Python-based idempotent model-saving functionality."""
-   1 
-   2 import datetime
-   3 import io
-   4 import json
-   5 import pathlib
-   6 import tempfile
-   7 import warnings
-   8 import zipfile
-   9 
-  10 import ml_dtypes
-  11 import numpy as np
-  12 
-  13 from keras.src import backend
-  14 from keras.src.backend.common import global_state
-  15 from keras.src.layers.layer import Layer
-  16 from keras.src.l...
+keras/src/saving/saving_lib_test.py::SavingTest::test_load_model_exception_raised PASSED [100%]
+
+============================== 1 passed in 0.08s ===============================...
 ```
 ========================================================================================================================
 AGENT:
-Now let me run the test again to verify both fixes work:
+The test passes now. Let me run all the saving_lib tests to make sure everything is working:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python -m pytest keras/src/saving/saving_lib_test.py -v
+  --tb=short 2>&1
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+============================= test session starts ==============================
+platform linux -- Python 3.11.12, pytest-9.0.2, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python
+cachedir: .pytest_cache
+rootdir: /workspace
+configfile: pyproject.toml
+collecting ... collected 39 items
+
+keras/src/saving/saving_lib_test.py::SavingTest::test_compile_arg PASSED [  2%]
+keras/src/saving/saving_lib_test.py::SavingTest::test_compile_overridden_warnings_sequential PASSED [  5%]
+keras/src/saving/savi...
+```
+========================================================================================================================
+AGENT:
+All 39 tests pass. Now let me run the concurrent loading test again to verify the fix:
 ========================================================================================================================
 TOOL CALL (bash)
 command: cd /workspace && python test_concurrent_load.py 2>&1
@@ -813,598 +959,100 @@ timeout: 120
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
-Model saved to /tmp/tmp7y991c5s/model.keras
-/workspace/keras/src/saving/saving_lib.py:573: UserWarning: Skipping variable loading for optimizer 'adam', because it has 10 variables whereas the saved optimizer has 2 variables. 
-  saveable.load_own_variables(weights_store.get(inner_path))
-/workspace/keras/src/saving/saving_lib.py:573: UserWarning: Skipping variable loading for optimizer 'adam', because it has 10 variables whereas the saved optimizer has 2 variables. 
-  saveable.load_own_variables(w...
+/workspace/keras/src/layers/core/dense.py:87: UserWarning: Do not pass an `input_shape`/`input_dim` argument to a layer. When using Sequential models, prefer using an `Input(shape)` object as the first layer in the model instead.
+  super().__init__(activity_regularizer=activity_regularizer, **kwargs)
+Model saved to /tmp/tmp9_v4_mye/model.keras
+/workspace/keras/src/saving/saving_lib.py:573: UserWarning: Skipping variable loading for optimizer 'adam', because it has 10 variables whereas the saved ...
 ```
 ========================================================================================================================
 AGENT:
-Both issues are now fixed:
-1. No `model.weights.h5` file is created in the model directory during save
-2. All 4 workers loaded the model successfully without race conditions
-
-Let me also run the existing tests to make sure the changes don't break anything:
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && python -m pytest keras/src/saving/saving_lib_test.py -v
-  --timeout=120 2>&1 | head -100
-timeout: 180
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-/root/.pyenv/versions/3.11.12/bin/python: No module named pytest...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && pip install pytest pytest-timeout --quiet 2>&1 | tail -3
-timeout: 60
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-
-[notice] A new release of pip is available: 25.2 -> 25.3
-[notice] To update, run: pip install --upgrade pip...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && python -m pytest keras/src/saving/saving_lib_test.py -v
-  --timeout=120 2>&1 | head -150
-timeout: 300
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-============================= test session starts ==============================
-platform linux -- Python 3.11.12, pytest-9.0.1, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python
-cachedir: .pytest_cache
-rootdir: /workspace
-configfile: pyproject.toml
-plugins: timeout-2.4.0
-timeout: 120.0s
-timeout method: signal
-timeout func_only: False
-collecting ... collected 39 items
-
-keras/src/saving/saving_lib_test.py::SavingTest::test_compile_arg PASSED [  2%]
-keras/src/saving/saving_lib_test.py::Savi...
-```
-========================================================================================================================
-AGENT:
-All 39 tests pass. Let me also clean up the test file I created:
-========================================================================================================================
-TOOL CALL (delete_file)
-file_path: test_concurrent_load.py
-
-========================================================================================================================
-TOOL RETURN (delete_file)
-```
-Successfully deleted test_concurrent_load.py....
-```
-========================================================================================================================
-AGENT:
-Now let me run a few more related tests to make sure the changes don't break anything else:
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && python -m pytest keras/src/saving/saving_api_test.py -v
-  --timeout=120 2>&1 | head -80
-timeout: 180
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-============================= test session starts ==============================
-platform linux -- Python 3.11.12, pytest-9.0.1, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python
-cachedir: .pytest_cache
-rootdir: /workspace
-configfile: pyproject.toml
-plugins: timeout-2.4.0
-timeout: 120.0s
-timeout method: signal
-timeout func_only: False
-collecting ... collected 34 items
-
-keras/src/saving/saving_api_test.py::SaveModelTests::test_basic_saving PASSED [  2%]
-keras/src/saving/saving_api_test.py:...
-```
-========================================================================================================================
-AGENT:
-All tests pass. Let me also verify the fix works correctly by creating a more comprehensive test that simulates the exact scenario from the problem statement:
+Now let me also verify that the `model.weights.h5` file is no longer being created in the model's directory:
 ========================================================================================================================
 TOOL CALL (create_file)
-file_path: test_issue_fix.py
-initial_content: "\"\"\"Test script to verify the fix for the concurrent model loading\
-  \ issue.\"\"\"\n\nimport os\nimport tempfile\nimport multiprocessing\nimport subprocess\n\
-  import sys\n\n# Set backend before importing keras\nos.environ[\"KERAS_BACKEND\"\
-  ] = \"tensorflow\"\n\nimport numpy as np\nimport keras\nfrom keras import layers\n\
-  \n\ndef create_model_with_lambda():\n    \"\"\"Create a model with Lambda layer\
-  \ similar to the issue.\"\"\"\n    from keras.saving import register_keras_serializable\n\
-  \    from keras import backend as K\n    \n    @register_keras_serializable(name=\"\
-  f2\")\n    def f2(z):\n        return K.mean(z, axis=2)\n    \n    input_a = keras.Input(shape=(2,\
-  \ 3), name=\"a\")\n    input_b = keras.Input(shape=(2, 5), name=\"b\")\n    \n \
-  \   input_a_sum = layers.Lambda(f2)(input_a)\n    input_b_sum = layers.Lambda(f2)(input_b)\n\
-  \    \n    output = layers.Dense(1)(\n        layers.Dense(3, input_dim=4)(\n  \
-  \          layers.Concatenate()([input_a_sum, input_b_sum])\n        )\n    )\n\
-  \    model = keras.Model(inputs=[input_a, input_b], outputs=output)\n    model.compile(loss=\"\
-  mean_squared_error\", optimizer=\"sgd\")\n    return model\n\n\ndef test_no_weights_file_created():\n\
-  \    \"\"\"Test that saving a model doesn't create model.weights.h5 in the directory.\"\
+file_path: test_no_weights_file.py
+initial_content: "\"\"\"Test script to verify no model.weights.h5 file is created\
+  \ in the model's directory.\"\"\"\nimport os\nimport tempfile\nimport sys\n\n# Set\
+  \ backend before importing keras\nos.environ[\"KERAS_BACKEND\"] = \"tensorflow\"\
+  \n\nimport keras\nfrom keras import layers\n\n\ndef test_no_weights_file_created():\n\
+  \    \"\"\"Test that no model.weights.h5 file is created in the model's directory.\"\
   \"\"\n    with tempfile.TemporaryDirectory() as tmpdir:\n        model_path = os.path.join(tmpdir,\
-  \ \"model.keras\")\n        \n        # Create and save a model\n        model =\
-  \ create_model_with_lambda()\n        \n        # Fit with some dummy data\n   \
-  \     x_a = np.random.random((10, 2, 3))\n        x_b = np.random.random((10, 2,\
-  \ 5))\n        y = np.random.random((10, 1))\n        model.fit([x_a, x_b], y, epochs=1,\
-  \ verbose=0)\n        \n        # Save the model\n        model.save(model_path)\n\
-  \        \n        # Check that no model.weights.h5 file was created\n        weights_file\
+  \ \"model.keras\")\n        \n        # Create and save a simple model\n       \
+  \ model = keras.Sequential([\n            layers.Dense(10, activation='relu', input_shape=(5,)),\n\
+  \            layers.Dense(1)\n        ])\n        model.compile(optimizer='adam',\
+  \ loss='mse')\n        model.save(model_path)\n        \n        # Check that no\
+  \ model.weights.h5 file was created in the temp directory\n        weights_file\
   \ = os.path.join(tmpdir, \"model.weights.h5\")\n        if os.path.exists(weights_file):\n\
-  \            print(f\"FAIL: Unexpected model.weights.h5 file found at {weights_file}\"\
-  )\n            return False\n        \n        print(\"PASS: No model.weights.h5\
-  \ file created during save\")\n        return True\n\n\ndef test_concurrent_loading():\n\
-  \    \"\"\"Test that multiple processes can load the same model concurrently.\"\"\
-  \"\n    with tempfile.TemporaryDirectory() as tmpdir:\n        model_path = os.path.join(tmpdir,\
-  \ \"model.keras\")\n        \n        # Create and save a model\n        model =\
-  \ create_model_with_lambda()\n        \n        # Fit with some dummy data\n   \
-  \     x_a = np.random.random((10, 2, 3))\n        x_b = np.random.random((10, 2,\
-  \ 5))\n        y = np.random.random((10, 1))\n        model.fit([x_a, x_b], y, epochs=1,\
-  \ verbose=0)\n        \n        # Save the model\n        model.save(model_path)\n\
-  \        \n        # Create a loader script\n        loader_script = os.path.join(tmpdir,\
-  \ \"loader.py\")\n        with open(loader_script, \"w\") as f:\n            f.write(f'''\n\
-  import os\nos.environ[\"KERAS_BACKEND\"] = \"tensorflow\"\nimport sys\nimport keras\n\
-  \nmodel_path = \"{model_path}\"\ntry:\n    model = keras.models.load_model(model_path)\n\
-  \    print(\"SUCCESS\")\nexcept Exception as e:\n    print(f\"ERROR: {{e}}\")\n\
-  \    sys.exit(1)\n''')\n        \n        # Launch multiple processes to load the\
-  \ model concurrently\n        num_workers = 4\n        processes = []\n        for\
-  \ i in range(num_workers):\n            p = subprocess.Popen(\n                [sys.executable,\
-  \ loader_script],\n                stdout=subprocess.PIPE,\n                stderr=subprocess.PIPE\n\
-  \            )\n            processes.append(p)\n        \n        # Wait for all\
-  \ processes to complete\n        results = []\n        for i, p in enumerate(processes):\n\
-  \            stdout, stderr = p.communicate()\n            results.append((i, p.returncode,\
-  \ stdout.decode(), stderr.decode()))\n        \n        # Check results\n      \
-  \  errors = [r for r in results if r[1] != 0]\n        if errors:\n            print(f\"\
-  FAIL: Some workers failed:\")\n            for worker_id, returncode, stdout, stderr\
-  \ in errors:\n                print(f\"  Worker {worker_id}: returncode={returncode}\"\
-  )\n                print(f\"    stdout: {stdout}\")\n                print(f\" \
-  \   stderr: {stderr}\")\n            return False\n        \n        # Check that\
-  \ no model.weights.h5 file was left behind\n        weights_file = os.path.join(tmpdir,\
-  \ \"model.weights.h5\")\n        if os.path.exists(weights_file):\n            print(f\"\
-  FAIL: model.weights.h5 file found at {weights_file} after loading\")\n         \
-  \   return False\n        \n        print(f\"PASS: All {num_workers} workers loaded\
-  \ the model successfully\")\n        return True\n\n\nif __name__ == \"__main__\"\
-  :\n    print(\"Testing fix for concurrent model loading issue...\")\n    print()\n\
-  \    \n    print(\"Test 1: No weights file created during save\")\n    test1_passed\
-  \ = test_no_weights_file_created()\n    print()\n    \n    print(\"Test 2: Concurrent\
-  \ loading works correctly\")\n    test2_passed = test_concurrent_loading()\n   \
-  \ print()\n    \n    if test1_passed and test2_passed:\n        print(\"All tests\
-  \ passed!\")\n        sys.exit(0)\n    else:\n        print(\"Some tests failed!\"\
-  )\n        sys.exit(1)\n"
+  \            print(f\"FAILURE: Unexpected model.weights.h5 file found at {weights_file}\"\
+  )\n            return False\n        \n        # List all files in the directory\n\
+  \        files = os.listdir(tmpdir)\n        print(f\"Files in {tmpdir}: {files}\"\
+  )\n        \n        # Verify only the model.keras file exists\n        if files\
+  \ == [\"model.keras\"]:\n            print(\"SUCCESS: Only model.keras file exists,\
+  \ no model.weights.h5 file created!\")\n            return True\n        else:\n\
+  \            print(f\"FAILURE: Unexpected files found: {files}\")\n            return\
+  \ False\n\n\nif __name__ == \"__main__\":\n    success = test_no_weights_file_created()\n\
+  \    sys.exit(0 if success else 1)\n"
 
 ========================================================================================================================
 TOOL RETURN (create_file)
 ```
-Successfully created test_issue_fix.py....
+Successfully created test_no_weights_file.py....
 ```
 ========================================================================================================================
 TOOL CALL (bash)
-command: cd /workspace && python test_issue_fix.py 2>&1
-timeout: 120
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Testing fix for concurrent model loading issue...
-
-Test 1: No weights file created during save
-Traceback (most recent call last):
-  File "/workspace/test_issue_fix.py", line 146, in <module>
-    test1_passed = test_no_weights_file_created()
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/workspace/test_issue_fix.py", line 48, in test_no_weights_file_created
-    model = create_model_with_lambda()
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/workspace/test_issue_fix.py", line 29, in ...
-```
-========================================================================================================================
-AGENT:
-<thinking>
-The test script has an issue with the Lambda layer. Let me simplify the test to use a simpler model that doesn't require Lambda layers.
-</thinking>
-========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: test_issue_fix.py
-find: "\"\"\"Test script to verify the fix for the concurrent model loading issue.\"\
-  \"\"\n\nimport os\nimport tempfile\nimport multiprocessing\nimport subprocess\n\
-  import sys\n\n# Set backend before importing keras\nos.environ[\"KERAS_BACKEND\"\
-  ] = \"tensorflow\"\n\nimport numpy as np\nimport keras\nfrom keras import layers\n\
-  \n\ndef create_model_with_lambda():\n    \"\"\"Create a model with Lambda layer\
-  \ similar to the issue.\"\"\"\n    from keras.saving import register_keras_serializable\n\
-  \    from keras import backend as K\n    \n    @register_keras_serializable(name=\"\
-  f2\")\n    def f2(z):\n        return K.mean(z, axis=2)\n    \n    input_a = keras.Input(shape=(2,\
-  \ 3), name=\"a\")\n    input_b = keras.Input(shape=(2, 5), name=\"b\")\n    \n \
-  \   input_a_sum = layers.Lambda(f2)(input_a)\n    input_b_sum = layers.Lambda(f2)(input_b)\n\
-  \    \n    output = layers.Dense(1)(\n        layers.Dense(3, input_dim=4)(\n  \
-  \          layers.Concatenate()([input_a_sum, input_b_sum])\n        )\n    )\n\
-  \    model = keras.Model(inputs=[input_a, input_b], outputs=output)\n    model.compile(loss=\"\
-  mean_squared_error\", optimizer=\"sgd\")\n    return model\n\n\ndef test_no_weights_file_created():\n\
-  \    \"\"\"Test that saving a model doesn't create model.weights.h5 in the directory.\"\
-  \"\"\n    with tempfile.TemporaryDirectory() as tmpdir:\n        model_path = os.path.join(tmpdir,\
-  \ \"model.keras\")\n        \n        # Create and save a model\n        model =\
-  \ create_model_with_lambda()\n        \n        # Fit with some dummy data\n   \
-  \     x_a = np.random.random((10, 2, 3))\n        x_b = np.random.random((10, 2,\
-  \ 5))\n        y = np.random.random((10, 1))\n        model.fit([x_a, x_b], y, epochs=1,\
-  \ verbose=0)\n        \n        # Save the model\n        model.save(model_path)\n\
-  \        \n        # Check that no model.weights.h5 file was created\n        weights_file\
-  \ = os.path.join(tmpdir, \"model.weights.h5\")\n        if os.path.exists(weights_file):\n\
-  \            print(f\"FAIL: Unexpected model.weights.h5 file found at {weights_file}\"\
-  )\n            return False\n        \n        print(\"PASS: No model.weights.h5\
-  \ file created during save\")\n        return True\n\n\ndef test_concurrent_loading():\n\
-  \    \"\"\"Test that multiple processes can load the same model concurrently.\"\"\
-  \"\n    with tempfile.TemporaryDirectory() as tmpdir:\n        model_path = os.path.join(tmpdir,\
-  \ \"model.keras\")\n        \n        # Create and save a model\n        model =\
-  \ create_model_with_lambda()\n        \n        # Fit with some dummy data\n   \
-  \     x_a = np.random.random((10, 2, 3))\n        x_b = np.random.random((10, 2,\
-  \ 5))\n        y = np.random.random((10, 1))\n        model.fit([x_a, x_b], y, epochs=1,\
-  \ verbose=0)\n        \n        # Save the model\n        model.save(model_path)\n\
-  \        \n        # Create a loader script\n        loader_script = os.path.join(tmpdir,\
-  \ \"loader.py\")\n        with open(loader_script, \"w\") as f:\n            f.write(f'''\n\
-  import os\nos.environ[\"KERAS_BACKEND\"] = \"tensorflow\"\nimport sys\nimport keras\n\
-  \nmodel_path = \"{model_path}\"\ntry:\n    model = keras.models.load_model(model_path)\n\
-  \    print(\"SUCCESS\")\nexcept Exception as e:\n    print(f\"ERROR: {{e}}\")\n\
-  \    sys.exit(1)\n''')\n        \n        # Launch multiple processes to load the\
-  \ model concurrently\n        num_workers = 4\n        processes = []\n        for\
-  \ i in range(num_workers):\n            p = subprocess.Popen(\n                [sys.executable,\
-  \ loader_script],\n                stdout=subprocess.PIPE,\n                stderr=subprocess.PIPE\n\
-  \            )\n            processes.append(p)\n        \n        # Wait for all\
-  \ processes to complete\n        results = []\n        for i, p in enumerate(processes):\n\
-  \            stdout, stderr = p.communicate()\n            results.append((i, p.returncode,\
-  \ stdout.decode(), stderr.decode()))\n        \n        # Check results\n      \
-  \  errors = [r for r in results if r[1] != 0]\n        if errors:\n            print(f\"\
-  FAIL: Some workers failed:\")\n            for worker_id, returncode, stdout, stderr\
-  \ in errors:\n                print(f\"  Worker {worker_id}: returncode={returncode}\"\
-  )\n                print(f\"    stdout: {stdout}\")\n                print(f\" \
-  \   stderr: {stderr}\")\n            return False\n        \n        # Check that\
-  \ no model.weights.h5 file was left behind\n        weights_file = os.path.join(tmpdir,\
-  \ \"model.weights.h5\")\n        if os.path.exists(weights_file):\n            print(f\"\
-  FAIL: model.weights.h5 file found at {weights_file} after loading\")\n         \
-  \   return False\n        \n        print(f\"PASS: All {num_workers} workers loaded\
-  \ the model successfully\")\n        return True\n\n\nif __name__ == \"__main__\"\
-  :\n    print(\"Testing fix for concurrent model loading issue...\")\n    print()\n\
-  \    \n    print(\"Test 1: No weights file created during save\")\n    test1_passed\
-  \ = test_no_weights_file_created()\n    print()\n    \n    print(\"Test 2: Concurrent\
-  \ loading works correctly\")\n    test2_passed = test_concurrent_loading()\n   \
-  \ print()\n    \n    if test1_passed and test2_passed:\n        print(\"All tests\
-  \ passed!\")\n        sys.exit(0)\n    else:\n        print(\"Some tests failed!\"\
-  )\n        sys.exit(1)"
-replace: "\"\"\"Test script to verify the fix for the concurrent model loading issue.\"\
-  \"\"\n\nimport os\nimport tempfile\nimport subprocess\nimport sys\n\n# Set backend\
-  \ before importing keras\nos.environ[\"KERAS_BACKEND\"] = \"tensorflow\"\n\nimport\
-  \ numpy as np\nimport keras\nfrom keras import layers\n\n\ndef create_simple_model():\n\
-  \    \"\"\"Create a simple model for testing.\"\"\"\n    inputs = keras.Input(shape=(10,))\n\
-  \    x = layers.Dense(32, activation=\"relu\")(inputs)\n    outputs = layers.Dense(1)(x)\n\
-  \    model = keras.Model(inputs, outputs)\n    model.compile(loss=\"mean_squared_error\"\
-  , optimizer=\"sgd\")\n    return model\n\n\ndef test_no_weights_file_created():\n\
-  \    \"\"\"Test that saving a model doesn't create model.weights.h5 in the directory.\"\
-  \"\"\n    with tempfile.TemporaryDirectory() as tmpdir:\n        model_path = os.path.join(tmpdir,\
-  \ \"model.keras\")\n        \n        # Create and save a model\n        model =\
-  \ create_simple_model()\n        \n        # Fit with some dummy data\n        x\
-  \ = np.random.random((10, 10))\n        y = np.random.random((10, 1))\n        model.fit(x,\
-  \ y, epochs=1, verbose=0)\n        \n        # Save the model\n        model.save(model_path)\n\
-  \        \n        # Check that no model.weights.h5 file was created\n        weights_file\
-  \ = os.path.join(tmpdir, \"model.weights.h5\")\n        if os.path.exists(weights_file):\n\
-  \            print(f\"FAIL: Unexpected model.weights.h5 file found at {weights_file}\"\
-  )\n            return False\n        \n        print(\"PASS: No model.weights.h5\
-  \ file created during save\")\n        return True\n\n\ndef test_concurrent_loading():\n\
-  \    \"\"\"Test that multiple processes can load the same model concurrently.\"\"\
-  \"\n    with tempfile.TemporaryDirectory() as tmpdir:\n        model_path = os.path.join(tmpdir,\
-  \ \"model.keras\")\n        \n        # Create and save a model\n        model =\
-  \ create_simple_model()\n        \n        # Fit with some dummy data\n        x\
-  \ = np.random.random((10, 10))\n        y = np.random.random((10, 1))\n        model.fit(x,\
-  \ y, epochs=1, verbose=0)\n        \n        # Save the model\n        model.save(model_path)\n\
-  \        \n        # Create a loader script\n        loader_script = os.path.join(tmpdir,\
-  \ \"loader.py\")\n        with open(loader_script, \"w\") as f:\n            f.write(f'''\n\
-  import os\nos.environ[\"KERAS_BACKEND\"] = \"tensorflow\"\nimport sys\nimport keras\n\
-  \nmodel_path = \"{model_path}\"\ntry:\n    model = keras.models.load_model(model_path)\n\
-  \    print(\"SUCCESS\")\nexcept Exception as e:\n    print(f\"ERROR: {{e}}\")\n\
-  \    sys.exit(1)\n''')\n        \n        # Launch multiple processes to load the\
-  \ model concurrently\n        num_workers = 4\n        processes = []\n        for\
-  \ i in range(num_workers):\n            p = subprocess.Popen(\n                [sys.executable,\
-  \ loader_script],\n                stdout=subprocess.PIPE,\n                stderr=subprocess.PIPE\n\
-  \            )\n            processes.append(p)\n        \n        # Wait for all\
-  \ processes to complete\n        results = []\n        for i, p in enumerate(processes):\n\
-  \            stdout, stderr = p.communicate()\n            results.append((i, p.returncode,\
-  \ stdout.decode(), stderr.decode()))\n        \n        # Check results\n      \
-  \  errors = [r for r in results if r[1] != 0]\n        if errors:\n            print(f\"\
-  FAIL: Some workers failed:\")\n            for worker_id, returncode, stdout, stderr\
-  \ in errors:\n                print(f\"  Worker {worker_id}: returncode={returncode}\"\
-  )\n                print(f\"    stdout: {stdout}\")\n                print(f\" \
-  \   stderr: {stderr}\")\n            return False\n        \n        # Check that\
-  \ no model.weights.h5 file was left behind\n        weights_file = os.path.join(tmpdir,\
-  \ \"model.weights.h5\")\n        if os.path.exists(weights_file):\n            print(f\"\
-  FAIL: model.weights.h5 file found at {weights_file} after loading\")\n         \
-  \   return False\n        \n        print(f\"PASS: All {num_workers} workers loaded\
-  \ the model successfully\")\n        return True\n\n\nif __name__ == \"__main__\"\
-  :\n    print(\"Testing fix for concurrent model loading issue...\")\n    print()\n\
-  \    \n    print(\"Test 1: No weights file created during save\")\n    test1_passed\
-  \ = test_no_weights_file_created()\n    print()\n    \n    print(\"Test 2: Concurrent\
-  \ loading works correctly\")\n    test2_passed = test_concurrent_loading()\n   \
-  \ print()\n    \n    if test1_passed and test2_passed:\n        print(\"All tests\
-  \ passed!\")\n        sys.exit(0)\n    else:\n        print(\"Some tests failed!\"\
-  )\n        sys.exit(1)"
-
-========================================================================================================================
-TOOL RETURN (find_and_replace_code)
-```
-Successfully replaced code in test_issue_fix.py:
-
---- test_issue_fix.py
-+++ test_issue_fix.py
-@@ -2,7 +2,6 @@
- 
- import os
- import tempfile
--import multiprocessing
- import subprocess
- import sys
- 
-@@ -14,27 +13,12 @@
- from keras import layers
- 
- 
--def create_model_with_lambda():
--    """Create a model with Lambda layer similar to the issue."""
--    from keras.saving import register_keras_serializable
--    from keras import backend as K
--    
--    @register_keras_serializable(name="f2")
--    def ...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && python test_issue_fix.py 2>&1
-timeout: 120
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Testing fix for concurrent model loading issue...
-
-Test 1: No weights file created during save
-PASS: No model.weights.h5 file created during save
-
-Test 2: Concurrent loading works correctly
-PASS: All 4 workers loaded the model successfully
-
-All tests passed!...
-```
-========================================================================================================================
-AGENT:
-All tests pass. Let me clean up the test file:
-========================================================================================================================
-TOOL CALL (delete_file)
-file_path: test_issue_fix.py
-
-========================================================================================================================
-TOOL RETURN (delete_file)
-```
-Successfully deleted test_issue_fix.py....
-```
-========================================================================================================================
-AGENT:
-Now let me review the changes I made to ensure they are correct and complete:
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && git diff keras/src/saving/saving_lib.py
-timeout: 30
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-diff --git a/keras/src/saving/saving_lib.py b/keras/src/saving/saving_lib.py
-index 6aad62db5..0cd311f61 100644
---- a/keras/src/saving/saving_lib.py
-+++ b/keras/src/saving/saving_lib.py
-@@ -160,13 +160,18 @@ def _save_model_to_fileobj(model, fileobj, weights_format):
-             f.write(config_json.encode())
- 
-         weights_file_path = None
-+        weights_tmp_dir = None
-         try:
-             if weights_format == "h5":
-                 if isinstance(fileobj, io.BufferedWriter):
--       ...
-```
-========================================================================================================================
-AGENT:
-I have made the necessary changes to fix the concurrent model loading issue. The changes include:
-
-1. In `_save_model_to_fileobj`: Changed to use a unique temporary directory (`get_temp_dir()`) for the weights file instead of the parent directory of the `.keras` file. The temporary directory is cleaned up after the weights are written to the zip archive.
-
-2. In `_load_model_from_fileobj`: Changed to extract the weights file to a unique temporary directory instead of the parent directory of the `.keras` file. The temporary directory is cleaned up after loading.
-
-These changes prevent race conditions when multiple processes save or load the same model concurrently, and also prevent the creation of stray `model.weights.h5` files in the model directory.
-
-Now verifying the changes are complete and correct.
-========================================================================================================================
-AGENT:
-Let me run a few more tests to ensure the changes are robust:
-========================================================================================================================
-TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nimport os\nos.environ['KERAS_BACKEND'] =\
-  \ 'tensorflow'\nimport tempfile\nimport keras\nfrom keras import layers\nimport\
-  \ numpy as np\n\n# Test 1: Basic save and load\nwith tempfile.TemporaryDirectory()\
-  \ as tmpdir:\n    model_path = os.path.join(tmpdir, 'model.keras')\n    \n    #\
-  \ Create model\n    inputs = keras.Input(shape=(10,))\n    x = layers.Dense(32,\
-  \ activation='relu')(inputs)\n    outputs = layers.Dense(1)(x)\n    model = keras.Model(inputs,\
-  \ outputs)\n    model.compile(loss='mse', optimizer='adam')\n    \n    # Fit\n \
-  \   x = np.random.random((10, 10))\n    y = np.random.random((10, 1))\n    model.fit(x,\
-  \ y, epochs=1, verbose=0)\n    \n    # Save\n    model.save(model_path)\n    \n\
-  \    # Check no stray files\n    weights_file = os.path.join(tmpdir, 'model.weights.h5')\n\
-  \    assert not os.path.exists(weights_file), 'Stray model.weights.h5 file found!'\n\
-  \    \n    # Load\n    loaded_model = keras.models.load_model(model_path)\n    \n\
-  \    # Check no stray files after load\n    assert not os.path.exists(weights_file),\
-  \ 'Stray model.weights.h5 file found after load!'\n    \n    # Verify model works\n\
-  \    pred = loaded_model.predict(x, verbose=0)\n    print('Test 1 passed: Basic\
-  \ save and load works correctly')\n\n# Test 2: Save with BytesIO (pickling use case)\n\
-  import io\nwith tempfile.TemporaryDirectory() as tmpdir:\n    # Create model\n \
-  \   inputs = keras.Input(shape=(10,))\n    x = layers.Dense(32, activation='relu')(inputs)\n\
-  \    outputs = layers.Dense(1)(x)\n    model = keras.Model(inputs, outputs)\n  \
-  \  model.compile(loss='mse', optimizer='adam')\n    \n    # Save to BytesIO\n  \
-  \  buffer = io.BytesIO()\n    model.save(buffer)\n    \n    # Load from BytesIO\n\
-  \    buffer.seek(0)\n    loaded_model = keras.models.load_model(buffer)\n    \n\
-  \    print('Test 2 passed: BytesIO save and load works correctly')\n\nprint('All\
-  \ tests passed!')\n\" 2>&1"
+command: cd /workspace && python test_no_weights_file.py 2>&1
 timeout: 60
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
-Traceback (most recent call last):
-  File "<string>", line 54, in <module>
-  File "/workspace/keras/src/utils/traceback_utils.py", line 122, in error_handler
-    raise e.with_traceback(filtered_tb) from None
-  File "/workspace/keras/src/saving/saving_api.py", line 109, in save_model
-    raise ValueError(
-ValueError: Invalid filepath extension for saving. Please add either a `.keras` extension for the native Keras format (recommended) or a `.h5` extension. Use `model.export(filepath)` if you want...
+/workspace/keras/src/layers/core/dense.py:87: UserWarning: Do not pass an `input_shape`/`input_dim` argument to a layer. When using Sequential models, prefer using an `Input(shape)` object as the first layer in the model instead.
+  super().__init__(activity_regularizer=activity_regularizer, **kwargs)
+Files in /tmp/tmpdiadhllb: ['model.keras']
+SUCCESS: Only model.keras file exists, no model.weights.h5 file created!...
 ```
 ========================================================================================================================
 AGENT:
-<thinking>
-The first test passed. The second test failed because the `save_model` function in `saving_api.py` doesn't accept a BytesIO object directly - it needs to go through a different path. Let me check if the BytesIO path is still working correctly by testing it through the internal function.
-</thinking>
+Excellent! The fix is working correctly. Let me also run the aggressive concurrent loading test to make sure everything is stable:
 ========================================================================================================================
 TOOL CALL (bash)
-command: 'cd /workspace && python -c "
-
-  import os
-
-  os.environ[''KERAS_BACKEND''] = ''tensorflow''
-
-  import tempfile
-
-  import io
-
-  import keras
-
-  from keras import layers
-
-  from keras.src.saving import saving_lib
-
-  import numpy as np
-
-
-  # Test: Save with BytesIO (pickling use case) - using internal function
-
-  # Create model
-
-  inputs = keras.Input(shape=(10,))
-
-  x = layers.Dense(32, activation=''relu'')(inputs)
-
-  outputs = layers.Dense(1)(x)
-
-  model = keras.Model(inputs, outputs)
-
-  model.compile(loss=''mse'', optimizer=''adam'')
-
-
-  # Save to BytesIO using internal function
-
-  buffer = io.BytesIO()
-
-  saving_lib.save_model(model, buffer)
-
-
-  # Load from BytesIO using internal function
-
-  buffer.seek(0)
-
-  loaded_model = saving_lib.load_model(buffer)
-
-
-  print(''BytesIO save and load works correctly'')
-
-  " 2>&1'
-timeout: 60
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-/workspace/keras/src/saving/saving_lib.py:573: UserWarning: Skipping variable loading for optimizer 'adam', because it has 10 variables whereas the saved optimizer has 2 variables. 
-  saveable.load_own_variables(weights_store.get(inner_path))
-BytesIO save and load works correctly...
-```
-========================================================================================================================
-AGENT:
-The BytesIO path still works correctly. Let me also run the model tests to ensure everything is working:
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && python -m pytest keras/src/models/model_test.py -v -k "save"
-  --timeout=120 2>&1 | head -50
+command: cd /workspace && python test_concurrent_load_aggressive.py 2>&1
 timeout: 180
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
-============================= test session starts ==============================
-platform linux -- Python 3.11.12, pytest-9.0.1, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python
-cachedir: .pytest_cache
-rootdir: /workspace
-configfile: pyproject.toml
-plugins: timeout-2.4.0
-timeout: 120.0s
-timeout method: signal
-timeout func_only: False
-collecting ... collected 44 items / 44 deselected / 0 selected
-
-============================ 44 deselected in 0.02s ============================...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && python -m pytest keras/src/models/functional_test.py -v
-  -k "save" --timeout=120 2>&1 | head -50
-timeout: 180
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-============================= test session starts ==============================
-platform linux -- Python 3.11.12, pytest-9.0.1, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python
-cachedir: .pytest_cache
-rootdir: /workspace
-configfile: pyproject.toml
-plugins: timeout-2.4.0
-timeout: 120.0s
-timeout method: signal
-timeout func_only: False
-collecting ... collected 21 items / 21 deselected / 0 selected
-
-============================ 21 deselected in 0.02s ============================...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && python -m pytest keras/src/saving/ -v --timeout=120 2>&1
-  | tail -50
-timeout: 300
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-keras/src/saving/saving_lib_test.py::SavingTest::test_compile_preserved_basic_sequential PASSED [ 48%]
-keras/src/saving/saving_lib_test.py::SavingTest::test_compile_preserved_custom_functional PASSED [ 49%]
-keras/src/saving/saving_lib_test.py::SavingTest::test_compile_preserved_custom_sequential PASSED [ 50%]
-keras/src/saving/saving_lib_test.py::SavingTest::test_compile_preserved_subclassed PASSED [ 51%]
-keras/src/saving/saving_lib_test.py::SavingTest::test_compile_preserved_subclassed_functiona...
+/workspace/keras/src/layers/core/dense.py:87: UserWarning: Do not pass an `input_shape`/`input_dim` argument to a layer. When using Sequential models, prefer using an `Input(shape)` object as the first layer in the model instead.
+  super().__init__(activity_regularizer=activity_regularizer, **kwargs)
+Model saved to /tmp/tmpxmov6n8o/model.keras
+/workspace/keras/src/saving/saving_lib.py:573: UserWarning: Skipping variable loading for optimizer 'adam', because it has 10 variables whereas the saved ...
 ```
 ========================================================================================================================
 AGENT:
-All 91 tests in the saving module pass. Let me also verify the fix one more time by looking at the final state of the modified functions:
+All tests pass. Let me clean up the test files and review the changes I made:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && rm -f test_concurrent_load.py test_concurrent_load_aggressive.py
+  test_no_weights_file.py
+timeout: 10
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+...
+```
+========================================================================================================================
+AGENT:
+STEP 4: REVIEW CHANGES
 ========================================================================================================================
 TOOL CALL (inspect_code)
 file_path: keras/src/saving/saving_lib.py
-patterns:
-- def _save_model_to_fileobj
-- def _load_model_from_fileobj
+line_ranges:
+- - 0
+  - 15
+- - 153
+  - 215
+- - 301
+  - 365
 
 ========================================================================================================================
 TOOL RETURN (inspect_code)
@@ -1418,49 +1066,61 @@ Successfully expanded code chunks in keras/src/saving/saving_lib.py:
    3 import io
    4 import json
    5 import pathlib
-   6 import tempfile
-   7 import warnings
-   8 import zipfile
-   9 
-  10 import ml_dtypes
-  11 import numpy as np
-  12 
-  13 from keras.src import backend
-  14 from keras.src.backend.common import global_state
-  15 from keras.src.layers.layer import Layer
-  16 from keras.src.l...
+   6 import shutil
+   7 import tempfile
+   8 import warnings
+   9 import zipfile
+  10 
+  11 import ml_dtypes
+  12 import numpy as np
+  13 
+  14 from keras.src import backend
+  15 from keras.src.backend.common import global_state
+  16 from keras.src.layers.layer import Layer
+  ...
 ```
 ========================================================================================================================
 AGENT:
-The changes look correct. Let me provide a summary of the fix:
+The changes look correct. Let me summarize the changes I made:
+
+## Summary of Changes
+
+I fixed two related issues in `keras/src/saving/saving_lib.py`:
+
+### 1. Added `import shutil` (line 6)
+Added the `shutil` module import to enable proper cleanup of temporary directories.
+
+### 2. Fixed `_save_model_to_fileobj` function (lines 153-212)
+**Problem:** When saving a model to a `.keras` file, the code was creating a temporary `model.weights.h5` file in the same directory as the model file and never cleaning it up.
+
+**Fix:** Changed the code to:
+- Use `get_temp_dir()` to create a unique temporary directory for the weights file
+- Clean up the temporary directory using `shutil.rmtree()` after the weights are written to the zip archive
+
+### 3. Fixed `_load_model_from_fileobj` function (lines 308-367)
+**Problem:** When loading a model from a `.keras` file, the code was extracting the `model.weights.h5` file to the same directory as the model file. This caused race conditions when multiple processes tried to load the same model concurrently, as they would all extract to the same path and then try to delete the same file.
+
+**Fix:** Changed the code to:
+- Use `get_temp_dir()` to create a unique temporary directory for extracting the weights file
+- Clean up the temporary directory using `shutil.rmtree()` after loading is complete
+
+These changes ensure that:
+1. No `model.weights.h5` file is left behind in the model's directory after saving
+2. Multiple processes can safely load the same model concurrently without race conditions
+3. Temporary files are properly cleaned up even if an exception occurs
 ========================================================================================================================
 AGENT:
-Successfully fixed the concurrent model loading issue in Keras 3.4.0.
+Successfully fixed the bug in Keras where loading a model caused a "No such file or directory: 'model.weights.h5'" error when multiple processes tried to load the same model concurrently.
 
-## Problem
-When multiple processes tried to load the same `.keras` model file concurrently, they would encounter a `FileNotFoundError: No such file or directory: 'model.weights.h5'` error. This was caused by:
+The issue was caused by two problems in `keras/src/saving/saving_lib.py`:
 
-1. **During save**: The `_save_model_to_fileobj` function created a temporary `model.weights.h5` file in the parent directory of the `.keras` file, but never cleaned it up.
+1. **Save operation issue**: When saving a model to a `.keras` file, the code was creating a temporary `model.weights.h5` file in the same directory as the model file and never cleaning it up.
 
-2. **During load**: The `_load_model_from_fileobj` function extracted the `model.weights.h5` file to the parent directory of the `.keras` file. When multiple processes loaded the same model, they would all extract to the same location, causing race conditions where one process might delete the file while another was still using it.
+2. **Load operation issue**: When loading a model from a `.keras` file, the code was extracting the `model.weights.h5` file to the same directory as the model file. This caused race conditions when multiple processes tried to load the same model concurrently, as they would all extract to the same path and then try to delete the same file.
 
-## Solution
-Modified both `_save_model_to_fileobj` and `_load_model_from_fileobj` functions in `keras/src/saving/saving_lib.py` to use unique temporary directories (via `get_temp_dir()`) instead of the parent directory of the `.keras` file:
+**Changes made:**
+1. Added `import shutil` to enable proper cleanup of temporary directories
+2. Modified `_save_model_to_fileobj` to use a unique temporary directory for the weights file and clean it up after saving
+3. Modified `_load_model_from_fileobj` to use a unique temporary directory for extracting the weights file and clean it up after loading
 
-1. **In `_save_model_to_fileobj`**: 
-   - Changed to create the temporary `model.weights.h5` file in a unique temporary directory
-   - Added cleanup of the temporary directory after the weights are written to the zip archive
-
-2. **In `_load_model_from_fileobj`**:
-   - Changed to extract the `model.weights.h5` file to a unique temporary directory
-   - Changed cleanup to remove the entire temporary directory instead of just the weights file
-
-## Changes Made
-- Modified `keras/src/saving/saving_lib.py`:
-  - `_save_model_to_fileobj`: Uses `get_temp_dir()` for temporary weights file and cleans up with `file_utils.rmtree()`
-  - `_load_model_from_fileobj`: Uses `get_temp_dir()` for extracted weights file and cleans up with `file_utils.rmtree()`
-
-## Testing
-- All 91 tests in the saving module pass
-- Verified that no stray `model.weights.h5` files are created during save
-- Verified that concurrent loading works correctly with multiple processes
+All 39 existing tests pass, and the concurrent loading issue is now resolved.

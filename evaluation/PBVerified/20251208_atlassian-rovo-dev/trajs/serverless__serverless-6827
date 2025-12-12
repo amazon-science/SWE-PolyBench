@@ -57,21 +57,21 @@ Similar or dependent issues:
 </problem_statement>
 
 Do not stop until you have made code changes that resolve the problem statement. Do not ask for clarifications.
+
+NEVER attempt to find the solution to the problem statement by searching future commits or branches in the repository.
 ========================================================================================================================
 AGENT:
-Starting to analyze the problem statement. The issue is that when using 2 or more CloudWatchLog event handlers for the same lambda function, only one AWS::Lambda::Permission is created instead of one for each log group. I need to find the relevant code that handles CloudWatch Log events and permissions.
+Starting to analyze the problem statement. The issue is that when using 2 or more CloudWatchLog event handlers for the same lambda, only one AWS::Lambda::Permission is created instead of one for each log group. I need to find the relevant code that handles CloudWatch Log events and fix the permission generation.
 ========================================================================================================================
 AGENT:
-EXPLORE WORKSPACE: Understanding the CloudWatch Log event handling
+STEP 1: EXPLORE THE CODEBASE
 
 <thinking>
-Based on the problem statement:
-1. When a Lambda function has 2+ CloudWatch Log event handlers, only one AWS::Lambda::Permission is created
-2. This causes deployment to fail because CloudWatch Logs doesn't have permission to invoke the Lambda function for all log groups
+Based on the problem statement, the issue is with CloudWatch Log event handlers. When multiple CloudWatch Log events are defined for the same Lambda function, only one AWS::Lambda::Permission is created instead of one for each log group.
 
-I need to find the code that handles CloudWatch Log events. Looking at the workspace structure, I can see there's a folder at `lib/plugins/aws/package/compile/events/cloudWatchLog/` which likely contains the relevant code.
+Let me first find the relevant code that handles CloudWatch Log events. Based on the workspace structure, I can see there's a directory at `lib/plugins/aws/package/compile/events/cloudWatchLog/` which likely contains the relevant code.
 
-Let me explore this directory and understand how the permissions are being created.
+Let me explore this directory and understand how the permissions are being generated.
 </thinking>
 ========================================================================================================================
 TOOL CALL (expand_folder)
@@ -108,147 +108,176 @@ TOOL RETURN (open_files)
 ```
 ========================================================================================================================
 AGENT:
+STEP 2: ANALYZE THE CODE
+
 <thinking>
 Now I understand the issue. Looking at the code:
 
-1. On line 77-79, `lambdaPermissionLogicalId` is generated using `getLambdaCloudWatchLogPermissionLogicalId(functionName)` - this only uses the function name, not the index of the cloudwatch log event.
+1. On line 77-79, the `lambdaPermissionLogicalId` is generated using `getLambdaCloudWatchLogPermissionLogicalId(functionName)` - notice it only uses `functionName` and doesn't include any index or identifier for the specific cloudwatch log event.
 
-2. On lines 136-144, both the subscription filter and the permission are merged into the CloudFormation template. However, since the `lambdaPermissionLogicalId` is the same for all cloudwatch log events in a function, only the last permission object will be kept (due to the merge overwriting the previous one).
+2. On lines 140-144, both the `newCloudWatchLogRuleObject` and `newPermissionObject` are merged into the CloudFormation template. However, since the `lambdaPermissionLogicalId` is the same for all cloudwatch log events of the same function, each subsequent merge overwrites the previous permission.
 
-3. The `longestCommonSuffix` function on lines 151-162 is used to try to create a single permission that covers multiple log groups by using a wildcard. However, this approach has issues:
-   - The function name is `longestCommonSuffix` but it actually computes the longest common **prefix** (not suffix)
-   - Even with the wildcard approach, only one permission is created, and it's being overwritten each time
+3. The `cloudWatchLogLogicalId` (line 73-76) correctly uses `cloudWatchLogNumberInFunction` to create unique IDs for each subscription filter, but the permission logical ID doesn't.
 
-The problem is that:
-1. Only one permission logical ID is generated per function (not per cloudwatch log event)
-2. The permission is being overwritten each time a new cloudwatch log event is processed
+4. The permission template (lines 102-130) uses `commonSuffixOfLogGroupName` which is calculated from `logGroupNamesThisFunction`. This approach tries to create a single permission with a wildcard pattern that covers all log groups. However, this approach has a flaw - it only works if all log groups share a common prefix.
 
-Looking at the code more carefully:
-- Line 77-79: `lambdaPermissionLogicalId` is generated without an index
-- Lines 140-144: Both the subscription filter and permission are merged, but since the permission ID is the same, it gets overwritten
+Looking at the `longestCommonSuffix` function (lines 151-162), it actually calculates the longest common **prefix** (not suffix as the name suggests), and then adds a wildcard if the common prefix is not equal to the first log group name.
 
-The fix should be to create a separate permission for each cloudwatch log event. Let me check the naming function to understand how the logical IDs are generated.
-</thinking>
-========================================================================================================================
-TOOL CALL (grep)
-content_pattern: getLambdaCloudWatchLogPermissionLogicalId
+The problem is:
+- For log groups like `/aws/lambda/yada-dev-dummy` and `/aws/lambda/yada-dev-dummy2`, the common prefix would be `/aws/lambda/yada-dev-dummy` (since `dummy` is a prefix of `dummy2`).
+- But this doesn't correctly match both log groups because the SourceArn pattern `/aws/lambda/yada-dev-dummy*` would match both, but the permission is being overwritten each time.
 
-========================================================================================================================
-TOOL RETURN (grep)
+Wait, let me re-read the code more carefully...
+
+Actually, looking at the code again:
+1. The permission is created inside the loop for each cloudwatch log event
+2. Each time, `logGroupNamesThisFunction` is updated with the new log group name
+3. The `commonSuffixOfLogGroupName` is recalculated each time
+4. But since `lambdaPermissionLogicalId` is the same for all events of the same function, the permission object gets overwritten
+
+So the last permission object should have the correct `commonSuffixOfLogGroupName` that covers all log groups. But wait, the issue is that the `SourceArn` pattern might not correctly match all log groups.
+
+Let me trace through an example:
+- First event: logGroup = `/aws/lambda/yada-dev-dummy`
+  - `logGroupNamesThisFunction` = [`/aws/lambda/yada-dev-dummy`]
+  - `commonSuffixOfLogGroupName` = `/aws/lambda/yada-dev-dummy` (no wildcard since it equals first)
+  - Permission created with SourceArn pattern: `/aws/lambda/yada-dev-dummy:*`
+
+- Second event: logGroup = `/aws/lambda/yada-dev-dummy2`
+  - `logGroupNamesThisFunction` = [`/aws/lambda/yada-dev-dummy`, `/aws/lambda/yada-dev-dummy2`]
+  - `commonSuffixOfLogGroupName` = `/aws/lambda/yada-dev-dummy*` (common prefix + wildcard)
+  - Permission created with SourceArn pattern: `/aws/lambda/yada-dev-dummy*:*`
+
+The second permission should overwrite the first, and the pattern `/aws/lambda/yada-dev-dummy*` should match both log groups. But wait, the issue says "Only one AWS::Lambda::Permission is created (likely from index 1/blank)" and "Permission Object only refers to logGroup from first SubscriptionFilter handler".
+
+Hmm, let me look at the `longestCommonSuffix` function again:
+
+```javascript
+longestCommonSuffix(logGroupNames) {
+  const first = logGroupNames[0];
+  const longestCommon = logGroupNames.reduce((last, current) => {
+    for (let i = 0; i < last.length; i++) {
+      if (last[i] !== current[i]) {
+        return last.substring(0, i);
+      }
+    }
+    return last;
+  }, first);
+  return longestCommon + (longestCommon === first ? '' : '*');
+}
 ```
-lib/plugins/aws/lib/naming.test.js:631:  describe('#getLambdaCloudWatchLogPermissionLogicalId()', () => {
-lib/plugins/aws/lib/naming.test.js:633:      expect(sdk.naming.getLambdaCloudWatchLogPermissionLogicalId('functionName')).to.equal(
-lib/plugins/aws/lib/naming.js:427:  getLambdaCloudWatchLogPermissionLogicalId(functionName) {
-lib/plugins/aws/package/compile/events/cloudWatchLog/index.js:78:            const lambdaPermissionLogicalId = this.provider.naming.getLambdaCloudWatchLogPermissionLogi...
+
+Wait, this function has a bug! It's comparing characters at the same index, but it's using `last` as the accumulator. Let me trace through:
+
+- Initial: `last` = `/aws/lambda/yada-dev-dummy`
+- Compare with `/aws/lambda/yada-dev-dummy2`:
+  - i=0: `/` === `/` ✓
+  - i=1: `a` === `a` ✓
+  - ... (all characters match up to index 23)
+  - i=24: `y` === `y` ✓ (the 'y' in 'dummy')
+  - i=25: (end of first string, length is 26)
+  
+Wait, `/aws/lambda/yada-dev-dummy` has 26 characters. Let me count:
+`/aws/lambda/yada-dev-dummy` = 26 characters (indices 0-25)
+
+And `/aws/lambda/yada-dev-dummy2` has 27 characters.
+
+So the loop goes from i=0 to i=25 (length of first string - 1). At each index, the characters match. So `longestCommon` = `/aws/lambda/yada-dev-dummy`.
+
+Then `longestCommon === first` is true, so no wildcard is added.
+
+This is the bug! The function returns `/aws/lambda/yada-dev-dummy` without a wildcard, but this pattern won't match `/aws/lambda/yada-dev-dummy2`.
+
+Actually wait, let me re-read the logic. The issue is that when the first string is a prefix of the second string, the function returns the first string without a wildcard. But we need a wildcard to match both.
+
+Actually, I think I misread the code. Let me look again:
+
+```javascript
+return longestCommon + (longestCommon === first ? '' : '*');
 ```
-========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: lib/plugins/aws/lib/naming.js
-patterns:
-- getLambdaCloudWatchLogPermissionLogicalId
-- getCloudWatchLogLogicalId
 
-========================================================================================================================
-TOOL RETURN (inspect_code)
+This says: if `longestCommon` equals `first`, don't add a wildcard. Otherwise, add a wildcard.
+
+But in our case, `longestCommon` equals `first` (both are `/aws/lambda/yada-dev-dummy`), so no wildcard is added. This is wrong because we need the wildcard to match `/aws/lambda/yada-dev-dummy2`.
+
+Actually, I think the logic should be: if there's only one log group, don't add a wildcard. If there are multiple log groups, add a wildcard.
+
+But wait, there's another issue. Even if the wildcard logic was correct, the permission is being created inside the loop, and each iteration overwrites the previous permission. The final permission should have the correct pattern, but the issue is that the subscription filters depend on the permission (via `DependsOn`), and they all reference the same permission logical ID.
+
+Actually, I think the real issue is different. Let me look at the problem statement again:
+
+"Only one AWS::Lambda::Permission is created (likely from index 1/blank)"
+"Permission Object only refers to logGroup from first SubscriptionFilter handler"
+
+This suggests that the permission is being created with the first log group's pattern, not the last one. But based on the code, the last permission should overwrite the first...
+
+Oh wait, I see the issue now! The `longestCommonSuffix` function is called with `logGroupNamesThisFunction`, which is an array that grows as we process each event. But the function compares characters at the same index, and when the first string is a prefix of the second string, it returns the first string.
+
+So for log groups:
+1. `/aws/lambda/yada-dev-dummy`
+2. `/aws/lambda/yada-dev-dummy2`
+
+The common prefix is `/aws/lambda/yada-dev-dummy` (the first string is a prefix of the second). And since `longestCommon === first`, no wildcard is added.
+
+But the SourceArn pattern `arn:...:log-group:/aws/lambda/yada-dev-dummy:*` won't match the second log group `/aws/lambda/yada-dev-dummy2`.
+
+So the fix should be:
+1. Add a wildcard when there are multiple log groups, regardless of whether the common prefix equals the first log group.
+
+OR
+
+2. Create separate permissions for each log group.
+
+Looking at the AWS documentation, a Lambda permission's SourceArn can use wildcards. But the current implementation has a bug in the wildcard logic.
+
+Let me think about the best fix:
+
+Option 1: Fix the `longestCommonSuffix` function to always add a wildcard when there are multiple log groups.
+
+Option 2: Create a separate permission for each log group (more explicit, but creates more resources).
+
+I think Option 1 is the simpler fix and aligns with the original intent of the code. The condition should be:
+- If there's only one log group, use the exact log group name (no wildcard)
+- If there are multiple log groups, use the common prefix with a wildcard
+
+Let me also check if there are any other issues. Looking at the code again:
+
+Actually, I realize there might be another issue. The `longestCommonSuffix` function is misnamed - it calculates the longest common **prefix**, not suffix. But that's just a naming issue.
+
+The real bug is in the condition:
+```javascript
+return longestCommon + (longestCommon === first ? '' : '*');
 ```
-Successfully expanded code chunks in lib/plugins/aws/lib/naming.js:
 
-````javascript
-   0 'use strict';
-   1 
-   2 const _ = require('lodash');
-...
-  27   normalizeName(name) {
-...
-  30   normalizeNameToAlphaNumericOnly(name) {
-...
-  33   normalizePathPart(path) {
-...
-  42   getServiceEndpointRegex() {
-...
-  47   getStackName() {
-...
-  57   getServiceArtifactName() {
-...
-  61   getFunctionArtifactName(functionName) {
-...
-  65   getLayerArtifactName(layerName) {
-...
-  69   getServiceStateFileName(...
+This should be:
+```javascript
+return longestCommon + (logGroupNames.length === 1 ? '' : '*');
 ```
-========================================================================================================================
-AGENT:
-<thinking>
-Now I can clearly see the issue:
 
-1. `getCloudWatchLogLogicalId(functionName, logsIndex)` (line 350-354) takes an index parameter and creates unique IDs for each subscription filter.
-
-2. `getLambdaCloudWatchLogPermissionLogicalId(functionName)` (line 426-430) does NOT take an index parameter, so it creates the same ID for all permissions for a function.
-
-This is the root cause of the bug. When multiple CloudWatch Log events are defined for a function, only one permission is created because they all have the same logical ID, and the last one overwrites the previous ones.
-
-The fix should be:
-1. Modify `getLambdaCloudWatchLogPermissionLogicalId` to accept an index parameter (similar to other permission functions like `getLambdaSchedulePermissionLogicalId`, `getLambdaCloudWatchEventPermissionLogicalId`, etc.)
-2. Update the call in `cloudWatchLog/index.js` to pass the index
-
-Let me also check the test file to understand the expected behavior and update it accordingly.
-</thinking>
-========================================================================================================================
-TOOL CALL (open_files)
-file_paths:
-- lib/plugins/aws/lib/naming.test.js
-
-========================================================================================================================
-TOOL RETURN (open_files)
+Or more simply:
+```javascript
+return longestCommon + (longestCommon === first && logGroupNames.length === 1 ? '' : '*');
 ```
-["Successfully opened lib/plugins/aws/lib/naming.test.js:\n\n````javascript\n   0 'use strict';\n   1 \n   2 const expect = require('chai').expect;\n...\n 630   describe('#getLambdaCloudWatchLogPermissionLogicalId()', () => {\n 631     it('should normalize the function name and add the standard suffix including event index', () => {\n 632       expect(sdk.naming.getLambdaCloudWatchLogPermissionLogicalId('functionName')).to.equal(\n...\n 844 \n````"]...
+
+Wait, let me think about this more carefully. The condition `longestCommon === first` is true when:
+1. There's only one log group (trivially true)
+2. The first log group is a prefix of all other log groups
+
+In case 2, we still need a wildcard to match all log groups. So the fix should be to check if there's only one log group:
+
+```javascript
+return longestCommon + (logGroupNames.length === 1 ? '' : '*');
 ```
-========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: lib/plugins/aws/lib/naming.test.js
-patterns:
-- getLambdaCloudWatchLogPermissionLogicalId
 
-========================================================================================================================
-TOOL RETURN (inspect_code)
-```
-Successfully expanded code chunks in lib/plugins/aws/lib/naming.test.js:
+Let me verify this with the example:
+- Log groups: [`/aws/lambda/yada-dev-dummy`, `/aws/lambda/yada-dev-dummy2`]
+- `longestCommon` = `/aws/lambda/yada-dev-dummy`
+- `logGroupNames.length` = 2
+- Result: `/aws/lambda/yada-dev-dummy*`
 
-````javascript
-   0 'use strict';
-   1 
-   2 const expect = require('chai').expect;
-   3 
-   4 const SDK = require('../provider/awsProvider');
-   5 const Serverless = require('../../../Serverless');
-   6 
-   7 describe('#naming()', () => {
-   8   let options;
-   9   let serverless;
-  10   let sdk;
-  11 
-  12   beforeEach(() => {
-  13     options = {
-  14       stage: 'dev',
-  15       region: 'us-east-1',
-  16     };
-  17 ...
-```
-========================================================================================================================
-AGENT:
-<thinking>
-Now I have a clear picture of the issue. Looking at the test file:
+This pattern should match both log groups.
 
-1. Line 631-636: The test for `getLambdaCloudWatchLogPermissionLogicalId` says "should normalize the function name and add the standard suffix including event index" but the actual implementation doesn't include an index parameter.
-
-2. Looking at similar functions like `getLambdaSchedulePermissionLogicalId` (line 562-568) and `getLambdaCloudWatchEventPermissionLogicalId` (line 570-576), they both take an index parameter and include it in the logical ID.
-
-The fix should be:
-1. Modify `getLambdaCloudWatchLogPermissionLogicalId` in `naming.js` to accept a `logsIndex` parameter
-2. Update the call in `cloudWatchLog/index.js` to pass `cloudWatchLogNumberInFunction` as the index
-3. Update the test to verify the index is included in the logical ID
-
-Let me also check the test file for the cloudWatchLog event to understand what tests exist.
+Now let me also check the test file to understand the expected behavior better.
 </thinking>
 ========================================================================================================================
 TOOL CALL (open_files)
@@ -286,449 +315,169 @@ Successfully expanded code chunks in lib/plugins/aws/package/compile/events/clou
 ```
 ========================================================================================================================
 AGENT:
+STEP 3: IDENTIFY THE BUG
+
 <thinking>
-Now I have a complete understanding of the issue. Looking at the test file:
+Now I can see the test cases for `longestCommonSuffix`. Looking at line 283-287:
 
-1. Lines 65-112: The test creates two cloudwatch log events for the same function and checks that:
-   - Two subscription filters are created (`FirstLogsSubscriptionFilterCloudWatchLog1` and `FirstLogsSubscriptionFilterCloudWatchLog2`)
-   - Only ONE permission is created (`FirstLambdaPermissionLogsSubscriptionFilterCloudWatchLog`)
+```javascript
+expect(
+  awsCompileCloudWatchLogEvents.longestCommonSuffix([
+    '/aws/lambda/hello1',
+    '/aws/lambda/hello2',
+  ])
+).to.equal('/aws/lambda/hello*');
+```
 
-2. The current implementation uses a "longest common prefix" approach to try to create a single permission that covers all log groups using a wildcard. However, this approach has a fundamental flaw - it only creates ONE permission, and the `SourceArn` in that permission only matches log groups that share the common prefix.
+This test expects `/aws/lambda/hello*` when given `/aws/lambda/hello1` and `/aws/lambda/hello2`. The common prefix is `/aws/lambda/hello` and a wildcard is added.
 
-Looking at the code in `index.js`:
-- Line 100: `longestCommonSuffix` is called to get a common prefix (the function name is misleading - it actually computes a prefix, not a suffix)
-- Lines 102-130: A single permission template is created with the common prefix
-- Lines 140-144: Both the subscription filter and permission are merged, but since the permission ID is the same for all events, only the last one is kept
+But the problem statement mentions log groups like:
+- `/aws/lambda/yada-dev-dummy`
+- `/aws/lambda/yada-dev-dummy2`
 
-The issue is that when the log groups don't share a common prefix (or the prefix is too broad), the permission won't work for all log groups.
+In this case, the first string is a prefix of the second string. Let me trace through the `longestCommonSuffix` function:
 
-However, looking more carefully at the code and the issue description, I think the real problem is:
-1. Each subscription filter depends on the same permission (`DependsOn: "${lambdaPermissionLogicalId}"`)
-2. Only one permission is created (with the same logical ID)
-3. The permission's `SourceArn` is updated each time to use the "longest common prefix" of all log groups processed so far
+```javascript
+longestCommonSuffix(logGroupNames) {
+  const first = logGroupNames[0];  // '/aws/lambda/yada-dev-dummy'
+  const longestCommon = logGroupNames.reduce((last, current) => {
+    for (let i = 0; i < last.length; i++) {
+      if (last[i] !== current[i]) {
+        return last.substring(0, i);
+      }
+    }
+    return last;
+  }, first);
+  return longestCommon + (longestCommon === first ? '' : '*');
+}
+```
 
-But the issue is that the permission is being overwritten each time, and the final permission only has the common prefix of all log groups. If the log groups don't share a common prefix, the wildcard might be too broad or not match all log groups correctly.
+With log groups `['/aws/lambda/yada-dev-dummy', '/aws/lambda/yada-dev-dummy2']`:
 
-Actually, looking at the code more carefully:
-- Line 100: `longestCommonSuffix(logGroupNamesThisFunction)` is called with the array of log group names processed so far for this function
-- This means the permission is updated each time to include a broader wildcard
+1. `first` = `/aws/lambda/yada-dev-dummy`
+2. First iteration of reduce:
+   - `last` = `/aws/lambda/yada-dev-dummy`
+   - `current` = `/aws/lambda/yada-dev-dummy`
+   - Loop compares each character, all match
+   - Returns `last` = `/aws/lambda/yada-dev-dummy`
+3. Second iteration of reduce:
+   - `last` = `/aws/lambda/yada-dev-dummy`
+   - `current` = `/aws/lambda/yada-dev-dummy2`
+   - Loop compares each character from i=0 to i=25 (length of `last` - 1)
+   - All characters match (since `current` starts with `last`)
+   - Returns `last` = `/aws/lambda/yada-dev-dummy`
+4. `longestCommon` = `/aws/lambda/yada-dev-dummy`
+5. `longestCommon === first` is `true`
+6. Returns `/aws/lambda/yada-dev-dummy` (no wildcard!)
 
-But the real issue is that AWS Lambda permissions require a specific `SourceArn` for each log group. Using a wildcard might work in some cases, but it's not reliable.
+This is the bug! When the first log group is a prefix of the second, no wildcard is added. But we need a wildcard to match both log groups.
 
-The proper fix should be to create a separate permission for each cloudwatch log event, similar to how other event types handle this (like schedule, cloudwatch event, etc.).
+The fix should be to check if there's more than one log group, not whether the common prefix equals the first log group:
 
-Let me implement the fix:
+```javascript
+return longestCommon + (logGroupNames.length === 1 ? '' : '*');
+```
 
-1. Modify `getLambdaCloudWatchLogPermissionLogicalId` in `naming.js` to accept a `logsIndex` parameter
-2. Update the call in `cloudWatchLog/index.js` to pass `cloudWatchLogNumberInFunction` as the index
-3. Update the permission template to use the specific log group name instead of the common prefix
-4. Update the tests accordingly
+Wait, but looking at the test case on lines 307-309:
+```javascript
+expect(
+  awsCompileCloudWatchLogEvents.longestCommonSuffix(['/aws/*', '/aws/lambda/hello'])
+).to.equal('/aws/*');
+```
 
-Let me start implementing the fix.
+This expects `/aws/*` when given `/aws/*` and `/aws/lambda/hello`. The first string is `/aws/*` which already has a wildcard. The common prefix is `/aws/` (since `*` != `l`), so the result should be `/aws/*`.
+
+Let me trace through:
+1. `first` = `/aws/*`
+2. Second iteration:
+   - `last` = `/aws/*`
+   - `current` = `/aws/lambda/hello`
+   - i=0: `/` === `/` ✓
+   - i=1: `a` === `a` ✓
+   - i=2: `w` === `w` ✓
+   - i=3: `s` === `s` ✓
+   - i=4: `/` === `/` ✓
+   - i=5: `*` !== `l` ✗
+   - Returns `/aws/` (substring from 0 to 5)
+3. `longestCommon` = `/aws/`
+4. `longestCommon === first` is `false`
+5. Returns `/aws/*`
+
+OK, so the current logic works for this case.
+
+But for the case where the first log group is a prefix of the second, the logic fails. Let me also check the test case on lines 310-312:
+```javascript
+expect(
+  awsCompileCloudWatchLogEvents.longestCommonSuffix(['/aws/lambda/*', '/aws/lambda/hello'])
+).to.equal('/aws/lambda/*');
+```
+
+This expects `/aws/lambda/*` when given `/aws/lambda/*` and `/aws/lambda/hello`. Let me trace:
+1. `first` = `/aws/lambda/*`
+2. Second iteration:
+   - `last` = `/aws/lambda/*`
+   - `current` = `/aws/lambda/hello`
+   - i=0 to i=12: all match (`/aws/lambda/`)
+   - i=13: `*` !== `h` ✗
+   - Returns `/aws/lambda/` (substring from 0 to 13)
+3. `longestCommon` = `/aws/lambda/`
+4. `longestCommon === first` is `false`
+5. Returns `/aws/lambda/*`
+
+OK, this also works.
+
+So the issue is specifically when the first log group is a prefix of all other log groups (without any wildcards). In this case, the common prefix equals the first log group, and no wildcard is added.
+
+The fix should be:
+```javascript
+return longestCommon + (logGroupNames.length === 1 ? '' : '*');
+```
+
+This will add a wildcard whenever there's more than one log group, regardless of whether the common prefix equals the first log group.
+
+Let me verify this doesn't break any existing test cases:
+
+1. `['/aws/lambda/hello1']` → `longestCommon` = `/aws/lambda/hello1`, length = 1, result = `/aws/lambda/hello1` ✓
+2. `['/aws/lambda/hello1', '/aws/lambda/hello2']` → `longestCommon` = `/aws/lambda/hello`, length = 2, result = `/aws/lambda/hello*` ✓
+3. `['/aws/lambda/hello1', '/aws/lambda/hot']` → `longestCommon` = `/aws/lambda/h`, length = 2, result = `/aws/lambda/h*` ✓
+4. `['/aws/lambda/hello1', '/aws/lambda/tweet']` → `longestCommon` = `/aws/lambda/`, length = 2, result = `/aws/lambda/*` ✓
+5. `['/aws/lambda/hello1', '/aws/lex/log1', '/aws/lightsail/log1']` → `longestCommon` = `/aws/l`, length = 3, result = `/aws/l*` ✓
+6. `['/aws/lambda/hello1', '/aws/batch/log1']` → `longestCommon` = `/aws/`, length = 2, result = `/aws/*` ✓
+7. `['/aws/*', '/aws/lambda/hello']` → `longestCommon` = `/aws/`, length = 2, result = `/aws/*` ✓
+8. `['/aws/lambda/*', '/aws/lambda/hello']` → `longestCommon` = `/aws/lambda/`, length = 2, result = `/aws/lambda/*` ✓
+
+All test cases pass with the new logic!
+
+Now let me also verify the fix for the problem statement's case:
+- `['/aws/lambda/yada-dev-dummy', '/aws/lambda/yada-dev-dummy2']`
+- `longestCommon` = `/aws/lambda/yada-dev-dummy`
+- length = 2
+- result = `/aws/lambda/yada-dev-dummy*` ✓
+
+This will correctly match both log groups.
+
+Now I'll make the fix.
 </thinking>
 
-Now I understand the issue completely. The problem is that:
-1. `getLambdaCloudWatchLogPermissionLogicalId` doesn't take an index parameter, so all permissions have the same logical ID
-2. When multiple CloudWatch Log events are defined, only one permission is created (the last one overwrites the previous ones)
-3. The permission uses a "longest common prefix" approach which doesn't work correctly for all cases
-
-The fix is to:
-1. Add an index parameter to `getLambdaCloudWatchLogPermissionLogicalId`
-2. Create a separate permission for each CloudWatch Log event with the specific log group name
-
-Let me implement the fix:
+STEP 4: MAKE THE FIX
 ========================================================================================================================
 AGENT:
-I've identified the root cause of the issue. The `getLambdaCloudWatchLogPermissionLogicalId` function doesn't take an index parameter, so all CloudWatch Log permissions for a function have the same logical ID. This causes only one permission to be created when multiple CloudWatch Log events are defined. I will now implement the fix by adding an index parameter to the naming function and updating the CloudWatch Log event compiler to create separate permissions for each log group.
-========================================================================================================================
-AGENT:
-MODIFY CODE: Fix the naming function to accept an index parameter
-========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: lib/plugins/aws/lib/naming.js
-find: "  getLambdaCloudWatchLogPermissionLogicalId(functionName) {\n    return `${this.getNormalizedFunctionName(\n\
-  \      functionName\n    )}LambdaPermissionLogsSubscriptionFilterCloudWatchLog`;\n\
-  \  },"
-replace: "  getLambdaCloudWatchLogPermissionLogicalId(functionName, logsIndex) {\n\
-  \    return `${this.getNormalizedFunctionName(\n      functionName\n    )}LambdaPermissionLogsSubscriptionFilterCloudWatchLog${logsIndex}`;\n\
-  \  },"
-
-========================================================================================================================
-TOOL RETURN (find_and_replace_code)
-```
-Successfully replaced code in lib/plugins/aws/lib/naming.js:
-
---- lib/plugins/aws/lib/naming.js
-+++ lib/plugins/aws/lib/naming.js
-@@ -424,10 +424,10 @@
-       functionName
-     )}LambdaPermissionAlexaSmartHome${alexaSmartHomeIndex}`;
-   },
--  getLambdaCloudWatchLogPermissionLogicalId(functionName) {
--    return `${this.getNormalizedFunctionName(
--      functionName
--    )}LambdaPermissionLogsSubscriptionFilterCloudWatchLog`;
-+  getLambdaCloudWatchLogPermissionLogicalId(functionName, logsIndex) {...
-```
-========================================================================================================================
-AGENT:
-Now I need to update the CloudWatch Log event compiler to:
-1. Pass the index to `getLambdaCloudWatchLogPermissionLogicalId`
-2. Use the specific log group name in the permission instead of the common prefix
+I've identified the bug in the `longestCommonSuffix` function. The issue is that when the first log group is a prefix of all other log groups, no wildcard is added to the SourceArn pattern. This causes the Lambda permission to not match all log groups. I'll now fix the code by changing the condition to check if there's more than one log group instead of checking if the common prefix equals the first log group.
 ========================================================================================================================
 TOOL CALL (find_and_replace_code)
 file_path: lib/plugins/aws/package/compile/events/cloudWatchLog/index.js
-find: "            const lambdaLogicalId = this.provider.naming.getLambdaLogicalId(functionName);\n\
-  \            const cloudWatchLogLogicalId = this.provider.naming.getCloudWatchLogLogicalId(\n\
-  \              functionName,\n              cloudWatchLogNumberInFunction\n    \
-  \        );\n            const lambdaPermissionLogicalId = this.provider.naming.getLambdaCloudWatchLogPermissionLogicalId(\n\
-  \              functionName\n            );\n\n            // unescape quotes once\
-  \ when the first quote is detected escaped\n            const idxFirstSlash = FilterPattern.indexOf('\\\
-  \\');\n            const idxFirstQuote = FilterPattern.indexOf('\"');\n        \
-  \    if (idxFirstSlash >= 0 && idxFirstQuote >= 0 && idxFirstQuote > idxFirstSlash)\
-  \ {\n              FilterPattern = FilterPattern.replace(/\\\\(\"|\\\\|')/g, (match,\
-  \ g) => g);\n            }\n\n            const cloudWatchLogRuleTemplate = `\n\
-  \              {\n                \"Type\": \"AWS::Logs::SubscriptionFilter\",\n\
-  \                \"DependsOn\": \"${lambdaPermissionLogicalId}\",\n            \
-  \    \"Properties\": {\n                  \"LogGroupName\": \"${LogGroupName}\"\
-  ,\n                  \"FilterPattern\": ${JSON.stringify(FilterPattern)},\n    \
-  \              \"DestinationArn\": { \"Fn::GetAtt\": [\"${lambdaLogicalId}\", \"\
-  Arn\"] }\n                }\n              }\n            `;\n\n            const\
-  \ commonSuffixOfLogGroupName = this.longestCommonSuffix(logGroupNamesThisFunction);\n\
-  \n            const permissionTemplate = `\n            {\n              \"Type\"\
-  : \"AWS::Lambda::Permission\",\n              \"Properties\": {\n              \
-  \  \"FunctionName\": { \"Fn::GetAtt\": [\"${lambdaLogicalId}\", \"Arn\"] },\n  \
-  \              \"Action\": \"lambda:InvokeFunction\",\n                \"Principal\"\
-  : {\n                  \"Fn::Join\": [ \"\", [\n                  \"logs.\",\n \
-  \                 { \"Ref\": \"AWS::Region\" },\n                  \".amazonaws.com\"\
-  \n                  ] ]\n                },\n                \"SourceArn\": {\n\
-  \                  \"Fn::Join\": [ \"\", [\n                  \"arn:\",\n      \
-  \            { \"Ref\": \"AWS::Partition\" },\n                  \":logs:\",\n \
-  \                 { \"Ref\": \"AWS::Region\" },\n                  \":\",\n    \
-  \              { \"Ref\": \"AWS::AccountId\" },\n                  \":log-group:\"\
-  ,\n                  \"${commonSuffixOfLogGroupName}\",\n                  \":*\"\
-  \n                  ] ]\n                }\n              }\n            }\n   \
-  \       `;"
-replace: "            const lambdaLogicalId = this.provider.naming.getLambdaLogicalId(functionName);\n\
-  \            const cloudWatchLogLogicalId = this.provider.naming.getCloudWatchLogLogicalId(\n\
-  \              functionName,\n              cloudWatchLogNumberInFunction\n    \
-  \        );\n            const lambdaPermissionLogicalId = this.provider.naming.getLambdaCloudWatchLogPermissionLogicalId(\n\
-  \              functionName,\n              cloudWatchLogNumberInFunction\n    \
-  \        );\n\n            // unescape quotes once when the first quote is detected\
-  \ escaped\n            const idxFirstSlash = FilterPattern.indexOf('\\\\');\n  \
-  \          const idxFirstQuote = FilterPattern.indexOf('\"');\n            if (idxFirstSlash\
-  \ >= 0 && idxFirstQuote >= 0 && idxFirstQuote > idxFirstSlash) {\n             \
-  \ FilterPattern = FilterPattern.replace(/\\\\(\"|\\\\|')/g, (match, g) => g);\n\
-  \            }\n\n            const cloudWatchLogRuleTemplate = `\n            \
-  \  {\n                \"Type\": \"AWS::Logs::SubscriptionFilter\",\n           \
-  \     \"DependsOn\": \"${lambdaPermissionLogicalId}\",\n                \"Properties\"\
-  : {\n                  \"LogGroupName\": \"${LogGroupName}\",\n                \
-  \  \"FilterPattern\": ${JSON.stringify(FilterPattern)},\n                  \"DestinationArn\"\
-  : { \"Fn::GetAtt\": [\"${lambdaLogicalId}\", \"Arn\"] }\n                }\n   \
-  \           }\n            `;\n\n            const permissionTemplate = `\n    \
-  \        {\n              \"Type\": \"AWS::Lambda::Permission\",\n             \
-  \ \"Properties\": {\n                \"FunctionName\": { \"Fn::GetAtt\": [\"${lambdaLogicalId}\"\
-  , \"Arn\"] },\n                \"Action\": \"lambda:InvokeFunction\",\n        \
-  \        \"Principal\": {\n                  \"Fn::Join\": [ \"\", [\n         \
-  \         \"logs.\",\n                  { \"Ref\": \"AWS::Region\" },\n        \
-  \          \".amazonaws.com\"\n                  ] ]\n                },\n     \
-  \           \"SourceArn\": {\n                  \"Fn::Join\": [ \"\", [\n      \
-  \            \"arn:\",\n                  { \"Ref\": \"AWS::Partition\" },\n   \
-  \               \":logs:\",\n                  { \"Ref\": \"AWS::Region\" },\n \
-  \                 \":\",\n                  { \"Ref\": \"AWS::AccountId\" },\n \
-  \                 \":log-group:\",\n                  \"${LogGroupName}\",\n   \
-  \               \":*\"\n                  ] ]\n                }\n             \
-  \ }\n            }\n          `;"
-
-========================================================================================================================
-TOOL RETURN (find_and_replace_code)
-```
-Successfully replaced code in lib/plugins/aws/package/compile/events/cloudWatchLog/index.js:
-
---- lib/plugins/aws/package/compile/events/cloudWatchLog/index.js
-+++ lib/plugins/aws/package/compile/events/cloudWatchLog/index.js
-@@ -76,7 +76,8 @@
-               cloudWatchLogNumberInFunction
-             );
-             const lambdaPermissionLogicalId = this.provider.naming.getLambdaCloudWatchLogPermissionLogicalId(
--              functionName
-+              functionName,
-+              cloudWatchLo...
-```
-========================================================================================================================
-AGENT:
-Now I need to update the test files to reflect the new behavior. Let me update the naming test first:
-========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: lib/plugins/aws/lib/naming.test.js
-find: "  describe('#getLambdaCloudWatchLogPermissionLogicalId()', () => {\n    it('should\
-  \ normalize the function name and add the standard suffix including event index',\
-  \ () => {\n      expect(sdk.naming.getLambdaCloudWatchLogPermissionLogicalId('functionName')).to.equal(\n\
-  \        'FunctionNameLambdaPermissionLogsSubscriptionFilterCloudWatchLog'\n   \
-  \   );\n    });\n  });"
-replace: "  describe('#getLambdaCloudWatchLogPermissionLogicalId()', () => {\n   \
-  \ it('should normalize the function name and add the standard suffix including event\
-  \ index', () => {\n      expect(sdk.naming.getLambdaCloudWatchLogPermissionLogicalId('functionName',\
-  \ 1)).to.equal(\n        'FunctionNameLambdaPermissionLogsSubscriptionFilterCloudWatchLog1'\n\
-  \      );\n    });\n  });"
-
-========================================================================================================================
-TOOL RETURN (find_and_replace_code)
-```
-Successfully replaced code in lib/plugins/aws/lib/naming.test.js:
-
---- lib/plugins/aws/lib/naming.test.js
-+++ lib/plugins/aws/lib/naming.test.js
-@@ -630,8 +630,8 @@
- 
-   describe('#getLambdaCloudWatchLogPermissionLogicalId()', () => {
-     it('should normalize the function name and add the standard suffix including event index', () => {
--      expect(sdk.naming.getLambdaCloudWatchLogPermissionLogicalId('functionName')).to.equal(
--        'FunctionNameLambdaPermissionLogsSubscriptionFilterCloudWa...
-```
-========================================================================================================================
-AGENT:
-Now I need to update the CloudWatch Log event test file to check for multiple permissions:
-========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js
-find: "    it('should create corresponding resources when cloudwatchLog events are\
-  \ given', () => {\n      awsCompileCloudWatchLogEvents.serverless.service.functions\
-  \ = {\n        first: {\n          events: [\n            {\n              cloudwatchLog:\
-  \ {\n                logGroup: '/aws/lambda/hello1',\n              },\n       \
-  \     },\n            {\n              cloudwatchLog: {\n                logGroup:\
-  \ '/aws/lambda/hello2',\n              },\n            },\n          ],\n      \
-  \  },\n      };\n\n      awsCompileCloudWatchLogEvents.compileCloudWatchLogEvents();\n\
-  \      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog1.Type\n      ).to.equal('AWS::Logs::SubscriptionFilter');\n\
-  \      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog2.Type\n      ).to.equal('AWS::Logs::SubscriptionFilter');\n\
-  \      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog1.Properties.LogGroupName\n\
-  \      ).to.equal('/aws/lambda/hello1');\n      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog2.Properties.LogGroupName\n\
-  \      ).to.equal('/aws/lambda/hello2');\n      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog1.Properties.FilterPattern\n\
-  \      ).to.equal('');\n      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog2.Properties.FilterPattern\n\
-  \      ).to.equal('');\n      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLambdaPermissionLogsSubscriptionFilterCloudWatchLog.Type\n\
-  \      ).to.equal('AWS::Lambda::Permission');\n    });"
-replace: "    it('should create corresponding resources when cloudwatchLog events\
-  \ are given', () => {\n      awsCompileCloudWatchLogEvents.serverless.service.functions\
-  \ = {\n        first: {\n          events: [\n            {\n              cloudwatchLog:\
-  \ {\n                logGroup: '/aws/lambda/hello1',\n              },\n       \
-  \     },\n            {\n              cloudwatchLog: {\n                logGroup:\
-  \ '/aws/lambda/hello2',\n              },\n            },\n          ],\n      \
-  \  },\n      };\n\n      awsCompileCloudWatchLogEvents.compileCloudWatchLogEvents();\n\
-  \      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog1.Type\n      ).to.equal('AWS::Logs::SubscriptionFilter');\n\
-  \      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog2.Type\n      ).to.equal('AWS::Logs::SubscriptionFilter');\n\
-  \      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog1.Properties.LogGroupName\n\
-  \      ).to.equal('/aws/lambda/hello1');\n      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog2.Properties.LogGroupName\n\
-  \      ).to.equal('/aws/lambda/hello2');\n      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog1.Properties.FilterPattern\n\
-  \      ).to.equal('');\n      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog2.Properties.FilterPattern\n\
-  \      ).to.equal('');\n      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLambdaPermissionLogsSubscriptionFilterCloudWatchLog1.Type\n\
-  \      ).to.equal('AWS::Lambda::Permission');\n      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLambdaPermissionLogsSubscriptionFilterCloudWatchLog2.Type\n\
-  \      ).to.equal('AWS::Lambda::Permission');\n    });"
-
-========================================================================================================================
-TOOL RETURN (find_and_replace_code)
-```
-Successfully replaced code in lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js:
-
---- lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js
-+++ lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js
-@@ -108,7 +108,11 @@
-       ).to.equal('');
-       expect(
-         awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate
--          .Resources.FirstLambdaPermissionLogsSubscriptionFilterCloudWatchLog.Type
-+          .Resour...
-```
-========================================================================================================================
-AGENT:
-Now I need to update the second test that also checks for the permission:
-========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js
-find: "    it('should create corresponding resources when cloudwatchLog events are\
-  \ given as a string', () => {\n      awsCompileCloudWatchLogEvents.serverless.service.functions\
-  \ = {\n        first: {\n          events: [\n            {\n              cloudwatchLog:\
-  \ '/aws/lambda/hello1',\n            },\n            {\n              cloudwatchLog:\
-  \ '/aws/lambda/hello2',\n            },\n          ],\n        },\n      };\n\n\
-  \      awsCompileCloudWatchLogEvents.compileCloudWatchLogEvents();\n      expect(\n\
-  \        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog1.Type\n      ).to.equal('AWS::Logs::SubscriptionFilter');\n\
-  \      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog2.Type\n      ).to.equal('AWS::Logs::SubscriptionFilter');\n\
-  \      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog1.Properties.LogGroupName\n\
-  \      ).to.equal('/aws/lambda/hello1');\n      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog2.Properties.LogGroupName\n\
-  \      ).to.equal('/aws/lambda/hello2');\n      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog1.Properties.FilterPattern\n\
-  \      ).to.equal('');\n      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog2.Properties.FilterPattern\n\
-  \      ).to.equal('');\n      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLambdaPermissionLogsSubscriptionFilterCloudWatchLog.Type\n\
-  \      ).to.equal('AWS::Lambda::Permission');\n    });"
-replace: "    it('should create corresponding resources when cloudwatchLog events\
-  \ are given as a string', () => {\n      awsCompileCloudWatchLogEvents.serverless.service.functions\
-  \ = {\n        first: {\n          events: [\n            {\n              cloudwatchLog:\
-  \ '/aws/lambda/hello1',\n            },\n            {\n              cloudwatchLog:\
-  \ '/aws/lambda/hello2',\n            },\n          ],\n        },\n      };\n\n\
-  \      awsCompileCloudWatchLogEvents.compileCloudWatchLogEvents();\n      expect(\n\
-  \        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog1.Type\n      ).to.equal('AWS::Logs::SubscriptionFilter');\n\
-  \      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog2.Type\n      ).to.equal('AWS::Logs::SubscriptionFilter');\n\
-  \      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog1.Properties.LogGroupName\n\
-  \      ).to.equal('/aws/lambda/hello1');\n      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog2.Properties.LogGroupName\n\
-  \      ).to.equal('/aws/lambda/hello2');\n      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog1.Properties.FilterPattern\n\
-  \      ).to.equal('');\n      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLogsSubscriptionFilterCloudWatchLog2.Properties.FilterPattern\n\
-  \      ).to.equal('');\n      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLambdaPermissionLogsSubscriptionFilterCloudWatchLog1.Type\n\
-  \      ).to.equal('AWS::Lambda::Permission');\n      expect(\n        awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate\n\
-  \          .Resources.FirstLambdaPermissionLogsSubscriptionFilterCloudWatchLog2.Type\n\
-  \      ).to.equal('AWS::Lambda::Permission');\n    });"
-
-========================================================================================================================
-TOOL RETURN (find_and_replace_code)
-```
-Successfully replaced code in lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js:
-
---- lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js
-+++ lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js
-@@ -276,7 +276,11 @@
-       ).to.equal('');
-       expect(
-         awsCompileCloudWatchLogEvents.serverless.service.provider.compiledCloudFormationTemplate
--          .Resources.FirstLambdaPermissionLogsSubscriptionFilterCloudWatchLog.Type
-+          .Resour...
-```
-========================================================================================================================
-AGENT:
-Now let me check if the `longestCommonSuffix` function is still being used anywhere. Since we removed its usage, we should also check if it's still needed or if we can remove it:
-========================================================================================================================
-TOOL CALL (grep)
-content_pattern: longestCommonSuffix
-
-========================================================================================================================
-TOOL RETURN (grep)
-```
-lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js:288:      expect(awsCompileCloudWatchLogEvents.longestCommonSuffix(['/aws/lambda/hello1'])).to.equal(
-lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js:292:        awsCompileCloudWatchLogEvents.longestCommonSuffix([
-lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js:298:        awsCompileCloudWatchLogEvents.longestCommonSuffix(['/aws/lambda/hello1', '/aws/lambda/hot'])
-lib/plugins/aws/package/comp...
-```
-========================================================================================================================
-AGENT:
-<thinking>
-The `longestCommonSuffix` function is still defined in the code and there are tests for it. Since we're no longer using it in the main code, we should remove both the function and its tests. However, I should be careful - let me first check if the function is used anywhere else in the codebase or if it's exported.
-
-Looking at the code, the function is a method of the class and is only used internally. Since we've removed its usage, we should also remove the function and its tests to keep the code clean.
-
-However, let me also check if there are any other references to `logGroupNamesThisFunction` since we removed the call to `longestCommonSuffix` that used it.
-</thinking>
-========================================================================================================================
-TOOL CALL (grep)
-content_pattern: logGroupNamesThisFunction
-
-========================================================================================================================
-TOOL RETURN (grep)
-```
-lib/plugins/aws/package/compile/events/cloudWatchLog/index.js:23:        const logGroupNamesThisFunction = [];
-lib/plugins/aws/package/compile/events/cloudWatchLog/index.js:71:            logGroupNamesThisFunction.push(LogGroupName);...
-```
-========================================================================================================================
-AGENT:
-The `logGroupNamesThisFunction` array is still being populated but no longer used. Let me clean up the code by removing the unused variable and the `longestCommonSuffix` function. Let me first view the current state of the file:
-========================================================================================================================
-TOOL CALL (open_files)
-file_paths:
-- lib/plugins/aws/package/compile/events/cloudWatchLog/index.js
-
-========================================================================================================================
-TOOL RETURN (open_files)
-```
-['Successfully opened lib/plugins/aws/package/compile/events/cloudWatchLog/index.js:\n\n````javascript\n   0 \'use strict\';\n   1 \n   2 const _ = require(\'lodash\');\n   3 \n   4 class AwsCompileCloudWatchLogEvents {\n   5   constructor(serverless) {\n   6     this.serverless = serverless;\n   7     this.provider = this.serverless.getProvider(\'aws\');\n   8 \n   9     this.hooks = {\n  10       \'package:compileEvents\': this.compileCloudWatchLogEvents.bind(this),\n  11     };\n  12   }\n  1...
-```
-========================================================================================================================
-AGENT:
-Now let me remove the unused `logGroupNamesThisFunction` variable and the `longestCommonSuffix` function:
-========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: lib/plugins/aws/package/compile/events/cloudWatchLog/index.js
-find: "      if (functionObj.events) {\n        const logGroupNamesThisFunction =\
-  \ [];\n\n        functionObj.events.forEach(event => {"
-replace: "      if (functionObj.events) {\n        functionObj.events.forEach(event\
-  \ => {"
-
-========================================================================================================================
-TOOL RETURN (find_and_replace_code)
-```
-Successfully replaced code in lib/plugins/aws/package/compile/events/cloudWatchLog/index.js:
-
---- lib/plugins/aws/package/compile/events/cloudWatchLog/index.js
-+++ lib/plugins/aws/package/compile/events/cloudWatchLog/index.js
-@@ -20,8 +20,6 @@
-       let cloudWatchLogNumberInFunction = 0;
- 
-       if (functionObj.events) {
--        const logGroupNamesThisFunction = [];
--
-         functionObj.events.forEach(event => {
-           if (event.cloudwatchLog) {
-             cloudWatchLogNumberInFunctio...
-```
-========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: lib/plugins/aws/package/compile/events/cloudWatchLog/index.js
-find: "            logGroupNames.push(LogGroupName);\n            logGroupNamesThisFunction.push(LogGroupName);\n\
-  \n            const lambdaLogicalId = this.provider.naming.getLambdaLogicalId(functionName);"
-replace: "            logGroupNames.push(LogGroupName);\n\n            const lambdaLogicalId\
-  \ = this.provider.naming.getLambdaLogicalId(functionName);"
-
-========================================================================================================================
-TOOL RETURN (find_and_replace_code)
-```
-Successfully replaced code in lib/plugins/aws/package/compile/events/cloudWatchLog/index.js:
-
---- lib/plugins/aws/package/compile/events/cloudWatchLog/index.js
-+++ lib/plugins/aws/package/compile/events/cloudWatchLog/index.js
-@@ -66,7 +66,6 @@
-               throw new this.serverless.classes.Error(errorMessage);
-             }
-             logGroupNames.push(LogGroupName);
--            logGroupNamesThisFunction.push(LogGroupName);
- 
-             const lambdaLogicalId = this.provider.naming.getLa...
-```
-========================================================================================================================
-AGENT:
-Now let me remove the `longestCommonSuffix` function since it's no longer used:
-========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: lib/plugins/aws/package/compile/events/cloudWatchLog/index.js
-find: "    });\n  }\n\n  longestCommonSuffix(logGroupNames) {\n    const first = logGroupNames[0];\n\
+find: "  longestCommonSuffix(logGroupNames) {\n    const first = logGroupNames[0];\n\
   \    const longestCommon = logGroupNames.reduce((last, current) => {\n      for\
   \ (let i = 0; i < last.length; i++) {\n        if (last[i] !== current[i]) {\n \
   \         return last.substring(0, i);\n        }\n      }\n      return last;\n\
   \    }, first);\n    return longestCommon + (longestCommon === first ? '' : '*');\n\
-  \  }\n}\n\nmodule.exports = AwsCompileCloudWatchLogEvents;"
-replace: "    });\n  }\n}\n\nmodule.exports = AwsCompileCloudWatchLogEvents;"
+  \  }"
+replace: "  longestCommonSuffix(logGroupNames) {\n    const first = logGroupNames[0];\n\
+  \    const longestCommon = logGroupNames.reduce((last, current) => {\n      for\
+  \ (let i = 0; i < last.length; i++) {\n        if (last[i] !== current[i]) {\n \
+  \         return last.substring(0, i);\n        }\n      }\n      return last;\n\
+  \    }, first);\n    return longestCommon + (logGroupNames.length === 1 ? '' : '*');\n\
+  \  }"
 
 ========================================================================================================================
 TOOL RETURN (find_and_replace_code)
@@ -737,86 +486,26 @@ Successfully replaced code in lib/plugins/aws/package/compile/events/cloudWatchL
 
 --- lib/plugins/aws/package/compile/events/cloudWatchLog/index.js
 +++ lib/plugins/aws/package/compile/events/cloudWatchLog/index.js
-@@ -144,19 +144,6 @@
+@@ -159,7 +159,7 @@
        }
-     });
+       return last;
+     }, first);
+-    return longestCommon + (longestCommon === first ? '' : '*');
++    return longestCommon + (logGroupNames.length === 1 ? '' : '*');
    }
--
--  longestCommonSuffix(logGroupNames) {
--    const first = logGroupNames[0];
--    const longestCommon = logGroupNames.reduce((last, current) => {
--      for (let i = 0; i < last.length; i++) {
--        if (last[i] !== current[i]...
-```
-========================================================================================================================
-AGENT:
-Now let me remove the tests for the `longestCommonSuffix` function since it no longer exists:
-========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js
-line_ranges:
-- - 278
-  - 330
-
-========================================================================================================================
-TOOL RETURN (inspect_code)
-```
-Successfully expanded code chunks in lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js:
-
-````javascript
-   0 'use strict';
-   1 
-   2 const expect = require('chai').expect;
-   3 const AwsProvider = require('../../../../provider/awsProvider');
-   4 const AwsCompileCloudWatchLogEvents = require('./index');
-   5 const Serverless = require('../../../../../../Serverless');
-   6 
-   7 describe('AwsCompileCloudWatchLogEvents', () => {
-   8   let serverless;
-   9   let awsCompileCloudWa...
-```
-========================================================================================================================
-AGENT:
-Now I need to remove the test for `longestCommonSuffix` since the function no longer exists:
-========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js
-find: "    it('should create a longest-common suffix of logGroup to minimize scope',\
-  \ () => {\n      expect(awsCompileCloudWatchLogEvents.longestCommonSuffix(['/aws/lambda/hello1'])).to.equal(\n\
-  \        '/aws/lambda/hello1'\n      );\n      expect(\n        awsCompileCloudWatchLogEvents.longestCommonSuffix([\n\
-  \          '/aws/lambda/hello1',\n          '/aws/lambda/hello2',\n        ])\n\
-  \      ).to.equal('/aws/lambda/hello*');\n      expect(\n        awsCompileCloudWatchLogEvents.longestCommonSuffix(['/aws/lambda/hello1',\
-  \ '/aws/lambda/hot'])\n      ).to.equal('/aws/lambda/h*');\n      expect(\n    \
-  \    awsCompileCloudWatchLogEvents.longestCommonSuffix([\n          '/aws/lambda/hello1',\n\
-  \          '/aws/lambda/tweet',\n        ])\n      ).to.equal('/aws/lambda/*');\n\
-  \      expect(\n        awsCompileCloudWatchLogEvents.longestCommonSuffix([\n  \
-  \        '/aws/lambda/hello1',\n          '/aws/lex/log1',\n          '/aws/lightsail/log1',\n\
-  \        ])\n      ).to.equal('/aws/l*');\n      expect(\n        awsCompileCloudWatchLogEvents.longestCommonSuffix(['/aws/lambda/hello1',\
-  \ '/aws/batch/log1'])\n      ).to.equal('/aws/*');\n      expect(\n        awsCompileCloudWatchLogEvents.longestCommonSuffix(['/aws/*',\
-  \ '/aws/lambda/hello'])\n      ).to.equal('/aws/*');\n      expect(\n        awsCompileCloudWatchLogEvents.longestCommonSuffix(['/aws/lambda/*',\
-  \ '/aws/lambda/hello'])\n      ).to.equal('/aws/lambda/*');\n    });\n\n    it('should\
-  \ throw an error if \"logGroup\" is duplicated in one CloudFormation stack', ()\
-  \ => {"
-replace: '    it(''should throw an error if "logGroup" is duplicated in one CloudFormation
-  stack'', () => {'
-
-========================================================================================================================
-TOOL RETURN (find_and_replace_code)
-```
-Successfully replaced code in lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js:
-
---- lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js
-+++ lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js
-@@ -284,43 +284,6 @@
-       ).to.equal('AWS::Lambda::Permission');
-     });
+ }
  
--    it('should create a longest-common suffix of logGroup to minimize scope', () => {
--      expect(awsCompileCloudWatchLogEvents.longestCommonSuffix(['/aws/lambda/hello1'])).to.eq...
+...
 ```
 ========================================================================================================================
 AGENT:
-Now let me run the tests to verify that the changes work correctly:
+STEP 5: VERIFY THE FIX
+
+<thinking>
+Now I need to verify that the fix works correctly. Let me:
+1. Run the existing tests to make sure they still pass
+2. Add a new test case for the specific scenario mentioned in the problem statement (where the first log group is a prefix of the second)
+</thinking>
 ========================================================================================================================
 TOOL CALL (bash)
 command: cd /workspace && npm install 2>&1 | tail -20
@@ -826,7 +515,7 @@ timeout: 120
 TOOL RETURN (bash)
 ```
 
-added 932 packages, and audited 933 packages in 35s
+added 932 packages, and audited 933 packages in 37s
 
 118 packages are looking for funding
   run `npm fund` for details
@@ -841,41 +530,12 @@ a different dependency.
 
 Run `npm audit` for details.
 npm notice
-npm notice New major version of npm available! 10.9.3 -> 11.6.4
+npm notice New major version of npm available! 10.9.3 -> 11.7.0
 npm notice Changelog: https://github.com/npm/cl...
 ```
 ========================================================================================================================
 TOOL CALL (bash)
-command: cd /workspace && npm test -- --grep "cloudWatchLog" 2>&1 | tail -100
-timeout: 120
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-
-> serverless@1.54.0 test
-> mocha "!(node_modules)/**/*.test.js" --grep cloudWatchLog
-
-
-
-  0 passing (4ms)
-
-(node:614) NOTE: The AWS SDK for JavaScript (v2) is in maintenance mode.
- SDK releases are limited to address critical bug fixes and security issues only.
-
-Please migrate your code to use AWS SDK for JavaScript (v3).
-For more information, check the blog post at https://a.co/cUPnyil
-(Use `node --trace-warnings ...` to show where the warning was created)...
-```
-========================================================================================================================
-AGENT:
-<thinking>
-The grep pattern didn't match. Let me try a different approach to run the specific tests.
-</thinking>
-========================================================================================================================
-TOOL CALL (bash)
 command: cd /workspace && npm test -- --grep "AwsCompileCloudWatchLogEvents" 2>&1
-  | tail -100
 timeout: 120
 
 ========================================================================================================================
@@ -898,11 +558,90 @@ TOOL RETURN (bash)
 ```
 ========================================================================================================================
 AGENT:
-All CloudWatch Log event tests pass. Now let me run the naming tests to make sure those pass as well:
+All existing tests pass. Now let me add a new test case for the specific scenario mentioned in the problem statement (where the first log group is a prefix of the second).
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js
+line_ranges:
+- - 278
+  - 314
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js:
+
+````javascript
+   0 'use strict';
+   1 
+   2 const expect = require('chai').expect;
+   3 const AwsProvider = require('../../../../provider/awsProvider');
+   4 const AwsCompileCloudWatchLogEvents = require('./index');
+   5 const Serverless = require('../../../../../../Serverless');
+   6 
+   7 describe('AwsCompileCloudWatchLogEvents', () => {
+   8   let serverless;
+   9   let awsCompileCloudWa...
+```
+========================================================================================================================
+AGENT:
+Now let me add a test case for the specific scenario mentioned in the problem statement (where the first log group is a prefix of the second):
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js
+find: "    it('should create a longest-common suffix of logGroup to minimize scope',\
+  \ () => {\n      expect(awsCompileCloudWatchLogEvents.longestCommonSuffix(['/aws/lambda/hello1'])).to.equal(\n\
+  \        '/aws/lambda/hello1'\n      );\n      expect(\n        awsCompileCloudWatchLogEvents.longestCommonSuffix([\n\
+  \          '/aws/lambda/hello1',\n          '/aws/lambda/hello2',\n        ])\n\
+  \      ).to.equal('/aws/lambda/hello*');\n      expect(\n        awsCompileCloudWatchLogEvents.longestCommonSuffix(['/aws/lambda/hello1',\
+  \ '/aws/lambda/hot'])\n      ).to.equal('/aws/lambda/h*');\n      expect(\n    \
+  \    awsCompileCloudWatchLogEvents.longestCommonSuffix([\n          '/aws/lambda/hello1',\n\
+  \          '/aws/lambda/tweet',\n        ])\n      ).to.equal('/aws/lambda/*');\n\
+  \      expect(\n        awsCompileCloudWatchLogEvents.longestCommonSuffix([\n  \
+  \        '/aws/lambda/hello1',\n          '/aws/lex/log1',\n          '/aws/lightsail/log1',\n\
+  \        ])\n      ).to.equal('/aws/l*');\n      expect(\n        awsCompileCloudWatchLogEvents.longestCommonSuffix(['/aws/lambda/hello1',\
+  \ '/aws/batch/log1'])\n      ).to.equal('/aws/*');\n      expect(\n        awsCompileCloudWatchLogEvents.longestCommonSuffix(['/aws/*',\
+  \ '/aws/lambda/hello'])\n      ).to.equal('/aws/*');\n      expect(\n        awsCompileCloudWatchLogEvents.longestCommonSuffix(['/aws/lambda/*',\
+  \ '/aws/lambda/hello'])\n      ).to.equal('/aws/lambda/*');\n    });"
+replace: "    it('should create a longest-common suffix of logGroup to minimize scope',\
+  \ () => {\n      expect(awsCompileCloudWatchLogEvents.longestCommonSuffix(['/aws/lambda/hello1'])).to.equal(\n\
+  \        '/aws/lambda/hello1'\n      );\n      expect(\n        awsCompileCloudWatchLogEvents.longestCommonSuffix([\n\
+  \          '/aws/lambda/hello1',\n          '/aws/lambda/hello2',\n        ])\n\
+  \      ).to.equal('/aws/lambda/hello*');\n      expect(\n        awsCompileCloudWatchLogEvents.longestCommonSuffix(['/aws/lambda/hello1',\
+  \ '/aws/lambda/hot'])\n      ).to.equal('/aws/lambda/h*');\n      expect(\n    \
+  \    awsCompileCloudWatchLogEvents.longestCommonSuffix([\n          '/aws/lambda/hello1',\n\
+  \          '/aws/lambda/tweet',\n        ])\n      ).to.equal('/aws/lambda/*');\n\
+  \      expect(\n        awsCompileCloudWatchLogEvents.longestCommonSuffix([\n  \
+  \        '/aws/lambda/hello1',\n          '/aws/lex/log1',\n          '/aws/lightsail/log1',\n\
+  \        ])\n      ).to.equal('/aws/l*');\n      expect(\n        awsCompileCloudWatchLogEvents.longestCommonSuffix(['/aws/lambda/hello1',\
+  \ '/aws/batch/log1'])\n      ).to.equal('/aws/*');\n      expect(\n        awsCompileCloudWatchLogEvents.longestCommonSuffix(['/aws/*',\
+  \ '/aws/lambda/hello'])\n      ).to.equal('/aws/*');\n      expect(\n        awsCompileCloudWatchLogEvents.longestCommonSuffix(['/aws/lambda/*',\
+  \ '/aws/lambda/hello'])\n      ).to.equal('/aws/lambda/*');\n      // Test case\
+  \ where first log group is a prefix of the second (issue #6299)\n      expect(\n\
+  \        awsCompileCloudWatchLogEvents.longestCommonSuffix([\n          '/aws/lambda/yada-dev-dummy',\n\
+  \          '/aws/lambda/yada-dev-dummy2',\n        ])\n      ).to.equal('/aws/lambda/yada-dev-dummy*');\n\
+  \    });"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js:
+
+--- lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js
++++ lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js
+@@ -311,6 +311,13 @@
+       expect(
+         awsCompileCloudWatchLogEvents.longestCommonSuffix(['/aws/lambda/*', '/aws/lambda/hello'])
+       ).to.equal('/aws/lambda/*');
++      // Test case where first log group is a prefix of the second (issue #6299)
++     ...
+```
+========================================================================================================================
+AGENT:
+Now let me run the tests again to make sure the new test case passes:
 ========================================================================================================================
 TOOL CALL (bash)
-command: cd /workspace && npm test -- --grep "getLambdaCloudWatchLogPermissionLogicalId"
-  2>&1 | tail -50
+command: cd /workspace && npm test -- --grep "AwsCompileCloudWatchLogEvents" 2>&1
 timeout: 120
 
 ========================================================================================================================
@@ -910,25 +649,92 @@ TOOL RETURN (bash)
 ```
 
 > serverless@1.54.0 test
-> mocha "!(node_modules)/**/*.test.js" --grep getLambdaCloudWatchLogPermissionLogicalId
+> mocha "!(node_modules)/**/*.test.js" --grep AwsCompileCloudWatchLogEvents
 
 
 
-  #naming()
-    #getLambdaCloudWatchLogPermissionLogicalId()
-      ✓ should normalize the function name and add the standard suffix including event index
-
-
-  1 passing (5ms)
-
-(node:1176) NOTE: The AWS SDK for JavaScript (v2) is in maintenance mode.
- SDK releases are limited to address critical bug fixes and security issues only.
-
-Please migrate your code to use AWS SDK for JavaScr...
+  AwsCompileCloudWatchLogEvents
+    #constructor()
+      ✓ should set the provider variable to an instance of AwsProvider
+    #compileCloudWatchLogEvents()
+      ✓ should throw an error if cloudwatchLog event type is not an object or a string
+      ✓ should throw an error if the "logGroup" property is not given
+      ✓ should create corresponding resources when cloudwatchLog events are given
+...
 ```
 ========================================================================================================================
 AGENT:
-All tests pass. Now let me verify the fix by reviewing the modified files:
+All tests pass. Let me also create a simple reproduction script to verify the fix works correctly:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && cat > /tmp/test_fix.js << 'EOF'\n'use strict';\n\n// Simple\
+  \ test to verify the fix for the CloudWatch Log permission issue\n\nclass TestLongestCommonSuffix\
+  \ {\n  // Original buggy implementation\n  longestCommonSuffixBuggy(logGroupNames)\
+  \ {\n    const first = logGroupNames[0];\n    const longestCommon = logGroupNames.reduce((last,\
+  \ current) => {\n      for (let i = 0; i < last.length; i++) {\n        if (last[i]\
+  \ !== current[i]) {\n          return last.substring(0, i);\n        }\n      }\n\
+  \      return last;\n    }, first);\n    return longestCommon + (longestCommon ===\
+  \ first ? '' : '*');\n  }\n\n  // Fixed implementation\n  longestCommonSuffixFixed(logGroupNames)\
+  \ {\n    const first = logGroupNames[0];\n    const longestCommon = logGroupNames.reduce((last,\
+  \ current) => {\n      for (let i = 0; i < last.length; i++) {\n        if (last[i]\
+  \ !== current[i]) {\n          return last.substring(0, i);\n        }\n      }\n\
+  \      return last;\n    }, first);\n    return longestCommon + (logGroupNames.length\
+  \ === 1 ? '' : '*');\n  }\n}\n\nconst test = new TestLongestCommonSuffix();\n\n\
+  // Test case from the problem statement\nconst logGroups = ['/aws/lambda/yada-dev-dummy',\
+  \ '/aws/lambda/yada-dev-dummy2'];\n\nconsole.log('Test case: Log groups where first\
+  \ is a prefix of second');\nconsole.log('Log groups:', logGroups);\nconsole.log('');\n\
+  console.log('Buggy implementation result:', test.longestCommonSuffixBuggy(logGroups));\n\
+  console.log('Fixed implementation result:', test.longestCommonSuffixFixed(logGroups));\n\
+  console.log('');\n\n// The buggy implementation returns '/aws/lambda/yada-dev-dummy'\
+  \ (no wildcard)\n// which won't match '/aws/lambda/yada-dev-dummy2'\n// The fixed\
+  \ implementation returns '/aws/lambda/yada-dev-dummy*' (with wildcard)\n// which\
+  \ will match both log groups\n\nconst buggyResult = test.longestCommonSuffixBuggy(logGroups);\n\
+  const fixedResult = test.longestCommonSuffixFixed(logGroups);\n\nif (buggyResult\
+  \ === '/aws/lambda/yada-dev-dummy') {\n  console.log('\u2713 Confirmed: Buggy implementation\
+  \ does NOT add wildcard');\n} else {\n  console.log('\u2717 Unexpected: Buggy implementation\
+  \ result:', buggyResult);\n}\n\nif (fixedResult === '/aws/lambda/yada-dev-dummy*')\
+  \ {\n  console.log('\u2713 Confirmed: Fixed implementation DOES add wildcard');\n\
+  } else {\n  console.log('\u2717 Unexpected: Fixed implementation result:', fixedResult);\n\
+  }\n\nconsole.log('');\nconsole.log('The fix ensures that when there are multiple\
+  \ log groups,');\nconsole.log('a wildcard is always added to the SourceArn pattern,');\n\
+  console.log('allowing the Lambda permission to match all log groups.');\nEOF\nnode\
+  \ /tmp/test_fix.js"
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Test case: Log groups where first is a prefix of second
+Log groups: [ '/aws/lambda/yada-dev-dummy', '/aws/lambda/yada-dev-dummy2' ]
+
+Buggy implementation result: /aws/lambda/yada-dev-dummy
+Fixed implementation result: /aws/lambda/yada-dev-dummy*
+
+✓ Confirmed: Buggy implementation does NOT add wildcard
+✓ Confirmed: Fixed implementation DOES add wildcard
+
+The fix ensures that when there are multiple log groups,
+a wildcard is always added to the SourceArn pattern,
+allowing the Lambda permission to ...
+```
+========================================================================================================================
+AGENT:
+STEP 6: REVIEW THE CHANGES
+
+<thinking>
+Let me review the changes I made to ensure they are correct and complete:
+
+1. I identified the bug in the `longestCommonSuffix` function in `lib/plugins/aws/package/compile/events/cloudWatchLog/index.js`.
+
+2. The bug was that when the first log group is a prefix of all other log groups, no wildcard was added to the SourceArn pattern. This caused the Lambda permission to not match all log groups.
+
+3. I fixed the bug by changing the condition from `longestCommon === first` to `logGroupNames.length === 1`. This ensures that a wildcard is always added when there are multiple log groups.
+
+4. I added a test case for the specific scenario mentioned in the problem statement.
+
+5. All existing tests pass, and the new test case also passes.
+
+Let me also verify the fix by looking at the final state of the code:
+</thinking>
 ========================================================================================================================
 TOOL CALL (open_files)
 file_paths:
@@ -941,381 +747,111 @@ TOOL RETURN (open_files)
 ```
 ========================================================================================================================
 AGENT:
-Let me also verify the naming.js file:
-========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: lib/plugins/aws/lib/naming.js
-patterns:
-- getLambdaCloudWatchLogPermissionLogicalId
-
-========================================================================================================================
-TOOL RETURN (inspect_code)
-```
-Successfully expanded code chunks in lib/plugins/aws/lib/naming.js:
-
-````javascript
-   0 'use strict';
-   1 
-   2 const _ = require('lodash');
-...
-  27   normalizeName(name) {
-...
-  30   normalizeNameToAlphaNumericOnly(name) {
-...
-  33   normalizePathPart(path) {
-...
-  42   getServiceEndpointRegex() {
-...
-  47   getStackName() {
-...
-  57   getServiceArtifactName() {
-...
-  61   getFunctionArtifactName(functionName) {
-...
-  65   getLayerArtifactName(layerName) {
-...
-  69   getServiceStateFileName(...
-```
-========================================================================================================================
-AGENT:
-The code looks correct. Now let me write a simple test to verify that the fix works as expected by creating a minimal reproduction:
+The fix is in place. Let me also run a broader set of tests to make sure I haven't broken anything else:
 ========================================================================================================================
 TOOL CALL (bash)
-command: "cd /workspace && cat > /tmp/test-fix.js << 'EOF'\n'use strict';\n\nconst\
-  \ Serverless = require('./lib/Serverless');\nconst AwsProvider = require('./lib/plugins/aws/provider/awsProvider');\n\
-  const AwsCompileCloudWatchLogEvents = require('./lib/plugins/aws/package/compile/events/cloudWatchLog/index');\n\
-  \n// Create a serverless instance\nconst serverless = new Serverless();\nserverless.service.provider.compiledCloudFormationTemplate\
-  \ = { Resources: {} };\nserverless.setProvider('aws', new AwsProvider(serverless));\n\
-  \n// Create the plugin instance\nconst plugin = new AwsCompileCloudWatchLogEvents(serverless);\n\
-  plugin.serverless.service.service = 'test-service';\n\n// Set up the function with\
-  \ 2 cloudwatch log events (as described in the bug report)\nplugin.serverless.service.functions\
-  \ = {\n  'dummy-logger': {\n    handler: 'handler.logger',\n    events: [\n    \
-  \  {\n        cloudwatchLog: {\n          logGroup: '/aws/lambda/yada-dev-dummy',\n\
-  \          filter: 'REPORT',\n        },\n      },\n      {\n        cloudwatchLog:\
-  \ {\n          logGroup: '/aws/lambda/yada-dev-dummy2',\n          filter: 'REPORT',\n\
-  \        },\n      },\n    ],\n  },\n};\n\n// Compile the events\nplugin.compileCloudWatchLogEvents();\n\
-  \n// Get the resources\nconst resources = plugin.serverless.service.provider.compiledCloudFormationTemplate.Resources;\n\
-  \n// Check that we have 2 subscription filters\nconst subscriptionFilters = Object.keys(resources).filter(key\
-  \ => \n  resources[key].Type === 'AWS::Logs::SubscriptionFilter'\n);\n\n// Check\
-  \ that we have 2 permissions\nconst permissions = Object.keys(resources).filter(key\
-  \ => \n  resources[key].Type === 'AWS::Lambda::Permission'\n);\n\nconsole.log('Subscription\
-  \ Filters:', subscriptionFilters.length);\nconsole.log('  -', subscriptionFilters.join('\\\
-  n  - '));\n\nconsole.log('\\nPermissions:', permissions.length);\nconsole.log('\
-  \  -', permissions.join('\\n  - '));\n\n// Verify each permission has the correct\
-  \ SourceArn\npermissions.forEach(permKey => {\n  const perm = resources[permKey];\n\
-  \  const sourceArn = perm.Properties.SourceArn['Fn::Join'][1];\n  const logGroupPart\
-  \ = sourceArn[sourceArn.length - 2]; // The log group name is second to last\n \
-  \ console.log(`\\n${permKey} SourceArn log-group: ${logGroupPart}`);\n});\n\n//\
-  \ Verify each subscription filter depends on the correct permission\nsubscriptionFilters.forEach(sfKey\
-  \ => {\n  const sf = resources[sfKey];\n  console.log(`\\n${sfKey} DependsOn: ${sf.DependsOn}`);\n\
-  \  console.log(`  LogGroupName: ${sf.Properties.LogGroupName}`);\n});\n\n// Final\
-  \ verification\nif (subscriptionFilters.length === 2 && permissions.length === 2)\
-  \ {\n  console.log('\\n\u2705 SUCCESS: 2 subscription filters and 2 permissions\
-  \ created!');\n} else {\n  console.log('\\n\u274C FAILURE: Expected 2 subscription\
-  \ filters and 2 permissions');\n  process.exit(1);\n}\nEOF\nnode /tmp/test-fix.js"
-timeout: 30
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-node:internal/modules/cjs/loader:1368
-  throw err;
-  ^
-
-Error: Cannot find module './lib/Serverless'
-Require stack:
-- /tmp/test-fix.js
-    at Function._resolveFilename (node:internal/modules/cjs/loader:1365:15)
-    at defaultResolveImpl (node:internal/modules/cjs/loader:1021:19)
-    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1026:22)
-    at Function._load (node:internal/modules/cjs/loader:1175:37)
-    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
-    at wrapModul...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: "cd /workspace && cat > test-fix.js << 'EOF'\n'use strict';\n\nconst Serverless\
-  \ = require('./lib/Serverless');\nconst AwsProvider = require('./lib/plugins/aws/provider/awsProvider');\n\
-  const AwsCompileCloudWatchLogEvents = require('./lib/plugins/aws/package/compile/events/cloudWatchLog/index');\n\
-  \n// Create a serverless instance\nconst serverless = new Serverless();\nserverless.service.provider.compiledCloudFormationTemplate\
-  \ = { Resources: {} };\nserverless.setProvider('aws', new AwsProvider(serverless));\n\
-  \n// Create the plugin instance\nconst plugin = new AwsCompileCloudWatchLogEvents(serverless);\n\
-  plugin.serverless.service.service = 'test-service';\n\n// Set up the function with\
-  \ 2 cloudwatch log events (as described in the bug report)\nplugin.serverless.service.functions\
-  \ = {\n  'dummy-logger': {\n    handler: 'handler.logger',\n    events: [\n    \
-  \  {\n        cloudwatchLog: {\n          logGroup: '/aws/lambda/yada-dev-dummy',\n\
-  \          filter: 'REPORT',\n        },\n      },\n      {\n        cloudwatchLog:\
-  \ {\n          logGroup: '/aws/lambda/yada-dev-dummy2',\n          filter: 'REPORT',\n\
-  \        },\n      },\n    ],\n  },\n};\n\n// Compile the events\nplugin.compileCloudWatchLogEvents();\n\
-  \n// Get the resources\nconst resources = plugin.serverless.service.provider.compiledCloudFormationTemplate.Resources;\n\
-  \n// Check that we have 2 subscription filters\nconst subscriptionFilters = Object.keys(resources).filter(key\
-  \ => \n  resources[key].Type === 'AWS::Logs::SubscriptionFilter'\n);\n\n// Check\
-  \ that we have 2 permissions\nconst permissions = Object.keys(resources).filter(key\
-  \ => \n  resources[key].Type === 'AWS::Lambda::Permission'\n);\n\nconsole.log('Subscription\
-  \ Filters:', subscriptionFilters.length);\nconsole.log('  -', subscriptionFilters.join('\\\
-  n  - '));\n\nconsole.log('\\nPermissions:', permissions.length);\nconsole.log('\
-  \  -', permissions.join('\\n  - '));\n\n// Verify each permission has the correct\
-  \ SourceArn\npermissions.forEach(permKey => {\n  const perm = resources[permKey];\n\
-  \  const sourceArn = perm.Properties.SourceArn['Fn::Join'][1];\n  const logGroupPart\
-  \ = sourceArn[sourceArn.length - 2]; // The log group name is second to last\n \
-  \ console.log(`\\n${permKey} SourceArn log-group: ${logGroupPart}`);\n});\n\n//\
-  \ Verify each subscription filter depends on the correct permission\nsubscriptionFilters.forEach(sfKey\
-  \ => {\n  const sf = resources[sfKey];\n  console.log(`\\n${sfKey} DependsOn: ${sf.DependsOn}`);\n\
-  \  console.log(`  LogGroupName: ${sf.Properties.LogGroupName}`);\n});\n\n// Final\
-  \ verification\nif (subscriptionFilters.length === 2 && permissions.length === 2)\
-  \ {\n  console.log('\\n\u2705 SUCCESS: 2 subscription filters and 2 permissions\
-  \ created!');\n} else {\n  console.log('\\n\u274C FAILURE: Expected 2 subscription\
-  \ filters and 2 permissions');\n  process.exit(1);\n}\nEOF\nnode test-fix.js"
-timeout: 30
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Subscription Filters: 2
-  - DummyDashloggerLogsSubscriptionFilterCloudWatchLog1
-  - DummyDashloggerLogsSubscriptionFilterCloudWatchLog2
-
-Permissions: 2
-  - DummyDashloggerLambdaPermissionLogsSubscriptionFilterCloudWatchLog1
-  - DummyDashloggerLambdaPermissionLogsSubscriptionFilterCloudWatchLog2
-
-DummyDashloggerLambdaPermissionLogsSubscriptionFilterCloudWatchLog1 SourceArn log-group: /aws/lambda/yada-dev-dummy
-
-DummyDashloggerLambdaPermissionLogsSubscriptionFilterCloudWatchLog2 SourceArn log-grou...
-```
-========================================================================================================================
-AGENT:
-The fix works correctly. Let me clean up the test file:
-========================================================================================================================
-TOOL CALL (bash)
-command: rm /workspace/test-fix.js
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-...
-```
-========================================================================================================================
-AGENT:
-Now let me run the full test suite for the affected files to make sure everything passes:
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && npm test -- --grep "naming" 2>&1 | tail -100
+command: cd /workspace && npm test -- --grep "cloudWatch" 2>&1 | head -100
 timeout: 120
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
-      ✓ should normalize the bucket name and add the standard prefix
-    #normalizeTopicName()
-      ✓ should remove all non-alpha-numeric characters and capitalize the first letter
-    #getTopicLogicalId()
-      ✓ should remove all non-alpha-numeric characters and capitalize the first letter
-    #getScheduleId()
-      ✓ should add the standard suffix
-    #getScheduleLogicalId()
-      ✓ should normalize the function name and add the standard suffix including the index
-    #getCloudWatchEventId()...
+
+> serverless@1.54.0 test
+> mocha "!(node_modules)/**/*.test.js" --grep cloudWatch
+
+
+
+  0 passing (1ms)
+
+(node:1443) NOTE: The AWS SDK for JavaScript (v2) has reached end-of-support.
+It will no longer receive updates or releases.
+
+Please migrate your code to use AWS SDK for JavaScript (v3).
+For more information, check the blog post at https://a.co/cUPnyil
+(Use `node --trace-warnings ...` to show where the warning was created)...
 ```
 ========================================================================================================================
-AGENT:
-All tests pass. Let me also run a broader test to make sure I haven't broken anything else:
-========================================================================================================================
 TOOL CALL (bash)
-command: cd /workspace && npm test 2>&1 | tail -50
-timeout: 300
+command: cd /workspace && npm test -- --grep "CloudWatch" 2>&1 | head -100
+timeout: 120
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
-           should become lower over time:
-     SyntaxError: Unexpected token 't', "tty unavail"... is not valid JSON
-  SyntaxError: Unexpected token 't', "tty unavail"... is not valid JSON
-      at JSON.parse (<anonymous>)
-      at /workspace/lib/plugins/aws/invokeLocal/index.test.js:913:41
-      at tryCatcher (node_modules/bluebird/js/release/util.js:16:23)
-      at Promise._settlePromiseFromHandler (node_modules/bluebird/js/release/promise.js:547:31)
-      at Promise._settlePromise (node_modul...
+
+> serverless@1.54.0 test
+> mocha "!(node_modules)/**/*.test.js" --grep CloudWatch
+
+
+
+  #addCustomResourceToService()
+Serverless: Installing dependencies for custom CloudFormation resources...
+Serverless: Installing dependencies for custom CloudFormation resources...
+Serverless: Installing dependencies for custom CloudFormation resources...
+(node:1724) NOTE: The AWS SDK for JavaScript (v2) has reached end-of-support.
+It will no longer receive updates or releases.
+
+Please migrate your code to use...
 ```
 ========================================================================================================================
 AGENT:
-The test failures are unrelated to my changes - they are Ruby and Python runtime issues in the test environment. Let me verify by checking the test summary:
+All CloudWatch-related tests pass. Let me also verify the fix by looking at the test file to ensure the new test case is correctly added:
 ========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && npm test 2>&1 | grep -E "passing|failing|pending"
-timeout: 300
+TOOL CALL (inspect_code)
+file_path: lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js
+line_ranges:
+- - 278
+  - 325
 
 ========================================================================================================================
-TOOL RETURN (bash)
+TOOL RETURN (inspect_code)
 ```
-    ✓ reports no pending promises when none have been added
-    ✓ reports one pending promise when one has been added
-  2164 passing (53s)
-  9 pending
-  2 failing...
-```
-========================================================================================================================
-AGENT:
-The 2 failing tests are related to Ruby runtime issues (not related to my changes). Let me verify by checking if these tests were failing before my changes by looking at what they test:
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && npm test 2>&1 | grep -A 5 "failing"
-timeout: 300
+Successfully expanded code chunks in lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js:
 
-========================================================================================================================
-TOOL RETURN (bash)
-```
-  2 failing
-
-  1) AwsInvokeLocal
-       #invokeLocalRuby
-         context.remainingTimeInMillis
-           should become lower over time:...
+````javascript
+   0 'use strict';
+   1 
+   2 const expect = require('chai').expect;
+   3 const AwsProvider = require('../../../../provider/awsProvider');
+   4 const AwsCompileCloudWatchLogEvents = require('./index');
+   5 const Serverless = require('../../../../../../Serverless');
+   6 
+   7 describe('AwsCompileCloudWatchLogEvents', () => {
+   8   let serverless;
+   9   let awsCompileCloudWa...
 ```
 ========================================================================================================================
 AGENT:
-The failing tests are in `AwsInvokeLocal` for Ruby runtime, which is completely unrelated to my CloudWatch Log event changes. These are pre-existing test failures due to the test environment not having Ruby properly configured.
-
-Let me now review all the changes I made to ensure they are correct:
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && git diff
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-diff --git a/lib/plugins/aws/lib/naming.js b/lib/plugins/aws/lib/naming.js
-index 9fe9a4b1f..ea72aaafa 100644
---- a/lib/plugins/aws/lib/naming.js
-+++ b/lib/plugins/aws/lib/naming.js
-@@ -424,10 +424,10 @@ module.exports = {
-       functionName
-     )}LambdaPermissionAlexaSmartHome${alexaSmartHomeIndex}`;
-   },
--  getLambdaCloudWatchLogPermissionLogicalId(functionName) {
-+  getLambdaCloudWatchLogPermissionLogicalId(functionName, logsIndex) {
-     return `${this.getNormalizedFunctionName(
-       fun...
-```
+The fix is complete. Let me provide a summary of the changes:
 ========================================================================================================================
 AGENT:
-I have made the necessary code changes to fix the issue. The changes include:
+Successfully fixed the bug in the CloudWatch Log event handler that caused incorrect Lambda permissions when using 2 or more CloudWatch Log events for the same Lambda function.
 
-1. Modified `getLambdaCloudWatchLogPermissionLogicalId` in `naming.js` to accept a `logsIndex` parameter, so each CloudWatch Log event gets a unique permission logical ID.
+## Problem
+When defining multiple CloudWatch Log events for a Lambda function where the first log group name is a prefix of the second (e.g., `/aws/lambda/yada-dev-dummy` and `/aws/lambda/yada-dev-dummy2`), the generated Lambda permission's SourceArn pattern did not include a wildcard. This caused the permission to only match the first log group, resulting in the error: "Could not execute the lambda function. Make sure you have given CloudWatch Logs permission to execute your function."
 
-2. Updated the CloudWatch Log event compiler in `index.js` to:
-   - Pass the `cloudWatchLogNumberInFunction` index to `getLambdaCloudWatchLogPermissionLogicalId`
-   - Use the specific `LogGroupName` in the permission's `SourceArn` instead of a common prefix
-   - Removed the unused `logGroupNamesThisFunction` variable and `longestCommonSuffix` function
+## Root Cause
+The `longestCommonSuffix` function in `lib/plugins/aws/package/compile/events/cloudWatchLog/index.js` had a bug in its condition for adding a wildcard to the SourceArn pattern. The condition `longestCommon === first` would be true when the first log group is a prefix of all other log groups, incorrectly preventing the wildcard from being added.
 
-3. Updated the tests to verify that multiple permissions are created when multiple CloudWatch Log events are defined.
-
-All relevant tests pass. Now I'm verifying the fix is complete.
-========================================================================================================================
-AGENT:
-Let me run one more comprehensive test to verify the fix works correctly for the exact scenario described in the bug report:
-========================================================================================================================
-TOOL CALL (bash)
-command: "cd /workspace && cat > test-bug-scenario.js << 'EOF'\n'use strict';\n\n\
-  const Serverless = require('./lib/Serverless');\nconst AwsProvider = require('./lib/plugins/aws/provider/awsProvider');\n\
-  const AwsCompileCloudWatchLogEvents = require('./lib/plugins/aws/package/compile/events/cloudWatchLog/index');\n\
-  \n// Create a serverless instance\nconst serverless = new Serverless();\nserverless.service.provider.compiledCloudFormationTemplate\
-  \ = { Resources: {} };\nserverless.setProvider('aws', new AwsProvider(serverless));\n\
-  \n// Create the plugin instance\nconst plugin = new AwsCompileCloudWatchLogEvents(serverless);\n\
-  plugin.serverless.service.service = 'yada';\n\n// Set up the exact scenario from\
-  \ the bug report\nplugin.serverless.service.functions = {\n  'dummy-logger': {\n\
-  \    handler: 'handler.logger',\n    events: [\n      {\n        cloudwatchLog:\
-  \ {\n          logGroup: '/aws/lambda/yada-dev-dummy',\n          filter: 'REPORT',\n\
-  \        },\n      },\n      {\n        cloudwatchLog: {\n          logGroup: '/aws/lambda/yada-dev-dummy2',\n\
-  \          filter: 'REPORT',\n        },\n      },\n    ],\n  },\n};\n\n// Compile\
-  \ the events\nplugin.compileCloudWatchLogEvents();\n\n// Get the resources\nconst\
-  \ resources = plugin.serverless.service.provider.compiledCloudFormationTemplate.Resources;\n\
-  \nconsole.log('=== Generated CloudFormation Resources ===\\n');\n\n// Print all\
-  \ resources\nObject.keys(resources).forEach(key => {\n  const resource = resources[key];\n\
-  \  console.log(`Resource: ${key}`);\n  console.log(`  Type: ${resource.Type}`);\n\
-  \  \n  if (resource.Type === 'AWS::Logs::SubscriptionFilter') {\n    console.log(`\
-  \  DependsOn: ${resource.DependsOn}`);\n    console.log(`  LogGroupName: ${resource.Properties.LogGroupName}`);\n\
-  \    console.log(`  FilterPattern: ${resource.Properties.FilterPattern}`);\n  }\n\
-  \  \n  if (resource.Type === 'AWS::Lambda::Permission') {\n    const sourceArn =\
-  \ resource.Properties.SourceArn['Fn::Join'][1];\n    const logGroupPart = sourceArn[sourceArn.length\
-  \ - 2];\n    console.log(`  SourceArn log-group: ${logGroupPart}`);\n  }\n  \n \
-  \ console.log('');\n});\n\n// Verify the fix\nconst subscriptionFilters = Object.keys(resources).filter(key\
-  \ => \n  resources[key].Type === 'AWS::Logs::SubscriptionFilter'\n);\nconst permissions\
-  \ = Object.keys(resources).filter(key => \n  resources[key].Type === 'AWS::Lambda::Permission'\n\
-  );\n\nconsole.log('=== Verification ===\\n');\n\nlet allCorrect = true;\n\n// Check\
-  \ we have 2 subscription filters\nif (subscriptionFilters.length !== 2) {\n  console.log(`\u274C\
-  \ Expected 2 subscription filters, got ${subscriptionFilters.length}`);\n  allCorrect\
-  \ = false;\n} else {\n  console.log('\u2705 2 subscription filters created');\n\
-  }\n\n// Check we have 2 permissions\nif (permissions.length !== 2) {\n  console.log(`\u274C\
-  \ Expected 2 permissions, got ${permissions.length}`);\n  allCorrect = false;\n\
-  } else {\n  console.log('\u2705 2 permissions created');\n}\n\n// Check each subscription\
-  \ filter depends on its own permission\nsubscriptionFilters.forEach(sfKey => {\n\
-  \  const sf = resources[sfKey];\n  const dependsOn = sf.DependsOn;\n  \n  // Extract\
-  \ the index from the subscription filter name\n  const sfIndex = sfKey.match(/CloudWatchLog(\\\
-  d+)$/)[1];\n  const expectedPermission = `DummyDashloggerLambdaPermissionLogsSubscriptionFilterCloudWatchLog${sfIndex}`;\n\
-  \  \n  if (dependsOn !== expectedPermission) {\n    console.log(`\u274C ${sfKey}\
-  \ depends on ${dependsOn}, expected ${expectedPermission}`);\n    allCorrect = false;\n\
-  \  } else {\n    console.log(`\u2705 ${sfKey} correctly depends on ${expectedPermission}`);\n\
-  \  }\n});\n\n// Check each permission has the correct SourceArn\nconst expectedLogGroups\
-  \ = ['/aws/lambda/yada-dev-dummy', '/aws/lambda/yada-dev-dummy2'];\npermissions.forEach((permKey,\
-  \ idx) => {\n  const perm = resources[permKey];\n  const sourceArn = perm.Properties.SourceArn['Fn::Join'][1];\n\
-  \  const logGroupPart = sourceArn[sourceArn.length - 2];\n  \n  if (!expectedLogGroups.includes(logGroupPart))\
-  \ {\n    console.log(`\u274C ${permKey} has unexpected SourceArn log-group: ${logGroupPart}`);\n\
-  \    allCorrect = false;\n  } else {\n    console.log(`\u2705 ${permKey} has correct\
-  \ SourceArn for ${logGroupPart}`);\n  }\n});\n\nconsole.log('');\nif (allCorrect)\
-  \ {\n  console.log('\U0001F389 All checks passed! The bug is fixed.');\n} else {\n\
-  \  console.log('\U0001F4A5 Some checks failed!');\n  process.exit(1);\n}\nEOF\n\
-  node test-bug-scenario.js"
-timeout: 30
-
-========================================================================================================================
-TOOL RETURN (bash)
+## Fix
+Changed the condition from:
+```javascript
+return longestCommon + (longestCommon === first ? '' : '*');
 ```
-=== Generated CloudFormation Resources ===
-
-Resource: DummyDashloggerLogsSubscriptionFilterCloudWatchLog1
-  Type: AWS::Logs::SubscriptionFilter
-  DependsOn: DummyDashloggerLambdaPermissionLogsSubscriptionFilterCloudWatchLog1
-  LogGroupName: /aws/lambda/yada-dev-dummy
-  FilterPattern: REPORT
-
-Resource: DummyDashloggerLambdaPermissionLogsSubscriptionFilterCloudWatchLog1
-  Type: AWS::Lambda::Permission
-  SourceArn log-group: /aws/lambda/yada-dev-dummy
-
-Resource: DummyDashloggerLogsSubscriptionFilte...
+to:
+```javascript
+return longestCommon + (logGroupNames.length === 1 ? '' : '*');
 ```
-========================================================================================================================
-AGENT:
-The fix is working correctly. Let me clean up the test file:
-========================================================================================================================
-TOOL CALL (bash)
-command: rm /workspace/test-bug-scenario.js
 
-========================================================================================================================
-TOOL RETURN (bash)
-```
-...
-```
-========================================================================================================================
-AGENT:
-I have successfully fixed the bug where using 2 or more CloudWatch Log event handlers for the same Lambda function failed to create correct permissions.
+This ensures that a wildcard is always added when there are multiple log groups, regardless of whether the common prefix equals the first log group.
 
-## Summary of Changes
+## Changes Made
+1. **lib/plugins/aws/package/compile/events/cloudWatchLog/index.js** (line 161): Fixed the condition in the `longestCommonSuffix` function.
 
-### Root Cause
-The `getLambdaCloudWatchLogPermissionLogicalId` function in `naming.js` did not accept an index parameter, causing all CloudWatch Log permissions for a function to have the same logical ID. This resulted in only one permission being created (the last one overwrote the previous ones), and the permission used a "longest common prefix" approach for the SourceArn which didn't work correctly for all log groups.
+2. **lib/plugins/aws/package/compile/events/cloudWatchLog/index.test.js** (lines 313-319): Added a test case for the specific scenario mentioned in the problem statement.
 
-### Fix Applied
-
-1. **`lib/plugins/aws/lib/naming.js`**: Modified `getLambdaCloudWatchLogPermissionLogicalId` to accept a `logsIndex` parameter, generating unique permission logical IDs like `FunctionNameLambdaPermissionLogsSubscriptionFilterCloudWatchLog1`, `FunctionNameLambdaPermissionLogsSubscriptionFilterCloudWatchLog2`, etc.
-
-2. **`lib/plugins/aws/package/compile/events/cloudWatchLog/index.js`**: 
-   - Updated the call to `getLambdaCloudWatchLogPermissionLogicalId` to pass the `cloudWatchLogNumberInFunction` index
-   - Changed the permission's `SourceArn` to use the specific `LogGroupName` instead of the common prefix wildcard
-   - Removed the unused `logGroupNamesThisFunction` variable and `longestCommonSuffix` function
-
-3. **Test files updated**: Updated tests in both `naming.test.js` and `cloudWatchLog/index.test.js` to verify the new behavior where each CloudWatch Log event gets its own permission.
-
-### Result
-Now when a Lambda function has multiple CloudWatch Log event handlers, each log group gets its own `AWS::Lambda::Permission` resource with the correct `SourceArn`, ensuring CloudWatch Logs has permission to invoke the Lambda function for all configured log groups.
+## Verification
+- All 15 existing tests for `AwsCompileCloudWatchLogEvents` pass.
+- All 46 CloudWatch-related tests pass.
+- The new test case verifies that log groups like `/aws/lambda/yada-dev-dummy` and `/aws/lambda/yada-dev-dummy2` correctly produce the pattern `/aws/lambda/yada-dev-dummy*`.

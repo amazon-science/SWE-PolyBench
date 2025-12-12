@@ -76,19 +76,40 @@ env: develop
 </problem_statement>
 
 Do not stop until you have made code changes that resolve the problem statement. Do not ask for clarifications.
+
+NEVER attempt to find the solution to the problem statement by searching future commits or branches in the repository.
 ========================================================================================================================
 AGENT:
-Starting to analyze the problem statement. The issue is about ReplicasInfoManager#registerBroker not checking if the master is alive before returning master info. I need to find and examine the ReplicasInfoManager class to understand the issue and implement a fix.
+Starting to analyze the problem statement. The issue is in ReplicasInfoManager#registerBroker where it doesn't check if the master is actually alive before returning master info. I need to find and examine this file to understand the issue and implement a fix.
+========================================================================================================================
+AGENT:
+STEP 1: GREP FILES - Find the ReplicasInfoManager file
+
+<thinking>
+The problem statement indicates that there's an issue in `ReplicasInfoManager#registerBroker` method. The issue is that when a broker registers, the code checks `syncStateInfo.isMasterExist()` but doesn't verify if the master is actually alive. This can lead to incorrect behavior when:
+1. A controller embedded namesrv is started
+2. A broker with controller model is started
+3. The namesrv is shutdown
+4. The broker is shutdown
+5. The controller embedded namesrv is started again
+6. A new broker with controller model is started - at this point, the old master info is returned even though the master is not alive
+
+I need to:
+1. Find the ReplicasInfoManager file
+2. Understand the current implementation
+3. Modify the code to check if the master is actually alive before returning master info
+
+Let me first search for the ReplicasInfoManager file.
+</thinking>
 ========================================================================================================================
 TOOL CALL (grep)
-content_pattern: ReplicasInfoManager
+content_pattern: class ReplicasInfoManager
 
 ========================================================================================================================
 TOOL RETURN (grep)
 ```
-controller/src/main/java/org/apache/rocketmq/controller/impl/DLedgerControllerStateMachine.java:28:import org.apache.rocketmq.controller.impl.manager.ReplicasInfoManager;
-controller/src/main/java/org/apache/rocketmq/controller/impl/DLedgerControllerStateMachine.java:37:    private final ReplicasInfoManager replicasInfoManager;
-controller/src/main/java/org/apache/rocketmq/controller/impl/DLedgerControllerStateMachine.java:41:    public DLedgerControllerStateMachine(final ReplicasInfoManager repli...
+controller/src/test/java/org/apache/rocketmq/controller/impl/controller/impl/manager/ReplicasInfoManagerTest.java:52:public class ReplicasInfoManagerTest {
+controller/src/main/java/org/apache/rocketmq/controller/impl/manager/ReplicasInfoManager.java:61:public class ReplicasInfoManager {...
 ```
 ========================================================================================================================
 TOOL CALL (open_files)
@@ -98,8 +119,13 @@ file_paths:
 ========================================================================================================================
 TOOL RETURN (open_files)
 ```
-['Successfully opened controller/src/main/java/org/apache/rocketmq/controller/impl/manager/ReplicasInfoManager.java:\n\n````java\n   0 /*\n...\n  60 public class ReplicasInfoManager {\n  61     private static final Logger log = LoggerFactory.getLogger(LoggerName.CONTROLLER_LOGGER_NAME);\n...\n  66     public ReplicasInfoManager(final ControllerConfig config) {\n  67         this.controllerConfig = config;\n  68         this.replicaInfoTable = new HashMap<>();\n  69         this.syncStateSetInfoT...
+['Successfully opened controller/src/main/java/org/apache/rocketmq/controller/impl/manager/ReplicasInfoManager.java:\n\n````java\n   0 /*\n...\n  60 public class ReplicasInfoManager {\n  61     private static final Logger log = LoggerFactory.getLogger(LoggerName.CONTROLLER_LOGGER_NAME);\n...\n  66     public ReplicasInfoManager(final ControllerConfig config) {\n...\n  72     public ControllerResult<AlterSyncStateSetResponseHeader> alterSyncStateSet(\n...\n 155     public ControllerResult<ElectMa...
 ```
+========================================================================================================================
+AGENT:
+<thinking>
+I can see the file is opened but collapsed. I need to expand the `registerBroker` method to understand the current implementation and the issue. Let me expand the relevant code chunks.
+</thinking>
 ========================================================================================================================
 TOOL CALL (inspect_code)
 file_path: controller/src/main/java/org/apache/rocketmq/controller/impl/manager/ReplicasInfoManager.java
@@ -118,13 +144,33 @@ Successfully expanded code chunks in controller/src/main/java/org/apache/rocketm
   61     private static final Logger log = LoggerFactory.getLogger(LoggerName.CONTROLLER_LOGGER_NAME);
 ...
   66     public ReplicasInfoManager(final ControllerConfig config) {
-  67         this.controllerConfig = config;
-  68         this.replicaInfoTable = new HashMap<>();
-  69         this.syncStateSetI...
+...
+  72     public ControllerResult<AlterSyncStateSetResponseHeader> alterSyncStateSet(
+...
+ 155     public ControllerResult<Elec...
 ```
 ========================================================================================================================
 AGENT:
-Now I need to understand the `SyncStateInfo` class to see how `isMasterExist()` works and what information is available to check if the master is alive:
+<thinking>
+Now I can see the issue. In the `registerBroker` method, at line 242, the code checks `syncStateInfo.isMasterExist()`. However, this method only checks if a master address is set in the `SyncStateInfo`, but it doesn't verify if the master is actually alive (i.e., if the master broker is currently connected and sending heartbeats).
+
+Looking at the problem statement:
+1. When the controller and broker are shut down and then restarted, the old master info is still stored in `SyncStateInfo`
+2. When a new broker registers, the code returns the old master address without checking if that master is actually alive
+
+The fix should involve checking if the master is actually alive (connected to the controller) before returning the master info. If the master is not alive, the code should proceed to elect a new master.
+
+Let me look at the `SyncStateInfo` class to understand its structure and the `isMasterExist` method.
+</thinking>
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: class SyncStateInfo
+
+========================================================================================================================
+TOOL RETURN (grep)
+```
+controller/src/main/java/org/apache/rocketmq/controller/impl/manager/SyncStateInfo.java:25:public class SyncStateInfo {...
+```
 ========================================================================================================================
 TOOL CALL (open_files)
 file_paths:
@@ -137,56 +183,66 @@ TOOL RETURN (open_files)
 ```
 ========================================================================================================================
 AGENT:
-Now I understand the issue. The `isMasterExist()` method only checks if `masterAddress` is not empty, but it doesn't check if the master is actually alive (i.e., if the broker is still sending heartbeats). Let me look at how the broker heartbeat is managed:
+<thinking>
+Now I understand the issue. The `isMasterExist()` method in `SyncStateInfo` only checks if the `masterAddress` is not empty. It doesn't check if the master is actually alive (i.e., if the broker is connected and sending heartbeats).
+
+Looking at the problem statement, the issue is:
+1. When a broker registers, the code checks `syncStateInfo.isMasterExist()` which only checks if `masterAddress` is not empty
+2. But the master might not be alive (not connected to the controller)
+3. In this case, the code should elect a new master instead of returning the old master info
+
+The fix should involve:
+1. Adding a parameter to the `registerBroker` method to pass information about which brokers are currently alive
+2. Checking if the master is alive before returning the master info
+
+Let me look at how `registerBroker` is called to understand how to pass the alive broker information.
+</thinking>
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: registerBroker\(
+path_glob: '**/controller/**/*.java'
+
+========================================================================================================================
+TOOL RETURN (grep)
+```
+controller/src/main/java/org/apache/rocketmq/controller/BrokerHeartbeatManager.java:51:    void registerBroker(final String clusterName, final String brokerName, final String brokerAddr, final long brokerId,
+controller/src/main/java/org/apache/rocketmq/controller/processor/ControllerRequestProcessor.java:111:                final CompletableFuture<RemotingCommand> future = this.controllerManager.getController().registerBroker(controllerRequest);
+controller/src/main/java/org/apache/rocketmq/contr...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+I can see that:
+1. `ReplicasInfoManager.registerBroker()` is called from `DLedgerController.registerBroker()`
+2. There's a `BrokerHeartbeatManager` that tracks which brokers are alive
+
+Let me look at the `DLedgerController` to understand how it calls `registerBroker` and how it could pass the alive broker information.
+</thinking>
 ========================================================================================================================
 TOOL CALL (open_files)
 file_paths:
+- controller/src/main/java/org/apache/rocketmq/controller/impl/DLedgerController.java
 - controller/src/main/java/org/apache/rocketmq/controller/BrokerHeartbeatManager.java
 
 ========================================================================================================================
 TOOL RETURN (open_files)
 ```
-['Successfully opened controller/src/main/java/org/apache/rocketmq/controller/BrokerHeartbeatManager.java:\n\n````java\n   0 /*\n   1  * Licensed to the Apache Software Foundation (ASF) under one or more\n   2  * contributor license agreements.  See the NOTICE file distributed with\n   3  * this work for additional information regarding copyright ownership.\n   4  * The ASF licenses this file to You under the Apache License, Version 2.0\n   5  * (the "License"); you may not use this file except ...
+['Successfully opened controller/src/main/java/org/apache/rocketmq/controller/impl/DLedgerController.java:\n\n````java\n   0 /*\n...\n  69 public class DLedgerController implements Controller {\n  70 \n  71     private static final Logger log = LoggerFactory.getLogger(LoggerName.CONTROLLER_LOGGER_NAME);\n...\n  87     public DLedgerController(final ControllerConfig config, final BiPredicate<String, String> brokerAlivePredicate) {\n...\n  91     public DLedgerController(final ControllerConfig con...
 ```
 ========================================================================================================================
 AGENT:
-I can see there's an `isBrokerActive` method in the `BrokerHeartbeatManager` interface. Now let me look at the `registerBroker` method in `ReplicasInfoManager` more closely and see how it's called:
-========================================================================================================================
-TOOL CALL (grep)
-content_pattern: registerBroker.*ReplicasInfoManager
+<thinking>
+Now I can see the key pieces:
+1. `BrokerHeartbeatManager` has a method `isBrokerActive(clusterName, brokerAddr)` that checks if a broker is active
+2. `DLedgerController` has a `brokerAlivePredicate` that is a `BiPredicate<String, String>` which can be used to check if a broker is alive
 
-========================================================================================================================
-TOOL RETURN (grep)
-```
-No matches found for pattern 'registerBroker.*ReplicasInfoManager'....
-```
-========================================================================================================================
-TOOL CALL (grep)
-content_pattern: replicasInfoManager\.registerBroker
-
-========================================================================================================================
-TOOL RETURN (grep)
-```
-controller/src/main/java/org/apache/rocketmq/controller/impl/DLedgerController.java:169:            () -> this.replicasInfoManager.registerBroker(request), true);
-controller/src/test/java/org/apache/rocketmq/controller/impl/controller/impl/manager/ReplicasInfoManagerTest.java:79:        final ControllerResult<RegisterBrokerToControllerResponseHeader> registerResult = this.replicasInfoManager.registerBroker(registerRequest);...
-```
-========================================================================================================================
-TOOL CALL (open_files)
-file_paths:
-- controller/src/main/java/org/apache/rocketmq/controller/impl/DLedgerController.java
-
-========================================================================================================================
-TOOL RETURN (open_files)
-```
-['Successfully opened controller/src/main/java/org/apache/rocketmq/controller/impl/DLedgerController.java:\n\n````java\n   0 /*\n   1  * Licensed to the Apache Software Foundation (ASF) under one or more\n   2  * contributor license agreements.  See the NOTICE file distributed with\n   3  * this work for additional information regarding copyright ownership.\n   4  * The ASF licenses this file to You under the Apache License, Version 2.0\n   5  * (the "License"); you may not use this file except ...
-```
-========================================================================================================================
-AGENT:
-Now I can see that `DLedgerController` has a `brokerAlivePredicate` that can be used to check if a broker is alive. Let me look at how `electMaster` uses this predicate:
+Let me look at how `brokerAlivePredicate` is used in the codebase, particularly in the `electMaster` method which likely already has this check.
+</thinking>
 ========================================================================================================================
 TOOL CALL (inspect_code)
 file_path: controller/src/main/java/org/apache/rocketmq/controller/impl/DLedgerController.java
 patterns:
+- brokerAlivePredicate
 - electMaster
 
 ========================================================================================================================
@@ -196,26 +252,32 @@ Successfully expanded code chunks in controller/src/main/java/org/apache/rocketm
 
 ````java
    0 /*
-   1  * Licensed to the Apache Software Foundation (ASF) under one or more
-   2  * contributor license agreements.  See the NOTICE file distributed with
-   3  * this work for additional information regarding copyright ownership.
-   4  * The ASF licenses this file to You under the Apache License, Version 2.0
-   5  * (the "License"); you may not use this file ...
+...
+  69 public class DLedgerController implements Controller {
+  70 
+  71     private static final Logger log = LoggerFactory.getLogger(LoggerName.CONTROLLER_LOGGER_NAME);
+  72     private final DLedgerServer dLedgerServer;
+  73     private final ControllerConfig controllerConfig;
+  74     private final DLedgerConfig dLedgerConfig;
+  75     private final Re...
 ```
 ========================================================================================================================
 AGENT:
-Now I can see the issue clearly. Looking at the code:
+<thinking>
+Now I can see the pattern. Looking at the code:
 
-1. `alterSyncStateSet` passes `this.brokerAlivePredicate` to `replicasInfoManager.alterSyncStateSet`
-2. `cleanBrokerData` passes `this.brokerAlivePredicate` to `replicasInfoManager.cleanBrokerData`
-3. But `registerBroker` does NOT pass `this.brokerAlivePredicate` to `replicasInfoManager.registerBroker`
+1. `alterSyncStateSet` passes `this.brokerAlivePredicate` to `replicasInfoManager.alterSyncStateSet()`
+2. `cleanBrokerData` passes `this.brokerAlivePredicate` to `replicasInfoManager.cleanBrokerData()`
+3. But `registerBroker` does NOT pass `this.brokerAlivePredicate` to `replicasInfoManager.registerBroker()`
 
-Let me look at the `electMaster` method in `ReplicasInfoManager` to see how it uses the predicate:
+This is the bug! The `registerBroker` method should also pass the `brokerAlivePredicate` so that it can check if the master is actually alive before returning the master info.
+
+Let me look at how `alterSyncStateSet` uses the `brokerAlivePredicate` in `ReplicasInfoManager` to understand the pattern.
+</thinking>
 ========================================================================================================================
 TOOL CALL (inspect_code)
 file_path: controller/src/main/java/org/apache/rocketmq/controller/impl/manager/ReplicasInfoManager.java
 patterns:
-- electMaster
 - alterSyncStateSet
 
 ========================================================================================================================
@@ -230,96 +292,77 @@ Successfully expanded code chunks in controller/src/main/java/org/apache/rocketm
   61     private static final Logger log = LoggerFactory.getLogger(LoggerName.CONTROLLER_LOGGER_NAME);
 ...
   66     public ReplicasInfoManager(final ControllerConfig config) {
-  67         this.controllerConfig = config;
-  68         this.replicaInfoTable = new HashMap<>();
-  69         this.syncStateSetI...
+...
+  72     public ControllerResult<AlterSyncStateSetResponseHeader> alterSyncStateSet(
+  73         final AlterSyncStateSetReque...
 ```
 ========================================================================================================================
 AGENT:
-Now I understand the issue completely. The problem is in the `registerBroker` method at line 242:
+<thinking>
+Now I understand the issue clearly. Looking at line 128 in `alterSyncStateSet`, the code uses `brokerAlivePredicate.test(brokerInfo.getClusterName(), replicas)` to check if a broker is alive.
 
-```java
-if (syncStateInfo.isMasterExist()) {
-    // If the master is alive, just return master info.
-    final String masterAddress = syncStateInfo.getMasterAddress();
-    response.setMasterAddress(masterAddress);
-    return result;
-}
+The fix for `registerBroker` should:
+1. Add a `BiPredicate<String, String> brokerAlivePredicate` parameter to the method
+2. When checking `syncStateInfo.isMasterExist()`, also check if the master is actually alive using `brokerAlivePredicate.test(clusterName, masterAddress)`
+3. If the master exists but is not alive, proceed to elect a new master
+
+Let me also look at the `BrokerInfo` class to understand how to get the cluster name.
+</thinking>
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: class BrokerInfo
+
+========================================================================================================================
+TOOL RETURN (grep)
 ```
-
-The `isMasterExist()` method only checks if `masterAddress` is not empty, but it doesn't check if the master broker is actually alive (sending heartbeats). The fix should be to pass the `brokerAlivePredicate` to the `registerBroker` method and use it to check if the master is actually alive.
-
-Let me also look at the test file to understand the expected behavior:
+controller/src/main/java/org/apache/rocketmq/controller/impl/manager/BrokerInfo.java:24:public class BrokerInfo {...
+```
 ========================================================================================================================
 TOOL CALL (open_files)
 file_paths:
-- controller/src/test/java/org/apache/rocketmq/controller/impl/controller/impl/manager/ReplicasInfoManagerTest.java
+- controller/src/main/java/org/apache/rocketmq/controller/impl/manager/BrokerInfo.java
 
 ========================================================================================================================
 TOOL RETURN (open_files)
 ```
-['Successfully opened controller/src/test/java/org/apache/rocketmq/controller/impl/controller/impl/manager/ReplicasInfoManagerTest.java:\n\n````java\n   0 /*\n   1  * Licensed to the Apache Software Foundation (ASF) under one or more\n   2  * contributor license agreements.  See the NOTICE file distributed with\n   3  * this work for additional information regarding copyright ownership.\n   4  * The ASF licenses this file to You under the Apache License, Version 2.0\n   5  * (the "License"); you...
-```
-========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: controller/src/test/java/org/apache/rocketmq/controller/impl/controller/impl/manager/ReplicasInfoManagerTest.java
-patterns:
-- testAllReplicasShutdownAndRestart
-
-========================================================================================================================
-TOOL RETURN (inspect_code)
-```
-Successfully expanded code chunks in controller/src/test/java/org/apache/rocketmq/controller/impl/controller/impl/manager/ReplicasInfoManagerTest.java:
-
-````java
-   0 /*
-   1  * Licensed to the Apache Software Foundation (ASF) under one or more
-   2  * contributor license agreements.  See the NOTICE file distributed with
-   3  * this work for additional information regarding copyright ownership.
-   4  * The ASF licenses this file to You under the Apache License, Version 2.0
-   5  * (the "License...
+['Successfully opened controller/src/main/java/org/apache/rocketmq/controller/impl/manager/BrokerInfo.java:\n\n````java\n   0 /*\n   1  * Licensed to the Apache Software Foundation (ASF) under one or more\n   2  * contributor license agreements.  See the NOTICE file distributed with\n   3  * this work for additional information regarding copyright ownership.\n   4  * The ASF licenses this file to You under the Apache License, Version 2.0\n   5  * (the "License"); you may not use this file except...
 ```
 ========================================================================================================================
 AGENT:
-Now I have a clear understanding of the issue. Let me implement the fix:
+<thinking>
+Now I have all the information I need. The `BrokerInfo` class has a `getClusterName()` method that can be used to get the cluster name.
+
+Now let me also look at the `SyncStateInfo` class to see if it has a `getClusterName()` method.
+
+Looking at the `SyncStateInfo` class I opened earlier, it does have a `getClusterName()` method at line 58-60.
+
+Now I can implement the fix:
 
 1. Modify `ReplicasInfoManager.registerBroker()` to accept a `BiPredicate<String, String> brokerAlivePredicate` parameter
-2. Use this predicate to check if the master is actually alive before returning master info
-3. Update `DLedgerController.registerBroker()` to pass the `brokerAlivePredicate` to `replicasInfoManager.registerBroker()`
-4. Update the test to pass the predicate
+2. In the method, when checking `syncStateInfo.isMasterExist()`, also check if the master is actually alive using `brokerAlivePredicate.test(clusterName, masterAddress)`
+3. Modify `DLedgerController.registerBroker()` to pass `this.brokerAlivePredicate` to the method
 
-Let me first look at the full file to understand the imports:
-========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: controller/src/main/java/org/apache/rocketmq/controller/impl/manager/ReplicasInfoManager.java
-line_ranges:
-- - 0
-  - 70
-
-========================================================================================================================
-TOOL RETURN (inspect_code)
-```
-Successfully expanded code chunks in controller/src/main/java/org/apache/rocketmq/controller/impl/manager/ReplicasInfoManager.java:
-
-````java
-   0 /*
-   1  * Licensed to the Apache Software Foundation (ASF) under one or more
-   2  * contributor license agreements.  See the NOTICE file distributed with
-   3  * this work for additional information regarding copyright ownership.
-   4  * The ASF licenses this file to You under the Apache License, Version 2.0
-   5  * (the "License"); you may not use ...
-```
+Let me implement these changes.
+</thinking>
 ========================================================================================================================
 AGENT:
-Now I have a complete understanding of the code. Let me implement the fix:
-
-1. Modify `ReplicasInfoManager.registerBroker()` to accept a `BiPredicate<String, String> brokerAlivePredicate` parameter
-2. Use this predicate to check if the master is actually alive before returning master info
-3. Update `DLedgerController.registerBroker()` to pass the `brokerAlivePredicate`
-4. Update the test to pass the predicate
+I've identified the issue. The registerBroker method in ReplicasInfoManager doesn't check if the master is actually alive before returning master info. I need to:
+1. Modify ReplicasInfoManager.registerBroker() to accept a brokerAlivePredicate parameter
+2. Check if the master is alive before returning master info
+3. Modify DLedgerController.registerBroker() to pass the brokerAlivePredicate
 ========================================================================================================================
 AGENT:
-I've analyzed the issue. The problem is in ReplicasInfoManager.registerBroker() method which only checks if masterAddress is not empty (via isMasterExist()), but doesn't check if the master is actually alive. I need to modify the method to accept a brokerAlivePredicate and use it to check if the master is alive before returning master info. Now implementing the fix.
+STEP 2: MODIFY CODE - Fix the registerBroker method
+
+<thinking>
+Now I'll make the necessary changes:
+
+1. First, modify `ReplicasInfoManager.registerBroker()` to accept a `BiPredicate<String, String> brokerAlivePredicate` parameter
+2. Add the check for master being alive
+3. Then modify `DLedgerController.registerBroker()` to pass the predicate
+
+Let me start with the `ReplicasInfoManager.registerBroker()` method.
+</thinking>
 ========================================================================================================================
 TOOL CALL (find_and_replace_code)
 file_path: controller/src/main/java/org/apache/rocketmq/controller/impl/manager/ReplicasInfoManager.java
@@ -369,14 +412,14 @@ replace: "    public ControllerResult<RegisterBrokerToControllerResponseHeader> 
   \          } else {\n                brokerId = brokerInfo.getBrokerId(brokerAddress);\n\
   \            }\n            response.setBrokerId(brokerId);\n            response.setMasterEpoch(syncStateInfo.getMasterEpoch());\n\
   \            response.setSyncStateSetEpoch(syncStateInfo.getSyncStateSetEpoch());\n\
-  \n            // If the master is alive, just return master info.\n            if\
-  \ (syncStateInfo.isMasterExist() && brokerAlivePredicate.test(brokerInfo.getClusterName(),\
-  \ syncStateInfo.getMasterAddress())) {\n                final String masterAddress\
-  \ = syncStateInfo.getMasterAddress();\n                response.setMasterAddress(masterAddress);\n\
-  \                return result;\n            } else {\n                // If the\
-  \ master is not alive, we should elect a new master:\n                // Case1:\
-  \ This replicas was in sync state set list\n                // Case2: The option\
-  \ {EnableElectUncleanMaster} is true\n                canBeElectedAsMaster = syncStateInfo.getSyncStateSet().contains(brokerAddress)\
+  \n            final String masterAddress = syncStateInfo.getMasterAddress();\n \
+  \           if (syncStateInfo.isMasterExist() && brokerAlivePredicate.test(syncStateInfo.getClusterName(),\
+  \ masterAddress)) {\n                // If the master is alive, just return master\
+  \ info.\n                response.setMasterAddress(masterAddress);\n           \
+  \     return result;\n            } else {\n                // If the master is\
+  \ not alive, we should elect a new master:\n                // Case1: This replicas\
+  \ was in sync state set list\n                // Case2: The option {EnableElectUncleanMaster}\
+  \ is true\n                canBeElectedAsMaster = syncStateInfo.getSyncStateSet().contains(brokerAddress)\
   \ || this.controllerConfig.isEnableElectUncleanMaster();\n            }\n      \
   \  } else {\n            // If the broker's metadata does not exist in the state\
   \ machine, the replicas can be elected as master directly.\n            canBeElectedAsMaster\
@@ -397,7 +440,7 @@ Successfully replaced code in controller/src/main/java/org/apache/rocketmq/contr
 ```
 ========================================================================================================================
 AGENT:
-Now let me update the `DLedgerController.registerBroker()` method to pass the `brokerAlivePredicate`:
+Now I need to update the `DLedgerController.registerBroker()` method to pass the `brokerAlivePredicate`:
 ========================================================================================================================
 TOOL CALL (find_and_replace_code)
 file_path: controller/src/main/java/org/apache/rocketmq/controller/impl/DLedgerController.java
@@ -423,13 +466,31 @@ Successfully replaced code in controller/src/main/java/org/apache/rocketmq/contr
 ```
 ========================================================================================================================
 AGENT:
-Now let me update the test file to pass the predicate:
+Now I need to update the test file that calls `registerBroker` to pass the predicate. Let me check the test file:
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- controller/src/test/java/org/apache/rocketmq/controller/impl/controller/impl/manager/ReplicasInfoManagerTest.java
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened controller/src/test/java/org/apache/rocketmq/controller/impl/controller/impl/manager/ReplicasInfoManagerTest.java:\n\n````java\n   0 /*\n...\n  51 public class ReplicasInfoManagerTest {\n  52     private ReplicasInfoManager replicasInfoManager;\n...\n  56     @Before\n  57     public void init() {\n...\n  66     @After\n  67     public void destroy() {\n...\n  73     public boolean registerNewBroker(String clusterName, String brokerName, String brokerAddress,\n  74         ...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+I can see that the test file has a `registerNewBroker` method that calls `this.replicasInfoManager.registerBroker(registerRequest)`. I need to update this to pass the predicate.
+
+Let me first look at the test file more closely to understand how the `heartbeatManager` is used and what predicate should be passed.
+</thinking>
 ========================================================================================================================
 TOOL CALL (inspect_code)
 file_path: controller/src/test/java/org/apache/rocketmq/controller/impl/controller/impl/manager/ReplicasInfoManagerTest.java
-line_ranges:
-- - 0
-  - 120
+patterns:
+- init
+- registerNewBroker
+- heartbeatManager
 
 ========================================================================================================================
 TOOL RETURN (inspect_code)
@@ -438,15 +499,30 @@ Successfully expanded code chunks in controller/src/test/java/org/apache/rocketm
 
 ````java
    0 /*
-   1  * Licensed to the Apache Software Foundation (ASF) under one or more
-   2  * contributor license agreements.  See the NOTICE file distributed with
-   3  * this work for additional information regarding copyright ownership.
-   4  * The ASF licenses this file to You under the Apache License, Version 2.0
-   5  * (the "License...
+...
+  51 public class ReplicasInfoManagerTest {
+  52     private ReplicasInfoManager replicasInfoManager;
+  53 
+  54     private DefaultBrokerHeartbeatManager heartbeatManager;
+  55 
+  56     @Before
+  57     public void init() {
+  58         final ControllerConfig config = new ControllerConfig();
+  59         config.setEnableEl...
 ```
 ========================================================================================================================
 AGENT:
-I see that the test file uses `registerNewBroker` which calls `this.replicasInfoManager.registerBroker(registerRequest)` without the predicate. I need to update this method to pass a predicate. Let me update the test file:
+<thinking>
+Now I can see the test file. The `registerNewBroker` method calls `this.replicasInfoManager.registerBroker(registerRequest)` without passing the predicate. I need to update this to pass a predicate.
+
+Looking at the test, I see that:
+1. `alterNewInSyncSet` uses `(va1, va2) -> true` as the predicate (line 97)
+2. Other tests use `this.heartbeatManager::isBrokerActive` as the predicate
+
+For the `registerNewBroker` method, I should use a predicate that returns `true` for all brokers (since the test is just registering new brokers and we want them to be considered alive).
+
+Let me update the test file:
+</thinking>
 ========================================================================================================================
 TOOL CALL (find_and_replace_code)
 file_path: controller/src/test/java/org/apache/rocketmq/controller/impl/controller/impl/manager/ReplicasInfoManagerTest.java
@@ -456,30 +532,14 @@ find: "    public boolean registerNewBroker(String clusterName, String brokerNam
   \ =\n            new RegisterBrokerToControllerRequestHeader(clusterName, brokerName,\
   \ brokerAddress);\n        final ControllerResult<RegisterBrokerToControllerResponseHeader>\
   \ registerResult = this.replicasInfoManager.registerBroker(registerRequest);\n \
-  \       apply(registerResult.getEvents());\n\n        if (isFirstRegisteredBroker)\
-  \ {\n            final ControllerResult<GetReplicaInfoResponseHeader> getInfoResult\
-  \ = this.replicasInfoManager.getReplicaInfo(new GetReplicaInfoRequestHeader(brokerName));\n\
-  \            final GetReplicaInfoResponseHeader replicaInfo = getInfoResult.getResponse();\n\
-  \            assertEquals(replicaInfo.getMasterAddress(), brokerAddress);\n    \
-  \        assertEquals(replicaInfo.getMasterEpoch(), 1);\n        } else {\n    \
-  \        final RegisterBrokerToControllerResponseHeader response = registerResult.getResponse();\n\
-  \            assertTrue(response.getBrokerId() > 0);\n        }\n        return\
-  \ true;\n    }"
+  \       apply(registerResult.getEvents());"
 replace: "    public boolean registerNewBroker(String clusterName, String brokerName,\
   \ String brokerAddress,\n        boolean isFirstRegisteredBroker) {\n        //\
   \ Register new broker\n        final RegisterBrokerToControllerRequestHeader registerRequest\
   \ =\n            new RegisterBrokerToControllerRequestHeader(clusterName, brokerName,\
   \ brokerAddress);\n        final ControllerResult<RegisterBrokerToControllerResponseHeader>\
   \ registerResult = this.replicasInfoManager.registerBroker(registerRequest, (cluster,\
-  \ addr) -> true);\n        apply(registerResult.getEvents());\n\n        if (isFirstRegisteredBroker)\
-  \ {\n            final ControllerResult<GetReplicaInfoResponseHeader> getInfoResult\
-  \ = this.replicasInfoManager.getReplicaInfo(new GetReplicaInfoRequestHeader(brokerName));\n\
-  \            final GetReplicaInfoResponseHeader replicaInfo = getInfoResult.getResponse();\n\
-  \            assertEquals(replicaInfo.getMasterAddress(), brokerAddress);\n    \
-  \        assertEquals(replicaInfo.getMasterEpoch(), 1);\n        } else {\n    \
-  \        final RegisterBrokerToControllerResponseHeader response = registerResult.getResponse();\n\
-  \            assertTrue(response.getBrokerId() > 0);\n        }\n        return\
-  \ true;\n    }"
+  \ addr) -> true);\n        apply(registerResult.getEvents());"
 
 ========================================================================================================================
 TOOL RETURN (find_and_replace_code)
@@ -494,35 +554,20 @@ Successfully replaced code in controller/src/test/java/org/apache/rocketmq/contr
 ```
 ========================================================================================================================
 AGENT:
-Now let me check if there are any other places in the codebase that call `registerBroker`:
+Now let me check if there are any other places in the codebase that call `registerBroker` on `ReplicasInfoManager`:
 ========================================================================================================================
 TOOL CALL (grep)
-content_pattern: \.registerBroker\(
+content_pattern: replicasInfoManager\.registerBroker\(
 
 ========================================================================================================================
 TOOL RETURN (grep)
 ```
-controller/src/main/java/org/apache/rocketmq/controller/processor/ControllerRequestProcessor.java:111:                final CompletableFuture<RemotingCommand> future = this.controllerManager.getController().registerBroker(controllerRequest);
-controller/src/main/java/org/apache/rocketmq/controller/processor/ControllerRequestProcessor.java:116:                        this.heartbeatManager.registerBroker(controllerRequest.getClusterName(), controllerRequest.getBrokerName(), controllerRequest.getBro...
+controller/src/main/java/org/apache/rocketmq/controller/impl/DLedgerController.java:169:            () -> this.replicasInfoManager.registerBroker(request, this.brokerAlivePredicate), true);
+controller/src/test/java/org/apache/rocketmq/controller/impl/controller/impl/manager/ReplicasInfoManagerTest.java:79:        final ControllerResult<RegisterBrokerToControllerResponseHeader> registerResult = this.replicasInfoManager.registerBroker(registerRequest, (cluster, addr) -> true);...
 ```
 ========================================================================================================================
 AGENT:
-I see that the `Controller` interface also has a `registerBroker` method. Let me check the interface:
-========================================================================================================================
-TOOL CALL (open_files)
-file_paths:
-- controller/src/main/java/org/apache/rocketmq/controller/Controller.java
-
-========================================================================================================================
-TOOL RETURN (open_files)
-```
-['Successfully opened controller/src/main/java/org/apache/rocketmq/controller/Controller.java:\n\n````java\n   0 /*\n   1  * Licensed to the Apache Software Foundation (ASF) under one or more\n   2  * contributor license agreements.  See the NOTICE file distributed with\n   3  * this work for additional information regarding copyright ownership.\n   4  * The ASF licenses this file to You under the Apache License, Version 2.0\n   5  * (the "License"); you may not use this file except in complianc...
-```
-========================================================================================================================
-AGENT:
-The `Controller` interface's `registerBroker` method signature doesn't need to change because the `brokerAlivePredicate` is already stored in the `DLedgerController` class and is passed internally. The interface is fine as is.
-
-Now let me verify the changes compile correctly by running the build:
+The changes are complete. Now let me verify the changes by building and running the tests:
 ========================================================================================================================
 TOOL CALL (bash)
 command: cd /workspace && find . -name "pom.xml" -path "*/controller/*" | head -1
@@ -545,36 +590,28 @@ tmp_code_2c254cdf2cf82da1cd0b112ecd8d516e60e14c2b1914a704a1c90467440836d4.bash: 
 ```
 ========================================================================================================================
 TOOL CALL (bash)
-command: which java && which mvn || echo "Maven not found, checking for alternatives..."
+command: which java && which mvn || echo "Maven not found, checking for alternatives"
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
 /usr/bin/java
-Maven not found, checking for alternatives......
+Maven not found, checking for alternatives...
 ```
 ========================================================================================================================
 TOOL CALL (bash)
-command: cd /workspace && ls -la
+command: cd /workspace && ls -la ~/.m2 2>/dev/null || echo "No maven cache" && which
+  gradle 2>/dev/null || echo "No gradle"
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
-total 120
-drwxr-xr-x 38 root root  1216 Dec  5 13:21 .
-drwxr-xr-x  1 root root  4096 Dec  5 13:23 ..
--rw-r--r--  1 root root  1969 Dec  5 13:21 .asf.yaml
--rw-r--r--  1 root root  3432 Dec  5 13:21 .bazelrc
--rw-r--r--  1 root root     5 Dec  5 13:21 .bazelversion
-drwxr-xr-x 14 root root   448 Dec  5 13:21 .git
-drwxr-xr-x  6 root root   192 Dec  5 13:21 .github
--rw-r--r--  1 root root   242 Dec  5 13:21 .gitignore
--rw-r--r--  1 root root  1661 Dec  5 13:21 .licenserc.yaml
--rw-r--r--  1 root root  ...
+No maven cache
+/usr/bin/gradle...
 ```
 ========================================================================================================================
 TOOL CALL (bash)
-command: apt-get update && apt-get install -y maven 2>&1 | tail -5
+command: apt-get update && apt-get install -y maven 2>&1 | tail -10
 timeout: 120
 
 ========================================================================================================================
@@ -585,14 +622,14 @@ Get:3 http://ports.ubuntu.com/ubuntu-ports noble-updates InRelease [126 kB]
 Hit:1 https://apt.llvm.org/noble llvm-toolchain-noble-20 InRelease
 Get:4 http://ports.ubuntu.com/ubuntu-ports noble-backports InRelease [126 kB]
 Get:5 http://ports.ubuntu.com/ubuntu-ports noble-security InRelease [126 kB]
-Get:6 http://ports.ubuntu.com/ubuntu-ports noble-updates/restricted arm64 Packages [4006 kB]
+Get:6 http://ports.ubuntu.com/ubuntu-ports noble-updates/multiverse arm64 Packages [36.0 kB]
 Get:7 http://ports.ubuntu.com/ubuntu-ports noble-u...
 ```
 ========================================================================================================================
 TOOL CALL (bash)
 command: cd /workspace && mvn compile -pl controller -am -DskipTests -q 2>&1 | tail
   -50
-timeout: 300
+timeout: 600
 
 ========================================================================================================================
 TOOL RETURN (bash)
@@ -605,7 +642,7 @@ OpenJDK 64-Bit Server VM warning: Unable to get SVE vector length on this system
 TOOL CALL (bash)
 command: cd /workspace && mvn compile -pl controller -am -DskipTests -Dspotbugs.skip=true
   -Dcheckstyle.skip=true -q 2>&1 | tail -50
-timeout: 300
+timeout: 600
 
 ========================================================================================================================
 TOOL RETURN (bash)
@@ -614,32 +651,136 @@ OpenJDK 64-Bit Server VM warning: Unable to get SVE vector length on this system
 ```
 ========================================================================================================================
 AGENT:
-The code compiles successfully. Now let me run the tests for the controller module to verify the changes work correctly:
+The code compiles successfully. Now let me run the tests for the `ReplicasInfoManager` to verify the changes:
 ========================================================================================================================
 TOOL CALL (bash)
 command: cd /workspace && mvn test -pl controller -Dtest=ReplicasInfoManagerTest -Dspotbugs.skip=true
-  -Dcheckstyle.skip=true 2>&1 | tail -100
+  -Dcheckstyle.skip=true 2>&1 | tail -80
 timeout: 300
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
-Caused by: java.lang.IllegalArgumentException: Unsupported class file major version 65
-	at org.jacoco.agent.rt.internal_43f5073.asm.ClassReader.<init>(ClassReader.java:195)
-	at org.jacoco.agent.rt.internal_43f5073.asm.ClassReader.<init>(ClassReader.java:176)
-	at org.jacoco.agent.rt.internal_43f5073.asm.ClassReader.<init>(ClassReader.java:162)
-	at org.jacoco.agent.rt.internal_43f5073.core.internal.instr.InstrSupport.classReaderFor(InstrSupport.java:280)
-	at org.jacoco.agent.rt.internal_43f5073.co...
+	at java.base/jdk.internal.loader.BuiltinClassLoader.loadClassOrNull(BuiltinClassLoader.java:669)
+	at java.base/jdk.internal.loader.BuiltinClassLoader.loadClass(BuiltinClassLoader.java:639)
+	at java.base/jdk.internal.loader.ClassLoaders$AppClassLoader.loadClass(ClassLoaders.java:188)
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:526)
+	at com.alibaba.fastjson.util.TypeUtils$1.apply(TypeUtils.java:212)
+	at com.alibaba.fastjson.util.TypeUtils$1.apply(TypeUtils.java:210)
+	at com.ali...
 ```
 ========================================================================================================================
 AGENT:
-All 7 tests pass. Now let me also add a test case that specifically tests the scenario described in the bug report - when the master is not alive, the registerBroker should elect a new master:
+All 7 tests pass. Now let me also run the DLedgerController tests to make sure the changes work correctly:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && mvn test -pl controller -Dtest=DLedgerControllerTest -Dspotbugs.skip=true
+  -Dcheckstyle.skip=true 2>&1 | tail -50
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+	at io.openmessaging.storage.dledger.DLedgerRpcNettyService.lambda$heartBeat$1(DLedgerRpcNettyService.java:142)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1583)
+18:19:01.714 [EntryDispatcher-n1-n0] ERROR io.openmessaging.storage.dledger.DLedgerRpcNettyService - Send push request failed, info[group=f4ca063c-...
+```
+========================================================================================================================
+AGENT:
+All 4 tests pass. Let me also run the ControllerManagerTest to make sure the integration works:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && mvn test -pl controller -Dtest=ControllerManagerTest -Dspotbugs.skip=true
+  -Dcheckstyle.skip=true 2>&1 | tail -50
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+18:19:30.760 [EntryDispatcher-n2-n0] ERROR io.openmessaging.storage.dledger.DLedgerRpcNettyService - Send push request failed, info[group=3d011740-8f18-49ef-80e3-7cbac134541b,term=1,code=200,local=n2,remote=n0,leader=n2]
+org.apache.rocketmq.remoting.exception.RemotingConnectException: connect to localhost:30000 failed
+	at org.apache.rocketmq.remoting.netty.NettyRemotingClient.invokeAsync(NettyRemotingClient.java:770)
+	at io.openmessaging.storage.dledger.DLedgerRpcNettyService.push(DLedgerRpcNett...
+```
+========================================================================================================================
+AGENT:
+All tests pass. Now let me review the changes I made to ensure they are correct:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: controller/src/main/java/org/apache/rocketmq/controller/impl/manager/ReplicasInfoManager.java
+patterns:
+- registerBroker
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in controller/src/main/java/org/apache/rocketmq/controller/impl/manager/ReplicasInfoManager.java:
+
+````java
+   0 /*
+...
+  60 public class ReplicasInfoManager {
+  61     private static final Logger log = LoggerFactory.getLogger(LoggerName.CONTROLLER_LOGGER_NAME);
+...
+  66     public ReplicasInfoManager(final ControllerConfig config) {
+...
+  72     public ControllerResult<AlterSyncStateSetResponseHeader> alterSyncStateSet(
+  73         final AlterSyncStateSetReque...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+The changes look correct. Let me also verify the DLedgerController changes:
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: controller/src/main/java/org/apache/rocketmq/controller/impl/DLedgerController.java
+patterns:
+- registerBroker
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in controller/src/main/java/org/apache/rocketmq/controller/impl/DLedgerController.java:
+
+````java
+   0 /*
+...
+  69 public class DLedgerController implements Controller {
+  70 
+  71     private static final Logger log = LoggerFactory.getLogger(LoggerName.CONTROLLER_LOGGER_NAME);
+  72     private final DLedgerServer dLedgerServer;
+  73     private final ControllerConfig controllerConfig;
+  74     private final DLedgerConfig dLedgerConfig;
+  75     private final Re...
+```
+========================================================================================================================
+AGENT:
+The changes look correct. Let me run all the controller tests to make sure everything works:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && mvn test -pl controller -Dspotbugs.skip=true -Dcheckstyle.skip=true
+  2>&1 | tail -50
+timeout: 600
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+18:21:33.594 [EntryDispatcher-n2-n0] ERROR io.openmessaging.storage.dledger.DLedgerRpcNettyService - Send push request failed, info[group=6a3ae5aa-1e73-49f8-8b74-09a3d94ee8d3,term=1,code=200,local=n2,remote=n0,leader=n2]
+org.apache.rocketmq.remoting.exception.RemotingConnectException: connect to localhost:30000 failed
+	at org.apache.rocketmq.remoting.netty.NettyRemotingClient.invokeAsync(NettyRemotingClient.java:770)
+	at io.openmessaging.storage.dledger.DLedgerRpcNettyService.push(DLedgerRpcNett...
+```
+========================================================================================================================
+AGENT:
+All 13 tests pass. Let me now write a test case that specifically tests the scenario described in the bug report - when the master is not alive, the `registerBroker` method should elect a new master instead of returning the old master info.
 ========================================================================================================================
 TOOL CALL (inspect_code)
 file_path: controller/src/test/java/org/apache/rocketmq/controller/impl/controller/impl/manager/ReplicasInfoManagerTest.java
-line_ranges:
-- - 270
-  - 311
+patterns:
+- testAllReplicasShutdownAndRestart
 
 ========================================================================================================================
 TOOL RETURN (inspect_code)
@@ -648,117 +789,57 @@ Successfully expanded code chunks in controller/src/test/java/org/apache/rocketm
 
 ````java
    0 /*
-   1  * Licensed to the Apache Software Foundation (ASF) under one or more
-   2  * contributor license agreements.  See the NOTICE file distributed with
-   3  * this work for additional information regarding copyright ownership.
-   4  * The ASF licenses this file to You under the Apache License, Version 2.0
-   5  * (the "License...
+...
+  51 public class ReplicasInfoManagerTest {
+  52     private ReplicasInfoManager replicasInfoManager;
+  53 
+  54     private DefaultBrokerHeartbeatManager heartbeatManager;
+  55 
+  56     @Before
+  57     public void init() {
+  58         final ControllerConfig config = new ControllerConfig();
+  59         config.setEnableEl...
 ```
 ========================================================================================================================
 AGENT:
-Now let me add a test case that specifically tests the scenario described in the bug report - when the master is not alive, the registerBroker should elect a new master:
+<thinking>
+Now I should add a test case that specifically tests the scenario described in the bug report - when a broker registers and the master is not alive, the `registerBroker` method should elect a new master instead of returning the old master info.
+
+Let me add a new test case to the test file.
+</thinking>
 ========================================================================================================================
 TOOL CALL (find_and_replace_code)
 file_path: controller/src/test/java/org/apache/rocketmq/controller/impl/controller/impl/manager/ReplicasInfoManagerTest.java
-find: "    @Test\n    public void testCleanBrokerData() {\n        mockMetaData();\n\
-  \        CleanControllerBrokerDataRequestHeader header1 = new CleanControllerBrokerDataRequestHeader(\"\
-  cluster1\", \"broker1\", \"127.0.0.1:9000\");\n        ControllerResult<Void> result1\
-  \ = this.replicasInfoManager.cleanBrokerData(header1, (cluster, brokerAddr) -> true);\n\
-  \        assertEquals(ResponseCode.CONTROLLER_INVALID_CLEAN_BROKER_METADATA, result1.getResponseCode());\n\
-  \n        CleanControllerBrokerDataRequestHeader header2 = new CleanControllerBrokerDataRequestHeader(\"\
-  cluster1\", \"broker1\", null);\n        ControllerResult<Void> result2 = this.replicasInfoManager.cleanBrokerData(header2,\
-  \ (cluster, brokerAddr) -> true);\n        assertEquals(ResponseCode.CONTROLLER_INVALID_CLEAN_BROKER_METADATA,\
-  \ result2.getResponseCode());\n        assertEquals(\"Broker broker1 is still alive,\
-  \ clean up failure\", result2.getRemark());\n\n        CleanControllerBrokerDataRequestHeader\
-  \ header3 = new CleanControllerBrokerDataRequestHeader(\"cluster1\", \"broker1\"\
-  , \"127.0.0.1:9000\");\n        ControllerResult<Void> result3 = this.replicasInfoManager.cleanBrokerData(header3,\
-  \ (cluster, brokerAddr) -> false);\n        assertEquals(ResponseCode.SUCCESS, result3.getResponseCode());\n\
-  \n        CleanControllerBrokerDataRequestHeader header4 = new CleanControllerBrokerDataRequestHeader(\"\
-  cluster1\", \"broker1\", \"127.0.0.1:9000;127.0.0.1:9001;127.0.0.1:9002\");\n  \
-  \      ControllerResult<Void> result4 = this.replicasInfoManager.cleanBrokerData(header4,\
-  \ (cluster, brokerAddr) -> false);\n        assertEquals(ResponseCode.SUCCESS, result4.getResponseCode());\n\
-  \n        CleanControllerBrokerDataRequestHeader header5 = new CleanControllerBrokerDataRequestHeader(\"\
-  cluster1\", \"broker12\", \"127.0.0.1:9000;127.0.0.1:9001;127.0.0.1:9002\", true);\n\
-  \        ControllerResult<Void> result5 = this.replicasInfoManager.cleanBrokerData(header5,\
-  \ (cluster, brokerAddr) -> false);\n        assertEquals(ResponseCode.CONTROLLER_INVALID_CLEAN_BROKER_METADATA,\
-  \ result5.getResponseCode());\n        assertEquals(\"Broker broker12 is not existed,clean\
-  \ broker data failure.\", result5.getRemark());\n\n        CleanControllerBrokerDataRequestHeader\
-  \ header6 = new CleanControllerBrokerDataRequestHeader(null, \"broker12\", \"127.0.0.1:9000;127.0.0.1:9001;127.0.0.1:9002\"\
-  , true);\n        ControllerResult<Void> result6 = this.replicasInfoManager.cleanBrokerData(header6,\
-  \ (cluster, brokerAddr) -> cluster != null);\n        assertEquals(ResponseCode.CONTROLLER_INVALID_CLEAN_BROKER_METADATA,\
-  \ result6.getResponseCode());\n\n        CleanControllerBrokerDataRequestHeader\
-  \ header7 = new CleanControllerBrokerDataRequestHeader(null, \"broker1\", \"127.0.0.1:9000;127.0.0.1:9001;127.0.0.1:9002\"\
-  , true);\n        ControllerResult<Void> result7 = this.replicasInfoManager.cleanBrokerData(header7,\
-  \ (cluster, brokerAddr) -> false);\n        assertEquals(ResponseCode.SUCCESS, result7.getResponseCode());\n\
-  \n    }\n}"
-replace: "    @Test\n    public void testCleanBrokerData() {\n        mockMetaData();\n\
-  \        CleanControllerBrokerDataRequestHeader header1 = new CleanControllerBrokerDataRequestHeader(\"\
-  cluster1\", \"broker1\", \"127.0.0.1:9000\");\n        ControllerResult<Void> result1\
-  \ = this.replicasInfoManager.cleanBrokerData(header1, (cluster, brokerAddr) -> true);\n\
-  \        assertEquals(ResponseCode.CONTROLLER_INVALID_CLEAN_BROKER_METADATA, result1.getResponseCode());\n\
-  \n        CleanControllerBrokerDataRequestHeader header2 = new CleanControllerBrokerDataRequestHeader(\"\
-  cluster1\", \"broker1\", null);\n        ControllerResult<Void> result2 = this.replicasInfoManager.cleanBrokerData(header2,\
-  \ (cluster, brokerAddr) -> true);\n        assertEquals(ResponseCode.CONTROLLER_INVALID_CLEAN_BROKER_METADATA,\
-  \ result2.getResponseCode());\n        assertEquals(\"Broker broker1 is still alive,\
-  \ clean up failure\", result2.getRemark());\n\n        CleanControllerBrokerDataRequestHeader\
-  \ header3 = new CleanControllerBrokerDataRequestHeader(\"cluster1\", \"broker1\"\
-  , \"127.0.0.1:9000\");\n        ControllerResult<Void> result3 = this.replicasInfoManager.cleanBrokerData(header3,\
-  \ (cluster, brokerAddr) -> false);\n        assertEquals(ResponseCode.SUCCESS, result3.getResponseCode());\n\
-  \n        CleanControllerBrokerDataRequestHeader header4 = new CleanControllerBrokerDataRequestHeader(\"\
-  cluster1\", \"broker1\", \"127.0.0.1:9000;127.0.0.1:9001;127.0.0.1:9002\");\n  \
-  \      ControllerResult<Void> result4 = this.replicasInfoManager.cleanBrokerData(header4,\
-  \ (cluster, brokerAddr) -> false);\n        assertEquals(ResponseCode.SUCCESS, result4.getResponseCode());\n\
-  \n        CleanControllerBrokerDataRequestHeader header5 = new CleanControllerBrokerDataRequestHeader(\"\
-  cluster1\", \"broker12\", \"127.0.0.1:9000;127.0.0.1:9001;127.0.0.1:9002\", true);\n\
-  \        ControllerResult<Void> result5 = this.replicasInfoManager.cleanBrokerData(header5,\
-  \ (cluster, brokerAddr) -> false);\n        assertEquals(ResponseCode.CONTROLLER_INVALID_CLEAN_BROKER_METADATA,\
-  \ result5.getResponseCode());\n        assertEquals(\"Broker broker12 is not existed,clean\
-  \ broker data failure.\", result5.getRemark());\n\n        CleanControllerBrokerDataRequestHeader\
-  \ header6 = new CleanControllerBrokerDataRequestHeader(null, \"broker12\", \"127.0.0.1:9000;127.0.0.1:9001;127.0.0.1:9002\"\
-  , true);\n        ControllerResult<Void> result6 = this.replicasInfoManager.cleanBrokerData(header6,\
-  \ (cluster, brokerAddr) -> cluster != null);\n        assertEquals(ResponseCode.CONTROLLER_INVALID_CLEAN_BROKER_METADATA,\
-  \ result6.getResponseCode());\n\n        CleanControllerBrokerDataRequestHeader\
-  \ header7 = new CleanControllerBrokerDataRequestHeader(null, \"broker1\", \"127.0.0.1:9000;127.0.0.1:9001;127.0.0.1:9002\"\
-  , true);\n        ControllerResult<Void> result7 = this.replicasInfoManager.cleanBrokerData(header7,\
-  \ (cluster, brokerAddr) -> false);\n        assertEquals(ResponseCode.SUCCESS, result7.getResponseCode());\n\
-  \n    }\n\n    /**\n     * Test that when registering a broker and the master is\
-  \ not alive,\n     * the new broker should be elected as master if it's in the sync\
-  \ state set.\n     * This tests the fix for the issue where registerBroker did not\
-  \ check if master is alive.\n     */\n    @Test\n    public void testRegisterBrokerWhenMasterNotAlive()\
-  \ {\n        mockMetaData();\n\n        // Get current replica info - master should\
-  \ be 127.0.0.1:9000\n        final GetReplicaInfoResponseHeader replicaInfoBefore\
-  \ = this.replicasInfoManager.getReplicaInfo(\n            new GetReplicaInfoRequestHeader(\"\
-  broker1\")).getResponse();\n        assertEquals(\"127.0.0.1:9000\", replicaInfoBefore.getMasterAddress());\n\
-  \        assertEquals(1, replicaInfoBefore.getMasterEpoch());\n\n        // Now\
-  \ register a broker that is in the sync state set, but the master is not alive\n\
-  \        // The predicate returns false for the master address, indicating it's\
-  \ not alive\n        final RegisterBrokerToControllerRequestHeader registerRequest\
+find: "    @Test\n    public void testCleanBrokerData() {\n        mockMetaData();"
+replace: "    @Test\n    public void testRegisterBrokerWhenMasterNotAlive() {\n  \
+  \      // First, register a broker as master\n        registerNewBroker(\"cluster1\"\
+  , \"broker1\", \"127.0.0.1:9000\", true);\n\n        // Now simulate that the master\
+  \ is not alive by using a predicate that returns false for the master\n        //\
+  \ When a new broker registers, it should be elected as master since the old master\
+  \ is not alive\n        final RegisterBrokerToControllerRequestHeader registerRequest\
   \ =\n            new RegisterBrokerToControllerRequestHeader(\"cluster1\", \"broker1\"\
-  , \"127.0.0.1:9001\");\n        final ControllerResult<RegisterBrokerToControllerResponseHeader>\
+  , \"127.0.0.1:9001\");\n\n        // The old master (127.0.0.1:9000) is not alive,\
+  \ so the new broker should be elected as master\n        final ControllerResult<RegisterBrokerToControllerResponseHeader>\
   \ registerResult =\n            this.replicasInfoManager.registerBroker(registerRequest,\
   \ (cluster, addr) -> !addr.equals(\"127.0.0.1:9000\"));\n        apply(registerResult.getEvents());\n\
-  \n        // The new broker should be elected as master since the old master is\
-  \ not alive\n        final RegisterBrokerToControllerResponseHeader response = registerResult.getResponse();\n\
-  \        assertEquals(\"127.0.0.1:9001\", response.getMasterAddress());\n      \
-  \  assertEquals(2, response.getMasterEpoch());\n    }\n\n    /**\n     * Test that\
-  \ when registering a broker and the master is alive,\n     * the master info should\
-  \ be returned without electing a new master.\n     */\n    @Test\n    public void\
-  \ testRegisterBrokerWhenMasterIsAlive() {\n        mockMetaData();\n\n        //\
-  \ Get current replica info - master should be 127.0.0.1:9000\n        final GetReplicaInfoResponseHeader\
-  \ replicaInfoBefore = this.replicasInfoManager.getReplicaInfo(\n            new\
-  \ GetReplicaInfoRequestHeader(\"broker1\")).getResponse();\n        assertEquals(\"\
-  127.0.0.1:9000\", replicaInfoBefore.getMasterAddress());\n        assertEquals(1,\
-  \ replicaInfoBefore.getMasterEpoch());\n\n        // Now register a broker that\
-  \ is in the sync state set, and the master is alive\n        // The predicate returns\
-  \ true for all addresses, indicating they are alive\n        final RegisterBrokerToControllerRequestHeader\
-  \ registerRequest =\n            new RegisterBrokerToControllerRequestHeader(\"\
-  cluster1\", \"broker1\", \"127.0.0.1:9001\");\n        final ControllerResult<RegisterBrokerToControllerResponseHeader>\
+  \n        final RegisterBrokerToControllerResponseHeader response = registerResult.getResponse();\n\
+  \        // The new broker should be elected as master\n        assertEquals(\"\
+  127.0.0.1:9001\", response.getMasterAddress());\n        assertEquals(2, response.getMasterEpoch());\n\
+  \    }\n\n    @Test\n    public void testRegisterBrokerWhenMasterIsAlive() {\n \
+  \       // First, register a broker as master\n        registerNewBroker(\"cluster1\"\
+  , \"broker1\", \"127.0.0.1:9000\", true);\n\n        // Now simulate that the master\
+  \ is alive by using a predicate that returns true for the master\n        // When\
+  \ a new broker registers, it should NOT be elected as master since the old master\
+  \ is alive\n        final RegisterBrokerToControllerRequestHeader registerRequest\
+  \ =\n            new RegisterBrokerToControllerRequestHeader(\"cluster1\", \"broker1\"\
+  , \"127.0.0.1:9001\");\n\n        // The old master (127.0.0.1:9000) is alive, so\
+  \ the new broker should NOT be elected as master\n        final ControllerResult<RegisterBrokerToControllerResponseHeader>\
   \ registerResult =\n            this.replicasInfoManager.registerBroker(registerRequest,\
   \ (cluster, addr) -> true);\n        apply(registerResult.getEvents());\n\n    \
-  \    // The master should remain the same since it's still alive\n        final\
-  \ RegisterBrokerToControllerResponseHeader response = registerResult.getResponse();\n\
-  \        assertEquals(\"127.0.0.1:9000\", response.getMasterAddress());\n      \
-  \  assertEquals(1, response.getMasterEpoch());\n    }\n}"
+  \    final RegisterBrokerToControllerResponseHeader response = registerResult.getResponse();\n\
+  \        // The old master should still be the master\n        assertEquals(\"127.0.0.1:9000\"\
+  , response.getMasterAddress());\n        assertEquals(1, response.getMasterEpoch());\n\
+  \    }\n\n    @Test\n    public void testCleanBrokerData() {\n        mockMetaData();"
 
 ========================================================================================================================
 TOOL RETURN (find_and_replace_code)
@@ -767,21 +848,108 @@ Successfully replaced code in controller/src/test/java/org/apache/rocketmq/contr
 
 --- controller/src/test/java/org/apache/rocketmq/controller/impl/controller/impl/manager/ReplicasInfoManagerTest.java
 +++ controller/src/test/java/org/apache/rocketmq/controller/impl/controller/impl/manager/ReplicasInfoManagerTest.java
-@@ -308,4 +308,61 @@
-         assertEquals(ResponseCode.SUCCESS, result7.getResponseCode());
- 
+@@ -275,6 +275,48 @@
      }
-+
-+    /**
-+    ...
+ 
+     @Test
++    public void testRegisterBrokerWhenMasterNotAlive() {
++        // First, ...
 ```
 ========================================================================================================================
 AGENT:
-Now let me run the tests again to verify the new test cases pass:
+Now let me run the new tests to verify they pass:
 ========================================================================================================================
 TOOL CALL (bash)
-command: cd /workspace && mvn test -pl controller -Dtest=ReplicasInfoManagerTest -Dspotbugs.skip=true
-  -Dcheckstyle.skip=true 2>&1 | tail -50
+command: cd /workspace && mvn test -pl controller -Dtest=ReplicasInfoManagerTest#testRegisterBrokerWhenMasterNotAlive,ReplicasInfoManagerTest#testRegisterBrokerWhenMasterIsAlive
+  -Dspotbugs.skip=true -Dcheckstyle.skip=true 2>&1 | tail -50
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+	at org.apache.maven.surefire.junit4.JUnit4Provider.execute(JUnit4Provider.java:367)
+	at org.apache.maven.surefire.junit4.JUnit4Provider.executeWithRerun(JUnit4Provider.java:274)
+	at org.apache.maven.surefire.junit4.JUnit4Provider.executeTestSet(JUnit4Provider.java:238)
+	at org.apache.maven.surefire.junit4.JUnit4Provider.invoke(JUnit4Provider.java:161)
+	at org.apache.maven.surefire.booter.ForkedBooter.invokeProviderInSameClassLoader(F...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+The test failed because the new broker (127.0.0.1:9001) is not in the syncStateSet, so it can't be elected as master when `EnableElectUncleanMaster` is false. Let me look at the logic again:
+
+```java
+canBeElectedAsMaster = syncStateInfo.getSyncStateSet().contains(brokerAddress) || this.controllerConfig.isEnableElectUncleanMaster();
+```
+
+The new broker (127.0.0.1:9001) is not in the syncStateSet (which only contains 127.0.0.1:9000), and `EnableElectUncleanMaster` is false, so `canBeElectedAsMaster` is false.
+
+I need to update the test to either:
+1. Add the new broker to the syncStateSet first
+2. Or enable `EnableElectUncleanMaster`
+
+Let me update the test to add the new broker to the syncStateSet first.
+</thinking>
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: controller/src/test/java/org/apache/rocketmq/controller/impl/controller/impl/manager/ReplicasInfoManagerTest.java
+find: "    @Test\n    public void testRegisterBrokerWhenMasterNotAlive() {\n     \
+  \   // First, register a broker as master\n        registerNewBroker(\"cluster1\"\
+  , \"broker1\", \"127.0.0.1:9000\", true);\n\n        // Now simulate that the master\
+  \ is not alive by using a predicate that returns false for the master\n        //\
+  \ When a new broker registers, it should be elected as master since the old master\
+  \ is not alive\n        final RegisterBrokerToControllerRequestHeader registerRequest\
+  \ =\n            new RegisterBrokerToControllerRequestHeader(\"cluster1\", \"broker1\"\
+  , \"127.0.0.1:9001\");\n\n        // The old master (127.0.0.1:9000) is not alive,\
+  \ so the new broker should be elected as master\n        final ControllerResult<RegisterBrokerToControllerResponseHeader>\
+  \ registerResult =\n            this.replicasInfoManager.registerBroker(registerRequest,\
+  \ (cluster, addr) -> !addr.equals(\"127.0.0.1:9000\"));\n        apply(registerResult.getEvents());\n\
+  \n        final RegisterBrokerToControllerResponseHeader response = registerResult.getResponse();\n\
+  \        // The new broker should be elected as master\n        assertEquals(\"\
+  127.0.0.1:9001\", response.getMasterAddress());\n        assertEquals(2, response.getMasterEpoch());\n\
+  \    }"
+replace: "    @Test\n    public void testRegisterBrokerWhenMasterNotAlive() {\n  \
+  \      // First, register two brokers - one as master and one as replica\n     \
+  \   registerNewBroker(\"cluster1\", \"broker1\", \"127.0.0.1:9000\", true);\n  \
+  \      registerNewBroker(\"cluster1\", \"broker1\", \"127.0.0.1:9001\", false);\n\
+  \n        // Add the second broker to the syncStateSet\n        final HashSet<String>\
+  \ newSyncStateSet = new HashSet<>();\n        newSyncStateSet.add(\"127.0.0.1:9000\"\
+  );\n        newSyncStateSet.add(\"127.0.0.1:9001\");\n        assertTrue(alterNewInSyncSet(\"\
+  broker1\", \"127.0.0.1:9000\", 1, newSyncStateSet, 1));\n\n        // Now simulate\
+  \ that the master is not alive by using a predicate that returns false for the master\n\
+  \        // When the second broker re-registers, it should be elected as master\
+  \ since the old master is not alive\n        final RegisterBrokerToControllerRequestHeader\
+  \ registerRequest =\n            new RegisterBrokerToControllerRequestHeader(\"\
+  cluster1\", \"broker1\", \"127.0.0.1:9001\");\n\n        // The old master (127.0.0.1:9000)\
+  \ is not alive, so the new broker should be elected as master\n        final ControllerResult<RegisterBrokerToControllerResponseHeader>\
+  \ registerResult =\n            this.replicasInfoManager.registerBroker(registerRequest,\
+  \ (cluster, addr) -> !addr.equals(\"127.0.0.1:9000\"));\n        apply(registerResult.getEvents());\n\
+  \n        final RegisterBrokerToControllerResponseHeader response = registerResult.getResponse();\n\
+  \        // The new broker should be elected as master\n        assertEquals(\"\
+  127.0.0.1:9001\", response.getMasterAddress());\n        assertEquals(2, response.getMasterEpoch());\n\
+  \    }"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in controller/src/test/java/org/apache/rocketmq/controller/impl/controller/impl/manager/ReplicasInfoManagerTest.java:
+
+--- controller/src/test/java/org/apache/rocketmq/controller/impl/controller/impl/manager/ReplicasInfoManagerTest.java
++++ controller/src/test/java/org/apache/rocketmq/controller/impl/controller/impl/manager/ReplicasInfoManagerTest.java
+@@ -276,11 +276,18 @@
+ 
+     @Test
+     public void testRegisterBrokerWhenMasterNotAlive() {
+-        // First, regist...
+```
+========================================================================================================================
+AGENT:
+Now let me run the tests again:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && mvn test -pl controller -Dtest=ReplicasInfoManagerTest#testRegisterBrokerWhenMasterNotAlive,ReplicasInfoManagerTest#testRegisterBrokerWhenMasterIsAlive
+  -Dspotbugs.skip=true -Dcheckstyle.skip=true 2>&1 | tail -50
 timeout: 300
 
 ========================================================================================================================
@@ -797,40 +965,60 @@ TOOL RETURN (bash)
 ```
 ========================================================================================================================
 AGENT:
-All 9 tests pass (7 original + 2 new tests). Now let me also run the DLedgerControllerTest to make sure the integration still works:
+Both tests pass. Now let me run all the controller tests to make sure everything still works:
 ========================================================================================================================
 TOOL CALL (bash)
-command: cd /workspace && mvn test -pl controller -Dtest=DLedgerControllerTest -Dspotbugs.skip=true
-  -Dcheckstyle.skip=true 2>&1 | tail -50
-timeout: 300
+command: cd /workspace && mvn test -pl controller -Dspotbugs.skip=true -Dcheckstyle.skip=true
+  2>&1 | tail -50
+timeout: 600
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
-	at io.openmessaging.storage.dledger.DLedgerRpcNettyService.lambda$heartBeat$1(DLedgerRpcNettyService.java:142)
-	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
-	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
-	at java.base/java.lang.Thread.run(Thread.java:1583)
-13:27:09.271 [EntryDispatcher-n1-n0] ERROR io.openmessaging.storage.dledger.DLedgerRpcNettyService - Send push request failed, info[group=18a65869-...
+	at io.openmessaging.storage.dledger.DLedgerEntryPusher$EntryDispatcher.doAppendInner(DLedgerEntryPusher.java:487)
+	at io.openmessaging.storage.dledger.DLedgerEntryPusher$EntryDispatcher.doCheckAppendResponse(DLedgerEntryPusher.java:545)
+	at io.openmessaging.storage.dledger.DLedgerEntryPusher$EntryDispatcher.doAppend(DLedgerEntryPusher.java:559)
+	at io.openmessaging.storage.dledger.DLedgerEntryPusher$EntryDispatcher.doWork(DLedgerEntryPusher.java:817)
+	at io.openmessaging.storage.dledger.Shutdow...
 ```
 ========================================================================================================================
 AGENT:
-All tests pass. Let me now review the changes I made to ensure they are correct:
+All 15 tests pass. Let me now review the changes I made to ensure they are correct:
 ========================================================================================================================
-TOOL CALL (open_files)
-file_paths:
-- controller/src/main/java/org/apache/rocketmq/controller/impl/manager/ReplicasInfoManager.java
+TOOL CALL (bash)
+command: cd /workspace && git diff
 
 ========================================================================================================================
-TOOL RETURN (open_files)
+TOOL RETURN (bash)
 ```
-['Successfully opened controller/src/main/java/org/apache/rocketmq/controller/impl/manager/ReplicasInfoManager.java:\n\n````java\n   0 /*\n   1  * Licensed to the Apache Software Foundation (ASF) under one or more\n   2  * contributor license agreements.  See the NOTICE file distributed with\n   3  * this work for additional information regarding copyright ownership.\n   4  * The ASF licenses this file to You under the Apache License, Version 2.0\n   5  * (the "License"); you may not use this fi...
+diff --git a/controller/src/main/java/org/apache/rocketmq/controller/impl/DLedgerController.java b/controller/src/main/java/org/apache/rocketmq/controller/impl/DLedgerController.java
+index 71e8e465c..fab4f6005 100644
+--- a/controller/src/main/java/org/apache/rocketmq/controller/impl/DLedgerController.java
++++ b/controller/src/main/java/org/apache/rocketmq/controller/impl/DLedgerController.java
+@@ -166,7 +166,7 @@ public class DLedgerController implements Controller {
+     @Override
+     public C...
 ```
+========================================================================================================================
+AGENT:
+I have made the necessary changes to fix the issue. Let me verify the changes are complete and correct:
+
+1. Modified `ReplicasInfoManager.registerBroker()` to accept a `BiPredicate<String, String> brokerAlivePredicate` parameter
+2. Added a check to verify if the master is actually alive using `brokerAlivePredicate.test(syncStateInfo.getClusterName(), masterAddress)` before returning master info
+3. Modified `DLedgerController.registerBroker()` to pass `this.brokerAlivePredicate` to the method
+4. Updated the test file to pass the predicate
+5. Added two new test cases to verify the fix works correctly
+
+All 15 tests pass. Now let me do a final review to ensure the changes are complete.
+========================================================================================================================
+AGENT:
+Let me verify the changes one more time by reviewing the key files:
 ========================================================================================================================
 TOOL CALL (inspect_code)
 file_path: controller/src/main/java/org/apache/rocketmq/controller/impl/manager/ReplicasInfoManager.java
-patterns:
-- registerBroker
+line_ranges:
+- - 217
+  - 260
 
 ========================================================================================================================
 TOOL RETURN (inspect_code)
@@ -839,68 +1027,56 @@ Successfully expanded code chunks in controller/src/main/java/org/apache/rocketm
 
 ````java
    0 /*
-   1  * Licensed to the Apache Software Foundation (ASF) under one or more
-   2  * contributor license agreements.  See the NOTICE file distributed with
-   3  * this work for additional information regarding copyright ownership.
-   4  * The ASF licenses this file to You under the Apache License, Version 2.0
-   5  * (the "License"); you may not use ...
+...
+  60 public class ReplicasInfoManager {
+  61     private static final Logger log = LoggerFactory.getLogger(LoggerName.CONTROLLER_LOGGER_NAME);
+...
+  66     public ReplicasInfoManager(final ControllerConfig config) {
+...
+  72     public ControllerResult<AlterSyncStateSetResponseHeader> alterSyncStateSet(
+  73         final AlterSyncStateSetReque...
 ```
 ========================================================================================================================
 AGENT:
-The changes look correct. Let me also verify the DLedgerController changes:
-========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: controller/src/main/java/org/apache/rocketmq/controller/impl/DLedgerController.java
-patterns:
-- registerBroker
-
-========================================================================================================================
-TOOL RETURN (inspect_code)
-```
-Successfully expanded code chunks in controller/src/main/java/org/apache/rocketmq/controller/impl/DLedgerController.java:
-
-````java
-   0 /*
-   1  * Licensed to the Apache Software Foundation (ASF) under one or more
-   2  * contributor license agreements.  See the NOTICE file distributed with
-   3  * this work for additional information regarding copyright ownership.
-   4  * The ASF licenses this file to You under the Apache License, Version 2.0
-   5  * (the "License"); you may not use this file ...
-```
-========================================================================================================================
-AGENT:
-The changes look correct. Let me summarize the changes I made:
+The changes look correct. Let me summarize what was done:
 
 ## Summary of Changes
 
 ### Problem
-The `ReplicasInfoManager#registerBroker` method was not checking if the master is actually alive before returning master info. It only checked if `masterAddress` is not empty (via `isMasterExist()`), but didn't verify if the master broker is still sending heartbeats.
+The `ReplicasInfoManager#registerBroker` method was not checking if the master is actually alive before returning master info. This caused issues when:
+1. A controller embedded namesrv is started
+2. A broker with controller model is started
+3. The namesrv is shutdown
+4. The broker is shutdown
+5. The controller embedded namesrv is started again
+6. A new broker with controller model is started - at this point, the old master info was returned even though the master was not alive
 
 ### Solution
-1. **Modified `ReplicasInfoManager.registerBroker()`** (controller/src/main/java/org/apache/rocketmq/controller/impl/manager/ReplicasInfoManager.java):
-   - Added a `BiPredicate<String, String> brokerAlivePredicate` parameter to the method signature
-   - Changed the condition from `if (syncStateInfo.isMasterExist())` to `if (syncStateInfo.isMasterExist() && brokerAlivePredicate.test(brokerInfo.getClusterName(), syncStateInfo.getMasterAddress()))`
-   - This ensures that the master is not only registered but also actually alive before returning its info
+Modified the `registerBroker` method to accept a `BiPredicate<String, String> brokerAlivePredicate` parameter and use it to check if the master is actually alive before returning master info.
 
-2. **Modified `DLedgerController.registerBroker()`** (controller/src/main/java/org/apache/rocketmq/controller/impl/DLedgerController.java):
-   - Updated the call to `replicasInfoManager.registerBroker()` to pass `this.brokerAlivePredicate` as the second argument
+### Files Changed
 
-3. **Updated tests** (controller/src/test/java/org/apache/rocketmq/controller/impl/controller/impl/manager/ReplicasInfoManagerTest.java):
-   - Updated the `registerNewBroker` method to pass a predicate `(cluster, addr) -> true` to the `registerBroker` call
+1. **controller/src/main/java/org/apache/rocketmq/controller/impl/manager/ReplicasInfoManager.java**
+   - Added `BiPredicate<String, String> brokerAlivePredicate` parameter to the `registerBroker` method
+   - Added check `brokerAlivePredicate.test(syncStateInfo.getClusterName(), masterAddress)` to verify if the master is alive before returning master info
+
+2. **controller/src/main/java/org/apache/rocketmq/controller/impl/DLedgerController.java**
+   - Updated the call to `registerBroker` to pass `this.brokerAlivePredicate`
+
+3. **controller/src/test/java/org/apache/rocketmq/controller/impl/controller/impl/manager/ReplicasInfoManagerTest.java**
+   - Updated the `registerNewBroker` method to pass a predicate that returns `true` for all brokers
    - Added two new test cases:
-     - `testRegisterBrokerWhenMasterNotAlive`: Tests that when the master is not alive, a new broker in the sync state set should be elected as master
-     - `testRegisterBrokerWhenMasterIsAlive`: Tests that when the master is alive, the master info should be returned without electing a new master
+     - `testRegisterBrokerWhenMasterNotAlive`: Tests that when the master is not alive, a new master is elected
+     - `testRegisterBrokerWhenMasterIsAlive`: Tests that when the master is alive, the old master info is returned
 ========================================================================================================================
 AGENT:
-Successfully fixed the issue where ReplicasInfoManager#registerBroker was not checking if the master is alive before returning master info.
+Successfully fixed the issue in ReplicasInfoManager#registerBroker where it was not checking if the master is actually alive before returning master info.
 
 Changes made:
-1. Modified `ReplicasInfoManager.registerBroker()` to accept a `BiPredicate<String, String> brokerAlivePredicate` parameter and use it to check if the master is actually alive (not just registered) before returning master info.
+1. Modified `ReplicasInfoManager.registerBroker()` to accept a `BiPredicate<String, String> brokerAlivePredicate` parameter
+2. Added a check `brokerAlivePredicate.test(syncStateInfo.getClusterName(), masterAddress)` to verify if the master is alive before returning master info
+3. Modified `DLedgerController.registerBroker()` to pass `this.brokerAlivePredicate` to the method
+4. Updated the test file to pass the predicate
+5. Added two new test cases to verify the fix works correctly
 
-2. Updated `DLedgerController.registerBroker()` to pass the `brokerAlivePredicate` to the `replicasInfoManager.registerBroker()` method.
-
-3. Updated the test file to pass the predicate to the `registerBroker` method and added two new test cases to verify the fix:
-   - `testRegisterBrokerWhenMasterNotAlive`: Verifies that when the master is not alive, a new broker in the sync state set is elected as master
-   - `testRegisterBrokerWhenMasterIsAlive`: Verifies that when the master is alive, the master info is returned without electing a new master
-
-All 9 tests pass (7 original + 2 new), and the DLedgerControllerTest also passes (4 tests).
+All 15 controller tests pass, confirming the fix is correct and doesn't break existing functionality.

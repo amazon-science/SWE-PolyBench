@@ -35,13 +35,24 @@ public void operationComplete(ChannelFuture future) {
 </problem_statement>
 
 Do not stop until you have made code changes that resolve the problem statement. Do not ask for clarifications.
+
+NEVER attempt to find the solution to the problem statement by searching future commits or branches in the repository.
 ========================================================================================================================
 AGENT:
-Starting to analyze the problem statement. The issue is related to the Triple protocol where an error is reported immediately when the service is exposed. The problem is in the Connection class where the connection's availability check doesn't work correctly because `isAvailable` only takes effect when `channelActive` is called back, but the channel is already available when the future is successful in the ConnectionListener. I need to find and modify the Connection class.
+Starting to analyze the problem statement. The issue is about the Triple protocol where an error is reported immediately when the service is exposed. The problem is in the Connection class where `isAvailable` takes effect when `channelActive` is called back, but the channel is already available when the future is successful in the ConnectionListener. I need to find and modify the Connection class to fix this issue.
+========================================================================================================================
+AGENT:
+STEP 1: LOCATE THE CONNECTION CLASS
+
+<thinking>
+Based on the problem statement, I need to find the `org.apache.dubbo.remoting.api.Connection` class and specifically the `ConnectionListener#operationComplete` method. The issue is that `connection#isAvailable` takes effect when `channelActive` is called back, but the channel is already available when the future is successful. The fix should call `onConnected(future.channel())` in the `operationComplete` method when the future is successful.
+
+Let me search for the Connection class in the remoting API.
+</thinking>
 ========================================================================================================================
 TOOL CALL (grep)
 content_pattern: class Connection
-path_glob: '**/remoting/api/*.java'
+path_glob: '*/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/*.java'
 
 ========================================================================================================================
 TOOL RETURN (grep)
@@ -50,6 +61,9 @@ dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Co
 dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java:220:    class ConnectionListener implements ChannelFutureListener {
 dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/ConnectionHandler.java:33:public class ConnectionHandler extends ChannelInbo...
 ```
+========================================================================================================================
+AGENT:
+I found the Connection class. Let me open and examine it to understand the current implementation.
 ========================================================================================================================
 TOOL CALL (open_files)
 file_paths:
@@ -61,11 +75,15 @@ TOOL RETURN (open_files)
 ['Successfully opened dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java:\n\n````java\n   0 /*\n...\n  54 public class Connection extends AbstractReferenceCounted implements ReferenceCounted {\n  55 \n  56     public static final AttributeKey<Connection> CONNECTION = AttributeKey.valueOf("connection");\n...\n  69     public Connection(URL url) {\n...\n  81     public static Connection getConnectionFromChannel(Channel channel) {\n...\n  85     public Pro...
 ```
 ========================================================================================================================
+AGENT:
+Now let me expand the full code of the Connection class to understand the complete implementation, especially the `onConnected` method and `isAvailable` method.
+========================================================================================================================
 TOOL CALL (inspect_code)
 file_path: dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java
-line_ranges:
-- - 0
-  - -1
+patterns:
+- onConnected
+- isAvailable
+- ConnectionListener
 
 ========================================================================================================================
 TOOL RETURN (inspect_code)
@@ -74,24 +92,17 @@ Successfully expanded code chunks in dubbo-remoting/dubbo-remoting-api/src/main/
 
 ````java
    0 /*
-   1  * Licensed to the Apache Software Foundation (ASF) under one or more
-   2  * contributor license agreements.  See the NOTICE file distributed with
-   3  * this work for additional information regarding copyright ownership.
-   4  * The ASF licenses this file to You under the Apache License, Version 2.0
-   5  * (the "License"); you may not use ...
+...
+  54 public class Connection extends AbstractReferenceCounted implements ReferenceCounted {
+  55 
+  56     public static final AttributeKey<Connection> CONNECTION = AttributeKey.valueOf("connection");
+  57     private static final Logger logger = LoggerFactory.getLogger(Connection.class);
+  58     private final URL url;
+  59     private final i...
 ```
 ========================================================================================================================
 AGENT:
-Now I understand the issue. Looking at the code:
-
-1. The `ConnectionListener.operationComplete` method is called when the connection future completes.
-2. When `future.isSuccess()` is true, the method just returns without calling `onConnected(channel)`.
-3. The `isAvailable()` method checks if `channel != null && channel.isActive()`.
-4. The `onConnected(Channel channel)` method sets the channel reference: `this.channel.set(channel)`.
-
-The problem is that when the connection is successful, `onConnected` is not being called in the `ConnectionListener`, so the `channel` reference remains `null`, causing `isAvailable()` to return `false` even though the connection was successful.
-
-Let me also check the `ConnectionHandler` to see how `onConnected` is typically called:
+Now let me also look at the `ConnectionHandler` class to understand how `onConnected` is currently being called:
 ========================================================================================================================
 TOOL CALL (open_files)
 file_paths:
@@ -104,44 +115,40 @@ TOOL RETURN (open_files)
 ```
 ========================================================================================================================
 AGENT:
-Now I understand the full picture:
+STEP 2: ANALYZE THE PROBLEM
 
-1. `ConnectionHandler.channelActive()` is called when the channel becomes active, and it calls `connection.onConnected(ctx.channel())`.
-2. However, there's a timing issue: the `ConnectionListener.operationComplete()` is called when the connection future completes successfully, but it doesn't call `onConnected()`.
-3. The `channelActive` callback happens asynchronously after the connection is established.
+<thinking>
+Now I understand the issue clearly:
 
-The problem is that when `future.isSuccess()` returns true in `ConnectionListener.operationComplete()`, the channel is already connected and available, but `onConnected()` is not being called there. This means that if code checks `isAvailable()` immediately after the connection future completes successfully, it might return `false` because the `channel` reference hasn't been set yet (waiting for `channelActive` to be called).
+1. In `Connection.java`, the `ConnectionListener#operationComplete` method is called when the connection future completes.
+2. Currently, when `future.isSuccess()` is true, the method just returns without doing anything.
+3. The `onConnected` method is only called from `ConnectionHandler#channelActive`, which is called when the channel becomes active.
+4. The problem is that `isAvailable()` checks if the channel is set and active (`channel != null && channel.isActive()`), but the channel is not set until `onConnected` is called.
+5. There's a race condition: when the future is successful, the channel is already available, but `onConnected` hasn't been called yet because it's waiting for the `channelActive` callback.
 
-According to the problem statement, the fix should be to call `onConnected(future.channel())` in the `ConnectionListener.operationComplete()` method when the future is successful.
+The fix suggested in the problem statement is to call `onConnected(future.channel())` in the `operationComplete` method when the future is successful. This makes sense because:
+- When `future.isSuccess()` is true, the connection has been established successfully
+- The channel from `future.channel()` is the connected channel
+- Calling `onConnected` immediately will set the channel reference, making `isAvailable()` return true
 
-Let me make the fix:
+Let me implement this fix:
+</thinking>
+========================================================================================================================
+AGENT:
+I've analyzed the problem. The issue is that when the connection future is successful, the `onConnected` method is not called immediately in the `ConnectionListener#operationComplete` method. Instead, it's only called later when `channelActive` is triggered. This causes `isAvailable()` to return false even though the channel is already connected. I will now fix this by calling `onConnected(future.channel())` when the future is successful.
+========================================================================================================================
+AGENT:
+STEP 3: IMPLEMENT THE FIX
 ========================================================================================================================
 TOOL CALL (find_and_replace_code)
 file_path: dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java
 find: "    class ConnectionListener implements ChannelFutureListener {\n\n       \
   \ @Override\n        public void operationComplete(ChannelFuture future) {\n   \
-  \         if (future.isSuccess()) {\n                return;\n            }\n  \
-  \          final Connection conn = Connection.this;\n            if (conn.isClosed()\
-  \ || conn.refCnt() == 0) {\n                if (logger.isInfoEnabled()) {\n    \
-  \                logger.info(String.format(\"%s aborted to reconnect. %s\", conn,\
-  \ future.cause().getMessage()));\n                }\n                return;\n \
-  \           }\n            if (logger.isInfoEnabled()) {\n                logger.info(String.format(\"\
-  %s is reconnecting, attempt=%d cause=%s\", conn, 0, future.cause().getMessage()));\n\
-  \            }\n            final EventLoop loop = future.channel().eventLoop();\n\
-  \            loop.schedule((Runnable) conn::connect, 1L, TimeUnit.SECONDS);\n  \
-  \      }\n    }"
+  \         if (future.isSuccess()) {\n                return;\n            }"
 replace: "    class ConnectionListener implements ChannelFutureListener {\n\n    \
   \    @Override\n        public void operationComplete(ChannelFuture future) {\n\
   \            if (future.isSuccess()) {\n                onConnected(future.channel());\n\
-  \                return;\n            }\n            final Connection conn = Connection.this;\n\
-  \            if (conn.isClosed() || conn.refCnt() == 0) {\n                if (logger.isInfoEnabled())\
-  \ {\n                    logger.info(String.format(\"%s aborted to reconnect. %s\"\
-  , conn, future.cause().getMessage()));\n                }\n                return;\n\
-  \            }\n            if (logger.isInfoEnabled()) {\n                logger.info(String.format(\"\
-  %s is reconnecting, attempt=%d cause=%s\", conn, 0, future.cause().getMessage()));\n\
-  \            }\n            final EventLoop loop = future.channel().eventLoop();\n\
-  \            loop.schedule((Runnable) conn::connect, 1L, TimeUnit.SECONDS);\n  \
-  \      }\n    }"
+  \                return;\n            }"
 
 ========================================================================================================================
 TOOL RETURN (find_and_replace_code)
@@ -158,7 +165,9 @@ Successfully replaced code in dubbo-remoting/dubbo-remoting-api/src/main/java/or
 ```
 ========================================================================================================================
 AGENT:
-Now let me verify the change by viewing the modified file:
+STEP 4: VERIFY THE CHANGE
+
+Let me verify the change by opening the file again to confirm the fix is in place:
 ========================================================================================================================
 TOOL CALL (inspect_code)
 file_path: dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java
@@ -172,15 +181,32 @@ Successfully expanded code chunks in dubbo-remoting/dubbo-remoting-api/src/main/
 
 ````java
    0 /*
-   1  * Licensed to the Apache Software Foundation (ASF) under one or more
-   2  * contributor license agreements.  See the NOTICE file distributed with
-   3  * this work for additional information regarding copyright ownership.
-   4  * The ASF licenses this file to You under the Apache License, Version 2.0
-   5  * (the "License"); you may not use ...
+...
+  54 public class Connection extends AbstractReferenceCounted implements ReferenceCounted {
+  55 
+  56     public static final AttributeKey<Connection> CONNECTION = AttributeKey.valueOf("connection");
+  57     private static final Logger logger = LoggerFactory.getLogger(Connection.class);
+  58     private final URL url;
+  59     private final i...
 ```
 ========================================================================================================================
 AGENT:
-The change has been applied successfully. Now let me check if there are any tests related to this class that I should run to verify the fix:
+The fix has been applied. Now let me check if there are any tests related to this Connection class that I should run to verify the change doesn't break anything:
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: Connection
+path_glob: '*/dubbo-remoting-api/src/test/java/org/apache/dubbo/remoting/api/*.java'
+
+========================================================================================================================
+TOOL RETURN (grep)
+```
+dubbo-remoting/dubbo-remoting-api/src/test/java/org/apache/dubbo/remoting/api/ConnectionTest.java:26:class ConnectionTest {
+dubbo-remoting/dubbo-remoting-api/src/test/java/org/apache/dubbo/remoting/api/ConnectionTest.java:30:        Connection connection = new Connection(URL.valueOf("empty://127.0.0.1:8080?foo=bar"));
+dubbo-remoting/dubbo-remoting-api/src/test/java/org/apache/dubbo/remoting/api/ConnectionTest.java:40:        Connection connection = new Connection(URL.valueOf("empty://127.0.0.1:8...
+```
+========================================================================================================================
+AGENT:
+Let me look at the ConnectionTest to understand what tests exist:
 ========================================================================================================================
 TOOL CALL (open_files)
 file_paths:
@@ -193,33 +219,34 @@ TOOL RETURN (open_files)
 ```
 ========================================================================================================================
 AGENT:
-Let me try to run the tests to ensure the change doesn't break anything:
+STEP 5: RUN TESTS TO VERIFY
+
+Let me try to run the tests to verify that the change doesn't break anything:
 ========================================================================================================================
 TOOL CALL (bash)
-command: cd /dubbo-remoting/dubbo-remoting-api && mvn test -Dtest=ConnectionTest -q
-  2>&1 | head -100
-timeout: 120
+command: cd /workspace && find . -name "pom.xml" -path "*/dubbo-remoting/dubbo-remoting-api/*"
+  | head -1
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
-tmp_code_d3ee10c66c3cee9cefec6fdc1713ce0c510942ef545c0c11f0b46ffbce2f32bb.bash: line 1: cd: /dubbo-remoting/dubbo-remoting-api: No such file or directory...
+./dubbo-remoting/dubbo-remoting-api/pom.xml...
 ```
 ========================================================================================================================
 TOOL CALL (bash)
-command: cd dubbo-remoting/dubbo-remoting-api && mvn test -Dtest=ConnectionTest -q
-  2>&1 | head -100
+command: cd /workspace && mvn compile -pl dubbo-remoting/dubbo-remoting-api -am -DskipTests
+  -q 2>&1 | tail -30
 timeout: 300
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
-tmp_code_d3d5ed063904ea7ff55d47b52125e870391c1fe7caa8840941f3e182e55a2324.bash: line 1: mvn: command not found...
+tmp_code_7862c664c45d8489c3e07fd389602ba0d0fb56c8539299f8fe8fffa3b8a2f564.bash: line 1: mvn: command not found...
 ```
 ========================================================================================================================
 TOOL CALL (bash)
-command: ./mvnw test -pl dubbo-remoting/dubbo-remoting-api -Dtest=ConnectionTest -q
-  2>&1 | head -100
+command: cd /workspace && ./mvnw compile -pl dubbo-remoting/dubbo-remoting-api -am
+  -DskipTests -q 2>&1 | tail -50
 timeout: 300
 
 ========================================================================================================================
@@ -231,303 +258,229 @@ Downloading https://repo1.maven.org/maven2/org/apache/maven/apache-maven/3.6.1/a
 ```
 ========================================================================================================================
 AGENT:
-The test requires building the project first. Let me try to compile the module first:
+The maven wrapper is downloading. Let me wait for the compilation to complete:
 ========================================================================================================================
 TOOL CALL (bash)
-command: ./mvnw compile -pl dubbo-remoting/dubbo-remoting-api -am -DskipTests -q 2>&1
+command: cd /workspace && ./mvnw compile -pl dubbo-remoting/dubbo-remoting-api -am
+  -DskipTests 2>&1 | tail -100
+timeout: 600
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+[[1;34mINFO[m] [1m--- [0;32mapache-rat-plugin:0.13:check[m [1m(rat-validate)[m @ [36mdubbo-serialization-hessian2[0;1m ---[m
+[[1;34mINFO[m] RAT will not execute since it is configured to be skipped via system property 'rat.skip'.
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mmaven-checkstyle-plugin:3.1.2:check[m [1m(checkstyle-validation)[m @ [36mdubbo-serialization-hessian2[0;1m ---[m
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mmaven-checkstyle-plugin:3.1.2:check[m ...
+```
+========================================================================================================================
+AGENT:
+The compilation was successful. Now let me run the tests for the Connection class:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && ./mvnw test -pl dubbo-remoting/dubbo-remoting-api -Dtest=ConnectionTest
+  -DfailIfNoTests=false 2>&1 | tail -50
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Downloading from apache.snapshots: https://repository.apache.org/snapshots/org/apache/dubbo/dubbo-common/3.0.1-SNAPSHOT/dubbo-common-3.0.1-SNAPSHOT.pom
+[[1;33mWARNING[m] The POM for org.apache.dubbo:dubbo-common:jar:3.0.1-SNAPSHOT is missing, no dependency information available
+Downloading from apache.snapshots: https://repository.apache.org/snapshots/org/apache/dubbo/dubbo-serialization-api/3.0.1-SNAPSHOT/maven-metadata.xml
+Downloading from apache.snapshots: https://repository.apache.org/snap...
+```
+========================================================================================================================
+AGENT:
+The test failed due to dependency resolution issues. Let me try to install the dependencies first:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && ./mvnw install -pl dubbo-remoting/dubbo-remoting-api -am
+  -DskipTests -Dmaven.javadoc.skip=true -Drat.skip=true -Dcheckstyle.skip=true 2>&1
   | tail -50
 timeout: 600
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
-OpenJDK 64-Bit Server VM warning: Unable to get SVE vector length on this system. Disabling SVE. Specify -XX:UseSVE=0 to shun this warning....
+[[1;34mINFO[m] Copying 2 resources to META-INF/
+[[1;34mINFO[m] Copying 3 resources
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mflatten-maven-plugin:1.2.5:flatten[m [1m(flatten)[m @ [36mdubbo-remoting-api[0;1m ---[m
+[[1;34mINFO[m] Generating flattened POM of project org.apache.dubbo:dubbo-remoting-api:jar:3.0.1-SNAPSHOT...
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mmaven-compiler-plugin:3.8.1:compile[m [1m(default-compile)[m @ [36mdubbo-remoting-api[0;1m ---[m
+[[1;...
 ```
 ========================================================================================================================
 AGENT:
-The compilation succeeded. Now let me run the tests:
+The install was successful. Now let me run the tests:
 ========================================================================================================================
 TOOL CALL (bash)
-command: ./mvnw test -pl dubbo-remoting/dubbo-remoting-api -Dtest=ConnectionTest -q
-  2>&1 | tail -50
+command: cd /workspace && ./mvnw test -pl dubbo-remoting/dubbo-remoting-api -Dtest=ConnectionTest
+  -DfailIfNoTests=false -Drat.skip=true -Dcheckstyle.skip=true 2>&1 | tail -50
 timeout: 300
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
 OpenJDK 64-Bit Server VM warning: Unable to get SVE vector length on this system. Disabling SVE. Specify -XX:UseSVE=0 to shun this warning.
-[[1;31mERROR[m] Failed to execute goal on project [36mdubbo-remoting-api[m: [1;31mCould not resolve dependencies for project org.apache.dubbo:dubbo-remoting-api:jar:3.0.1-SNAPSHOT: The following artifacts could not be resolved: org.apache.dubbo:dubbo-common:jar:3.0.1-SNAPSHOT, org.apache.dubbo:dubbo-serialization-api:jar:3.0.1-SNAPSHOT, org.apache.dubbo...
+[[1;34mINFO[m] Scanning for projects...
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m----------------< [0;36morg.apache.dubbo:dubbo-remoting-api[0;1m >-----------------[m
+[[1;34mINFO[m] [1mBuilding dubbo-remoting-api 3.0.1-SNAPSHOT[m
+[[1;34mINFO[m] [1m--------------------------------[ jar ]---------------------------------[m
+Downloading from apache.sn...
 ```
+========================================================================================================================
+AGENT:
+The test is failing due to dependency resolution issues with the parent pom. Let me try to install the parent pom first:
 ========================================================================================================================
 TOOL CALL (bash)
-command: ./mvnw install -pl dubbo-common,dubbo-serialization/dubbo-serialization-api,dubbo-serialization/dubbo-serialization-hessian2
-  -DskipTests -q 2>&1 | tail -20
-timeout: 600
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-OpenJDK 64-Bit Server VM warning: Unable to get SVE vector length on this system. Disabling SVE. Specify -XX:UseSVE=0 to shun this warning.
-[[1;31mERROR[m] Failed to execute goal [32morg.apache.maven.plugins:maven-checkstyle-plugin:3.1.2:check[m [1m(checkstyle-validation)[m on project [36mdubbo-common[m: [1;31mExecution checkstyle-validation of goal org.apache.maven.plugins:maven-checkstyle-plugin:3.1.2:check failed: Plugin org.apache.maven.plugins:maven-checkstyle-plugin:3.1.2 or one o...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: ./mvnw install -pl dubbo-build-tools -DskipTests -q 2>&1 | tail -20
-timeout: 300
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-OpenJDK 64-Bit Server VM warning: Unable to get SVE vector length on this system. Disabling SVE. Specify -XX:UseSVE=0 to shun this warning....
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: ./mvnw install -pl dubbo-common,dubbo-serialization/dubbo-serialization-api,dubbo-serialization/dubbo-serialization-hessian2
-  -DskipTests -q 2>&1 | tail -20
-timeout: 600
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-[[1;31mERROR[m] Failed to execute goal [32morg.apache.maven.plugins:maven-remote-resources-plugin:1.7.0:process[m [1m(process-resource-bundles)[m on project [36mdubbo-serialization-api[m: [1;31mExecution process-resource-bundles of goal org.apache.maven.plugins:maven-remote-resources-plugin:1.7.0:process failed: Failed to resolve dependencies for one or more projects in the reactor. Reason: Unable to get dependency information for org.apache.dubbo:dubbo-common:jar:3.0.1-SNAPSHOT: Failed...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: ./mvnw install -pl dubbo-common -DskipTests -q 2>&1 | tail -20
-timeout: 600
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-OpenJDK 64-Bit Server VM warning: Unable to get SVE vector length on this system. Disabling SVE. Specify -XX:UseSVE=0 to shun this warning....
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: ./mvnw install -pl dubbo-serialization/dubbo-serialization-api,dubbo-serialization/dubbo-serialization-hessian2
-  -DskipTests -q 2>&1 | tail -20
-timeout: 600
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-OpenJDK 64-Bit Server VM warning: Unable to get SVE vector length on this system. Disabling SVE. Specify -XX:UseSVE=0 to shun this warning.
-[[1;31mERROR[m] Failed to execute goal on project [36mdubbo-serialization-api[m: [1;31mCould not resolve dependencies for project org.apache.dubbo:dubbo-serialization-api:jar:3.0.1-SNAPSHOT: Failed to collect dependencies at org.apache.dubbo:dubbo-common:jar:3.0.1-SNAPSHOT[m: Failed to read artifact descriptor for org.apache.dubbo:dubbo-common:jar:3.0....
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: ./mvnw install -N -DskipTests -q 2>&1 | tail -20
+command: cd /workspace && ./mvnw install -N -DskipTests -Dmaven.javadoc.skip=true
+  -Drat.skip=true -Dcheckstyle.skip=true 2>&1 | tail -30
 timeout: 300
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
 OpenJDK 64-Bit Server VM warning: Unable to get SVE vector length on this system. Disabling SVE. Specify -XX:UseSVE=0 to shun this warning.
+[[1;34mINFO[m] Scanning for projects...
 [[1;31mERROR[m] [ERROR] Some problems were encountered while processing the POMs:
-[ERROR] Non-resolvable import POM: Could not find artifact org.apache.dubbo:dubbo-dependencies-bom:pom:3.0.1-SNAPSHOT in apache.snapshots (https://repository.apache.org/snapshots) @ line 159, column 25
- @ 
-[[1;31mERROR[m] The build could not read 1 project -> [1m[Help 1][...
+[ERROR] Non-resolvable import POM: Failure to find org.apache.dubbo:dubbo-dependencies-bom:pom:3.0.1-SNAPSHOT in https://repository.apache.org/snapshots was cached in the local repository, resolution will not be reattempted until the ...
 ```
+========================================================================================================================
+AGENT:
+Let me install the dependencies-bom first:
 ========================================================================================================================
 TOOL CALL (bash)
-command: ./mvnw install -pl dubbo-dependencies-bom -DskipTests -q 2>&1 | tail -20
-timeout: 300
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-OpenJDK 64-Bit Server VM warning: Unable to get SVE vector length on this system. Disabling SVE. Specify -XX:UseSVE=0 to shun this warning....
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: ./mvnw install -N -DskipTests -q 2>&1 | tail -20
-timeout: 300
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-OpenJDK 64-Bit Server VM warning: Unable to get SVE vector length on this system. Disabling SVE. Specify -XX:UseSVE=0 to shun this warning....
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: ./mvnw install -pl dubbo-serialization/dubbo-serialization-api,dubbo-serialization/dubbo-serialization-hessian2
-  -DskipTests -q 2>&1 | tail -20
-timeout: 600
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-[[1;31mERROR[m] Failed to execute goal [32morg.apache.maven.plugins:maven-remote-resources-plugin:1.7.0:process[m [1m(process-resource-bundles)[m on project [36mdubbo-serialization-hessian2[m: [1;31mExecution process-resource-bundles of goal org.apache.maven.plugins:maven-remote-resources-plugin:1.7.0:process failed: Failed to resolve dependencies for one or more projects in the reactor. Reason: Unable to get dependency information for org.apache.dubbo:dubbo-serialization-api:jar:3.0.1-...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: ./mvnw install -pl dubbo-serialization/dubbo-serialization-api -DskipTests
-  -q 2>&1 | tail -20
-timeout: 300
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-OpenJDK 64-Bit Server VM warning: Unable to get SVE vector length on this system. Disabling SVE. Specify -XX:UseSVE=0 to shun this warning....
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: ./mvnw install -pl dubbo-serialization/dubbo-serialization-hessian2 -DskipTests
-  -q 2>&1 | tail -20
+command: cd /workspace && ./mvnw install -pl dubbo-dependencies-bom -N -DskipTests
+  -Dmaven.javadoc.skip=true -Drat.skip=true -Dcheckstyle.skip=true -U 2>&1 | tail
+  -30
 timeout: 300
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
 OpenJDK 64-Bit Server VM warning: Unable to get SVE vector length on this system. Disabling SVE. Specify -XX:UseSVE=0 to shun this warning.
-[[1;31mERROR[m] Failed to execute goal on project [36mdubbo-serialization-hessian2[m: [1;31mCould not resolve dependencies for project org.apache.dubbo:dubbo-serialization-hessian2:jar:3.0.1-SNAPSHOT: Failed to collect dependencies at org.apache.dubbo:dubbo-serialization-api:jar:3.0.1-SNAPSHOT[m: Failed to read artifact descriptor for org.apache.dubbo:...
+[[1;34mINFO[m] Scanning for projects...
+Downloading from apache.snapshots: https://repository.apache.org/snapshots/org/apache/dubbo/dubbo-dependencies-bom/3.0.1-SNAPSHOT/maven-metadata.xml
+Downloading from apache.snapshots: https://repository.apache.org/snapshots/org/apache/dubbo/dubbo-dependencies-bom/3.0.1-SNAPSHOT/dubbo-dependencies-bom-3.0.1-SNAPSHOT.p...
 ```
 ========================================================================================================================
 TOOL CALL (bash)
-command: ./mvnw install -pl dubbo-serialization -N -DskipTests -q 2>&1 | tail -20
+command: cd /workspace/dubbo-dependencies-bom && ../mvnw install -N -DskipTests -Dmaven.javadoc.skip=true
+  -Drat.skip=true -Dcheckstyle.skip=true 2>&1 | tail -30
 timeout: 300
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
-OpenJDK 64-Bit Server VM warning: Unable to get SVE vector length on this system. Disabling SVE. Specify -XX:UseSVE=0 to shun this warning.
-[[1;31mERROR[m] [ERROR] Could not find the selected project in the reactor: dubbo-serialization @ 
-[[1;31mERROR[m] Could not find the selected project in the reactor: dubbo-serialization -> [1m[Help 1][m
-[[1;31mERROR[m] 
-[[1;31mERROR[m] To see the full stack trace of the errors, re-run Maven with the [1m-e[m switch.
-[[1;31mERROR[m] Re-run Maven...
+Progress (1): 4.1/105 kB
+Progress (1): 8.2/105 kB
+Progress (1): 12/105 kB 
+Progress (1): 16/105 kB
+Progress (1): 20/105 kB
+Progress (1): 25/105 kB
+Progress (1): 29/105 kB
+Progress (1): 33/105 kB
+Progress (1): 37/105 kB
+Progress (1): 41/105 kB
+Progress (1): 45/105 kB
+Progress (1): 49/105 kB
+Progress (1): 53/105 kB
+Progress (1): 57/105 kB
+Progress (1): 61/105 kB
+Progress (1): 66/105 kB
+Progress (1): 70/105 kB
+Progress (1): 74/105 kB
+Progress (1): 78/105 kB
+Progress (1): 82/105 kB
+Progress (1): 86/...
 ```
 ========================================================================================================================
+AGENT:
+Now let me try to run the tests again:
+========================================================================================================================
 TOOL CALL (bash)
-command: ./mvnw install -pl dubbo-serialization/dubbo-serialization-api,dubbo-serialization/dubbo-serialization-hessian2
-  -am -DskipTests -q 2>&1 | tail -20
+command: cd /workspace && ./mvnw test -pl dubbo-remoting/dubbo-remoting-api -Dtest=ConnectionTest
+  -DfailIfNoTests=false -Drat.skip=true -Dcheckstyle.skip=true -am 2>&1 | tail -80
 timeout: 600
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
-OpenJDK 64-Bit Server VM warning: Unable to get SVE vector length on this system. Disabling SVE. Specify -XX:UseSVE=0 to shun this warning....
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: ./mvnw test -pl dubbo-remoting/dubbo-remoting-api -Dtest=ConnectionTest -q
-  2>&1 | tail -50
-timeout: 300
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-OpenJDK 64-Bit Server VM warning: Unable to get SVE vector length on this system. Disabling SVE. Specify -XX:UseSVE=0 to shun this warning....
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mmaven-remote-resources-plugin:1.7.0:process[m [1m(process-resource-bundles)[m @ [36mdubbo-remoting-api[0;1m ---[m
+[[1;34mINFO[m] Preparing remote bundle org.apache:apache-jar-resource-bundle:1.4
+[[1;34mINFO[m] Copying 3 resources from 1 bundle.
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mmaven-resources-plugin:3.1.0:resources[m [1m(default-resources)[m @ [36mdubbo-remoting-api[0;1m ---[m
+[[1;34mINFO[m] Using 'UTF-8' encodi...
 ```
 ========================================================================================================================
 AGENT:
-The tests passed. Now let me also verify the change is correct by reviewing the modified code once more:
-========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java
-patterns:
-- onConnected
-- ConnectionListener
-- isAvailable
-
-========================================================================================================================
-TOOL RETURN (inspect_code)
-```
-Successfully expanded code chunks in dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java:
-
-````java
-   0 /*
-   1  * Licensed to the Apache Software Foundation (ASF) under one or more
-   2  * contributor license agreements.  See the NOTICE file distributed with
-   3  * this work for additional information regarding copyright ownership.
-   4  * The ASF licenses this file to You under the Apache License, Version 2.0
-   5  * (the "License"); you may not use ...
-```
-========================================================================================================================
-AGENT:
-The change has been made correctly. Let me also run a broader set of tests related to the remoting API to ensure nothing is broken:
-========================================================================================================================
-TOOL CALL (bash)
-command: ./mvnw test -pl dubbo-remoting/dubbo-remoting-api -q 2>&1 | tail -50
-timeout: 600
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:128)
-	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invokeAllTests(JUnitPlatformProvider.java:150)
-	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invoke(JUnitPlatformProvider.java:124)
-	at org.apache.maven.surefire.booter.ForkedBooter.invokeProviderInSameClassLoader(ForkedBooter.java:384)
-	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:345...
-```
-========================================================================================================================
-AGENT:
-The test failures are not related to my change - they are caused by issues with the Javassist compiler and adaptive extension creation, which are pre-existing issues in the test environment. The `ConnectionTest` tests passed successfully.
-
-Let me verify the change is correct by looking at the issue once more. The problem statement says:
-
-1. When using the Triple protocol, calling the `refer` method will generate a connection instance.
-2. `connection#isAvailable` takes effect when `channelActive` is called back.
-3. But actually in the `ConnectionListener`, if the future is successful, the channel is already available.
-4. So the fix should be to call `onConnected(future.channel())` in the `ConnectionListener.operationComplete()` method when the future is successful.
-
-My change exactly matches the suggested fix in the problem statement. The fix ensures that when the connection future completes successfully, `onConnected(future.channel())` is called immediately, which sets the channel reference and makes `isAvailable()` return `true` right away, rather than waiting for the `channelActive` callback.
-
-Let me also check if there are any Triple protocol related tests that might be affected:
+All 3 tests passed. Let me also check if there are any other tests related to the Connection class or the Triple protocol that might be affected:
 ========================================================================================================================
 TOOL CALL (grep)
-content_pattern: Connection
-path_glob: '**/rpc/protocol/tri/*.java'
+content_pattern: onConnected
+path_glob: '**/src/test/**/*.java'
 
 ========================================================================================================================
 TOOL RETURN (grep)
 ```
-dubbo-rpc/dubbo-rpc-triple/src/main/java/org/apache/dubbo/rpc/protocol/tri/UnaryClientStream.java:56:                    DefaultFuture2.received(getConnection(), response);
-dubbo-rpc/dubbo-rpc-triple/src/main/java/org/apache/dubbo/rpc/protocol/tri/UnaryClientStream.java:75:            DefaultFuture2.received(getConnection(), response);
-dubbo-rpc/dubbo-rpc-triple/src/main/java/org/apache/dubbo/rpc/protocol/tri/TripleHttp2Protocol.java:51:        pipeline.addLast(codec, new TripleServerConnectionH...
-```
-========================================================================================================================
-TOOL CALL (open_files)
-file_paths:
-- dubbo-rpc/dubbo-rpc-triple/src/main/java/org/apache/dubbo/rpc/protocol/tri/TripleInvoker.java
-
-========================================================================================================================
-TOOL RETURN (open_files)
-```
-['Successfully opened dubbo-rpc/dubbo-rpc-triple/src/main/java/org/apache/dubbo/rpc/protocol/tri/TripleInvoker.java:\n\n````java\n   0 /*\n   1  * Licensed to the Apache Software Foundation (ASF) under one or more\n   2  * contributor license agreements.  See the NOTICE file distributed with\n   3  * this work for additional information regarding copyright ownership.\n   4  * The ASF licenses this file to You under the Apache License, Version 2.0\n   5  * (the "License"); you may not use this fi...
+No matches found for pattern 'onConnected'....
 ```
 ========================================================================================================================
 AGENT:
-This confirms the issue. Looking at the `TripleInvoker.doInvoke` method:
+Let me also check if there are any other places in the codebase that might be affected by this change:
+===========inspect_code===========================================================================================
+TOOL CALL (grep)
+content_pattern: onConnected
+path_glob: '**/src/main/**/*.java'
 
-1. Line 76: `this.connection = CONNECTION_MANAGER.connect(url);` - creates a connection
-2. Line 96: `connection.connectSync();` - waits for the connection to complete
-3. Line 106: `if (!connection.isAvailable())` - checks if the connection is available
-
-The problem was that even after `connectSync()` completes successfully, `isAvailable()` could return `false` because the `channel` reference wasn't set until `channelActive` was called back. With my fix, when the connection future completes successfully, `onConnected(future.channel())` is called immediately, which sets the `channel` reference, making `isAvailable()` return `true` right away.
-
-Let me also check if there's a potential issue with calling `onConnected` twice (once in `ConnectionListener` and once in `ConnectionHandler.channelActive`):
 ========================================================================================================================
-TOOL CALL (inspect_code)
+TOOL RETURN (inspect_code
+```
+dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java:150:    public void onConnected(Channel channel) {
+dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java:225:                onConnected(future.channel());
+dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/ConnectionHandler.java:62:            connection.onConnected(ctx.channel());...
+```
+========================================================================================================================
+AGENT:
+The `onConnected` method is called in two places now:
+1. In `ConnectionListener#operationComplete` when the future is successful (our new change)
+2. In `ConnectionHandler#channelActive` when the channel becomes active
+
+Let me verify that the `onConnected` method is idempotent (safe to call multiple times) since it might now be called from both places:
+========================================================================================================================
+TOOL CALL (expand_code_chunks)
 file_path: dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java
 patterns:
 - onConnected
 
 ========================================================================================================================
-TOOL RETURN (inspect_code)
+TOOL RETURN (expand_code_chunks)
 ```
 Successfully expanded code chunks in dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java:
 
 ````java
    0 /*
-   1  * Licensed to the Apache Software Foundation (ASF) under one or more
-   2  * contributor license agreements.  See the NOTICE file distributed with
-   3  * this work for additional information regarding copyright ownership.
-   4  * The ASF licenses this file to You under the Apache License, Version 2.0
-   5  * (the "License"); you may not use ...
+...
+  54 public class Connection extends AbstractReferenceCounted implements ReferenceCounted {
+  55 
+  56     public static final AttributeKey<Connection> CONNECTION = AttributeKey.valueOf("connection");
+  57     private static final Logger logger = LoggerFactory.getLogger(Connection.class);
+  58     private final URL url;
+  59     private final i...
 ```
 ========================================================================================================================
 AGENT:
+<thinking>
 Looking at the `onConnected` method:
+
 ```java
 public void onConnected(Channel channel) {
     this.channel.set(channel);
@@ -538,33 +491,209 @@ public void onConnected(Channel channel) {
 }
 ```
 
-The method uses `AtomicReference.set()` which is idempotent - calling it multiple times with the same channel is safe. The `channel.attr(CONNECTION).set(this)` is also idempotent. So even if `onConnected` is called twice (once from `ConnectionListener` and once from `ConnectionHandler.channelActive`), it won't cause any issues.
+This method is idempotent - calling it multiple times with the same channel will just set the same values again. The `AtomicReference.set()` is thread-safe and will just overwrite the value. The `channel.attr(CONNECTION).set(this)` will also just set the same attribute again.
 
-The fix is correct and addresses the problem described in the issue. Let me update the status:
+However, there's a potential issue: both the `ConnectionListener#operationComplete` and `ConnectionHandler#channelActive` might be called for the same connection, potentially causing the log message to be printed twice. This is a minor issue and doesn't affect functionality.
+
+Looking at the order of events in Netty:
+1. When `bootstrap.connect()` is called, it returns a `ChannelFuture`
+2. The `ChannelFutureListener` (our `ConnectionListener`) is notified when the connection is established
+3. The `channelActive` callback in the pipeline handlers is also called when the channel becomes active
+
+In Netty, the `operationComplete` callback on the connect future and the `channelActive` callback are typically called in the same event loop thread, so there shouldn't be a race condition. The `operationComplete` is usually called first when the connection is established, and then `channelActive` is called as part of the pipeline activation.
+
+The fix is correct and aligns with the problem statement. The key benefit is that `isAvailable()` will now return `true` immediately after the connection future succeeds, rather than waiting for the `channelActive` callback.
+
+Let me also verify that the change is consistent with the problem statement by reviewing the final code.
+</thinking>
+
+STEP 6: FINAL REVIEW
+
+Let me do a final review of the change to ensure it's correct:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && git diff dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+diff --git a/dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java b/dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java
+index 3f058292d0..eec4d79fb2 100644
+--- a/dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java
++++ b/dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java
+@@ -222,6 +222,7 @@ public class Connection extends AbstractR...
+```
+========================================================================================================================
+AGENT:
+The change is exactly as specified in the problem statement. Let me also run a broader set of tests to ensure the change doesn't break anything else:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && ./mvnw test -pl dubbo-remoting/dubbo-remoting-api -Drat.skip=true
+  -Dcheckstyle.skip=true -am 2>&1 | tail -50
+timeout: 600
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+[[1;31mERROR[m] [1;31m  ExtensionLoader_Adaptive_UseJdkCompiler_Test>ExtensionLoader_Adaptive_Test.test_getAdaptiveExtension_ExceptionWhenNotAdaptiveMethod:167 » IllegalState[m
+[[1;31mERROR[m] [1;31m  ExtensionLoader_Adaptive_UseJdkCompiler_Test>ExtensionLoader_Adaptive_Test.test_getAdaptiveExtension_UrlNpe:134 » IllegalState[m
+[[1;31mERROR[m] [1;31m  ExtensionLoader_Adaptive_UseJdkCompiler_Test>ExtensionLoader_Adaptive_Test.test_getAdaptiveExtension_customizeAdaptiveKey:82 » IllegalS...
+```
+========================================================================================================================
+AGENT:
+The test failures are in `dubbo-common` and are unrelated to our change (they're related to Javassist, Mockito, and other infrastructure issues). Let me run only the tests in the `dubbo-remoting-api` module to verify our change:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && ./mvnw test -pl dubbo-remoting/dubbo-remoting-api -Drat.skip=true
+  -Dcheckstyle.skip=true 2>&1 | tail -50
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+[11/12/25 18:02:13:324 UTC] main  WARN remoting.PerformanceClientTest:  [DUBBO] Please set -Dserver=127.0.0.1:9911, dubbo version: 3.0.1-SNAPSHOT, current host: 172.17.0.10
+[[1;34mINFO[m] [1;32mTests run: [0;1;32m1[m, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s - in org.apache.dubbo.remoting.[1mPerformanceClientTest[m
+[[1;34mINFO[m] Running org.apache.dubbo.remoting.telnet.support.[1mHelpTelnetHandlerTest[m
+[[1;34mINFO[m] [1;32mTests run: [0;1;32m1[m, Failures: 0, Error...
+```
+========================================================================================================================
+AGENT:
+The 4 test errors are related to "Failed to create adaptive instance" which is an infrastructure issue with the test environment, not related to our change. The `ConnectionTest` tests all passed (3 tests). Let me verify that these errors existed before our change by checking if they're related to our modification:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && git stash && ./mvnw test -pl dubbo-remoting/dubbo-remoting-api
+  -Dtest=TransportersTest -Drat.skip=true -Dcheckstyle.skip=true 2>&1 | tail -30
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Saved working directory and index state WIP on _current: a39fffebe5 Optimize Service related issues (#8122)
+	... 77 more
+
+	at org.apache.dubbo.remoting.TransportersTest.testBind(TransportersTest.java:34)
+
+[[1;34mINFO[m] 
+[[1;34mINFO[m] Results:
+[[1;34mINFO[m] 
+[[1;31mERROR[m] [1;31mErrors: [m
+[[1;31mERROR[m] [1;31m  TransportersTest.testBind:34 » IllegalState Failed to create adaptive instance...[m
+[[1;31mERROR[m] [1;31m  TransportersTest.testConnect:42 » IllegalState Failed to ...
+```
+========================================================================================================================
+AGENT:
+The test failures exist even without our change - they are pre-existing issues in the test environment. Let me restore our change:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && git stash pop
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+On branch _current
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	tmp_code_0e5e1065189ccda071e9c1fbcfdb23a8f7ed5a52d91f658e4eab91dd4b92dc50.bash
+
+no changes added to commit (use "git add" and/...
+```
+========================================================================================================================
+AGENT:
+Good, our change is restored. Let me verify the change is still in place:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && git diff dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+diff --git a/dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java b/dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java
+index 3f058292d0..eec4d79fb2 100644
+--- a/dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java
++++ b/dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java
+@@ -222,6 +222,7 @@ public class Connection extends AbstractR...
+```
+========================================================================================================================
+AGENT:
+The change is in place. Let me run the ConnectionTest one more time to confirm it passes:
+========================================================================================================================
+TOOL CALL (bash)
+command: cdinspect_codevnw test -pl dubbo-remoting/dubbo-remoting-api -Dtest=ConnectionTest
+  -Drat.skip=true -Dcheckstyle.skip=true 2>&1 | tail -20
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+[[1;34mINFOinspect_codeource files to /workspace/dubbo-remoting/dubbo-remoting-api/target/test-classes
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mmaven-surefire-plugin:2.22.2:test[m [1m(default-test)[m @ [36mdubbo-remoting-api[0;1m ---[m
+[[1;34mINFO[m] 
+[[1;34mINFO[m] -------------------------------------------------------
+[[1;34mINFO[m]  T E S T S
+[[1;34mINFO[m] -------------------------------------------------------
+[[1;34mINFO[m] Running org.apache.dubbo.remotin...
+```
+========================================================================================================================
+AGENT:
+All 3 tests pass. Let me also verify the change by looking at the final state of the file:
+========================================================================================================================
+TOOL CALL (expand_code_chunks)
+file_path: dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java
+line_ranges:
+- - 218
+  - 242
+
+========================================================================================================================
+TOOL RETURN (expand_code_chunks)
+```
+Successfully expanded code chunks in dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java:
+
+````java
+   0 /*
+...
+  54 public class Connection extends AbstractReferenceCounted implements ReferenceCounted {
+  55 
+  56     public static final AttributeKey<Connection> CONNECTION = AttributeKey.valueOf("connection");
+  57     private static final Logger logger = LoggerFactory.getLogger(Connection.class);
+  58     private final URL url;
+  59     private final i...
+```
+========================================================================================================================
+AGENT:
+The fix is correctly implemented. Let me provide a summary of the change:
 ========================================================================================================================
 AGENT:
 Successfully fixed the problem in the Triple protocol where an error was reported immediately when the service was exposed.
 
-The issue was in the `Connection.ConnectionListener.operationComplete()` method in `dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java`. 
-
 **Problem:**
-- When using the Triple protocol, calling the `refer` method generates a connection instance
-- The `connection.isAvailable()` method only returned `true` when `channelActive` was called back (which sets the channel reference via `onConnected`)
-- However, when the connection future completes successfully, the channel is already available, but `onConnected` was not being called in the `ConnectionListener`
-- This caused `isAvailable()` to return `false` immediately after `connectSync()` completed, even though the connection was actually successful
+When using the Triple protocol, calling the `refer` method generates a connection instance. The `connection#isAvailable` method only returns `true` when `channelActive` is called back (via `ConnectionHandler#channelActive`). However, when the connection future is successful, the channel is already available. This caused a timing issue where `isAvailable()` would return `false` even though the connection was already established.
 
-**Fix:**
-Added a call to `onConnected(future.channel())` in the `ConnectionListener.operationComplete()` method when `future.isSuccess()` is true:
+**Solution:**
+Modified the `ConnectionListener#operationComplete` method in `org.apache.dubbo.remoting.api.Connection` to call `onConnected(future.channel())` when the future is successful. This ensures that the channel reference is set immediately when the connection is established, making `isAvailable()` return `true` right away.
+
+**Change made:**
+In `dubbo-remoting/dubbo-remoting-api/src/main/java/org/apache/dubbo/remoting/api/Connection.java`, line 224:
 
 ```java
-@Override
-public void operationComplete(ChannelFuture future) {
-    if (future.isSuccess()) {
-        onConnected(future.channel());  // Added this line
-        return;
+class ConnectionListener implements ChannelFutureListener {
+    @Override
+    public void operationComplete(ChannelFuture future) {
+        if (future.isSuccess()) {
+            onConnected(future.channel());  // Added this line
+            return;
+        }
+        // ... rest of the method
     }
-    // ... rest of the method
 }
 ```
 
-This ensures that when the connection future completes successfully, the channel reference is set immediately, making `isAvailable()` return `true` right away. The fix is safe because `onConnected` is idempotent - calling it multiple times with the same channel has no adverse effects.
+**Verification:**
+- The code compiles successfully
+- All 3 ConnectionTest tests pass
+- The change is idempotent (safe to call `onConnected` multiple times with the same channel)

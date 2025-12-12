@@ -95,40 +95,66 @@ Similar or dependent issues:
 </problem_statement>
 
 Do not stop until you have made code changes that resolve the problem statement. Do not ask for clarifications.
+
+NEVER attempt to find the solution to the problem statement by searching future commits or branches in the repository.
 ========================================================================================================================
 AGENT:
-Starting to analyze the problem statement. The issue is about wider `logs:CreateLogStream`/`logs:PutLogEvents` permissions being added to IAM policies for Lambda functions with manual/custom names. I need to explore the codebase to understand how IAM policies are generated and find where the issue was introduced.
+Starting to analyze the problem statement. The issue is about wider permissions being added for `logs:CreateLogStream` and `logs:PutLogEvents` in IAM policies for Lambda functions with custom names. I need to explore the codebase to understand how these policies are generated and find the root cause of the regression between v1.44.1 and v1.45.1.
 ========================================================================================================================
 AGENT:
-STEP 1: EXPLORE THE CODEBASE
+EXPLORE WORKSPACE: Understanding the issue and finding relevant files
 
 <thinking>
 The problem statement indicates that:
-1. When a service contains only custom-named functions (using `name:` property in the function config), the IAM policies for `logs:CreateLogStream` and `logs:PutLogEvents` are getting wider permissions than expected.
-2. In v1.44.1, only the specific log group for the custom-named function was included.
-3. In v1.45.1, an additional wildcard permission for `/aws/lambda/log-group-policy-dev*` was added.
+1. When a service contains only custom named functions (functions with explicit `name` property), the policies for `logs:CreateLogStream` and `logs:PutLogEvents` now include an additional wildcard permission for `/aws/lambda/log-group-policy-dev*` that wasn't there before.
+2. This is a regression introduced in v1.45.1 compared to v1.44.1.
+3. The issue references PR #6240 and issue #6236 and #6212 as related.
 
-The issue is related to IAM policy generation for Lambda functions. I need to look at:
-1. The IAM template merging code - likely in `lib/plugins/aws/package/lib/mergeIamTemplates.js`
-2. The naming conventions - likely in `lib/plugins/aws/lib/naming.js`
+I need to:
+1. Find where IAM policies are generated for Lambda functions
+2. Understand how the log group permissions are constructed
+3. Identify why the additional wildcard permission is being added when all functions have custom names
 
-Let me start by exploring these files to understand how the IAM policies are generated.
+Let me start by searching for files related to IAM policy generation and log group permissions.
+</thinking>
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: logs:CreateLogStream
+
+========================================================================================================================
+TOOL RETURN (grep)
+```
+docs/providers/aws/guide/iam.md:124:                    - logs:CreateLogStream
+docs/providers/aws/guide/iam.md:184:                    - logs:CreateLogStream
+docs/providers/aws/guide/iam.md:222:                    - logs:CreateLogStream
+docs/providers/aws/guide/iam.md:281:                    - logs:CreateLogStream
+docs/providers/aws/guide/iam.md:320:                    - logs:CreateLogStream
+lib/plugins/aws/package/lib/mergeIamTemplates.test.js:89:                    Action: ['logs:CreateLogStre...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+The key files seem to be:
+1. `lib/plugins/aws/package/lib/mergeIamTemplates.js` - This is likely where IAM templates are merged
+2. `lib/plugins/aws/package/lib/iam-role-lambda-execution-template.json` - The base IAM template
+
+Let me open these files to understand the structure.
 </thinking>
 ========================================================================================================================
 TOOL CALL (open_files)
 file_paths:
 - lib/plugins/aws/package/lib/mergeIamTemplates.js
-- lib/plugins/aws/lib/naming.js
+- lib/plugins/aws/package/lib/iam-role-lambda-execution-template.json
 
 ========================================================================================================================
 TOOL RETURN (open_files)
 ```
-["Successfully opened lib/plugins/aws/package/lib/mergeIamTemplates.js:\n\n````javascript\n   0 'use strict';\n   1 \n   2 const _ = require('lodash');\n...\n   7   mergeIamTemplates() {\n...\n  13   merge() {\n...\n 174   mergeManagedPolicies(managedPolicies) {\n...\n 184   validateStatements(statements) {\n...\n 218   validateManagedPolicies(iamManagedPolicies) {\n...\n 228 \n````", "Successfully opened lib/plugins/aws/lib/naming.js:\n\n````javascript\n   0 'use strict';\n   1 \n   2 const _ =...
+["Successfully opened lib/plugins/aws/package/lib/mergeIamTemplates.js:\n\n````javascript\n   0 'use strict';\n   1 \n   2 const _ = require('lodash');\n...\n   7   mergeIamTemplates() {\n...\n  13   merge() {\n...\n 174   mergeManagedPolicies(managedPolicies) {\n...\n 184   validateStatements(statements) {\n...\n 218   validateManagedPolicies(iamManagedPolicies) {\n...\n 228 \n````", 'Successfully opened lib/plugins/aws/package/lib/iam-role-lambda-execution-template.json:\n\n````json\n   0 {\n ...
 ```
 ========================================================================================================================
 AGENT:
 <thinking>
-I need to expand the relevant code chunks in these files to understand how the IAM policies are generated. Let me look at the `mergeIamTemplates.js` file more closely, particularly the `merge` function which likely handles the IAM policy generation.
+I can see the IAM template has empty `Resource` arrays for `logs:CreateLogStream` and `logs:PutLogEvents`. The `mergeIamTemplates.js` file is collapsed, so I need to expand it to see the full implementation. Let me expand the entire file to understand how the resources are populated.
 </thinking>
 ========================================================================================================================
 TOOL CALL (inspect_code)
@@ -158,18 +184,21 @@ Successfully expanded code chunks in lib/plugins/aws/package/lib/mergeIamTemplat
 ========================================================================================================================
 AGENT:
 <thinking>
-Now I understand the issue. Looking at the code in `mergeIamTemplates.js`:
+Now I understand the issue. Looking at lines 83-127:
 
-1. Lines 83-103: The code always adds a general policy for functions with default name resolution using the `canonicalFunctionNamePrefix` (which is `${service}-${stage}`). This creates a wildcard permission like `/aws/lambda/log-group-policy-dev*`.
+1. Lines 83-86: A `canonicalFunctionNamePrefix` is created from `service-stage` (e.g., `log-group-policy-dev`)
+2. Lines 92-103: The code **always** adds a wildcard permission for `${logGroupsPrefix}*` (e.g., `/aws/lambda/log-group-policy-dev*`)
+3. Lines 105-127: For functions with custom names that don't start with the canonical prefix, it adds specific permissions for those custom names
 
-2. Lines 105-127: For functions with custom names, it adds additional specific policies for those custom-named functions.
+The problem is that lines 92-103 **unconditionally** add the wildcard permission for the default naming pattern, even when ALL functions have custom names that don't follow the default pattern.
 
-The problem is that the general policy (lines 92-103) is always added, even when ALL functions have custom names. According to the issue, when all functions have custom names, the general wildcard policy shouldn't be added because it's unnecessary and violates the principle of least privilege.
+According to the principle of least privilege, if all functions have custom names that don't follow the default pattern, the wildcard permission for the default pattern should NOT be added.
 
 The fix should be:
-- Only add the general wildcard policy (lines 92-103) if there are functions that use the default naming convention (i.e., functions that don't have a custom `name` property or whose name starts with the `canonicalFunctionNamePrefix`).
+1. Check if there are any functions that use the default naming pattern (i.e., functions without a custom name or with a custom name that starts with the canonical prefix)
+2. Only add the wildcard permission for the default pattern if there are such functions
 
-Let me look at the test file to understand the expected behavior better.
+Let me also look at the test file to understand the expected behavior better.
 </thinking>
 ========================================================================================================================
 TOOL CALL (open_files)
@@ -179,14 +208,19 @@ file_paths:
 ========================================================================================================================
 TOOL RETURN (open_files)
 ```
-["Successfully opened lib/plugins/aws/package/lib/mergeIamTemplates.test.js:\n\n````javascript\n   0 'use strict';\n   1 \n   2 const expect = require('chai').expect;\n...\n   9   let awsPackage;\n...\n  18     const options = {\n...\n  42       const resources =\n...\n  51       const canonicalFunctionsPrefix = `${\n...\n 130     const customFunctionName = 'foo-bar';\n...\n 141       const canonicalFunctionsPrefix = `${\n...\n 268     const iamManagedPolicies = [\n...\n 274     const expectedMa...
+["Successfully opened lib/plugins/aws/package/lib/mergeIamTemplates.test.js:\n\n````javascript\n   0 'use strict';\n   1 \n   2 const expect = require('chai').expect;\n...\n  18     const options = {\n...\n  42       const resources =\n...\n  51       const canonicalFunctionsPrefix = `${\n...\n  88                     Action: ['logs:CreateLogStream'],\n...\n 130     const customFunctionName = 'foo-bar';\n...\n 141       const canonicalFunctionsPrefix = `${\n...\n 178                     Action: ...
 ```
+========================================================================================================================
+AGENT:
+<thinking>
+Let me expand the test file to see the test cases for custom function names and understand the expected behavior better.
+</thinking>
 ========================================================================================================================
 TOOL CALL (inspect_code)
 file_path: lib/plugins/aws/package/lib/mergeIamTemplates.test.js
 line_ranges:
-- - 0
-  - 200
+- - 120
+  - 250
 
 ========================================================================================================================
 TOOL RETURN (inspect_code)
@@ -197,85 +231,57 @@ Successfully expanded code chunks in lib/plugins/aws/package/lib/mergeIamTemplat
    0 'use strict';
    1 
    2 const expect = require('chai').expect;
-   3 
-   4 const Serverless = require('../../../../Serverless');
-   5 const AwsProvider = require('../../provider/awsProvider');
-   6 const AwsPackage = require('../index');
-   7 
-   8 describe('#mergeIamTemplates()', () => {
-   9   let awsPackage;
-  10   let serverless;
-  11   const serviceName = 'new-service';
-  12   co...
+...
+  18     const options = {
+...
+  42       const resources =
+...
+  51       const canonicalFunctionsPrefix = `${
+...
+  88                     Action: ['logs:CreateLogStream'],
+...
+ 120                 },
+ 121                 'lambdaRole',
+ 122               ],
+ 123             ],
+ 124           },
+ 125         },
+ 126 ...
 ```
 ========================================================================================================================
 AGENT:
 <thinking>
-Now I can see the issue more clearly. Looking at the test case "should ensure IAM policies for custom named functions" (lines 129-200), the expected behavior in the test is that BOTH the canonical prefix wildcard AND the custom function name are included in the policy. However, according to the bug report, when ALL functions have custom names, the canonical prefix wildcard should NOT be included.
+I can see from the test at line 129-228 that the current expected behavior includes BOTH:
+1. The wildcard permission for the canonical prefix (lines 181-184 and 196-199)
+2. The specific permission for the custom function name (lines 185-189 and 200-205)
 
-The test case at line 129 shows that when a function has a custom name, it expects both:
-1. The canonical prefix wildcard: `log-group:/aws/lambda/${canonicalFunctionsPrefix}*:*`
-2. The custom function name: `log-group:/aws/lambda/${customFunctionName}:*`
+This test confirms the bug - when a function has a custom name that doesn't start with the canonical prefix, the test expects both permissions to be added. But according to the principle of least privilege, if ALL functions have custom names, the wildcard permission for the canonical prefix should NOT be added.
 
-But according to the bug report, this is incorrect behavior. When ALL functions have custom names (that don't start with the canonical prefix), the wildcard should not be added.
+Now I need to fix the code in `mergeIamTemplates.js`. The fix should:
+1. First check if there are any functions that use the default naming pattern (no custom name, or custom name starting with the canonical prefix)
+2. Only add the wildcard permission for the default pattern if there are such functions
 
-Let me check the test file more to see if there are more relevant tests, and then I'll implement the fix.
+Let me implement the fix:
 </thinking>
 ========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: lib/plugins/aws/package/lib/mergeIamTemplates.test.js
-line_ranges:
-- - 200
-  - 270
-
-========================================================================================================================
-TOOL RETURN (inspect_code)
-```
-Successfully expanded code chunks in lib/plugins/aws/package/lib/mergeIamTemplates.test.js:
-
-````javascript
-   0 'use strict';
-   1 
-   2 const expect = require('chai').expect;
-   3 
-   4 const Serverless = require('../../../../Serverless');
-   5 const AwsProvider = require('../../provider/awsProvider');
-   6 const AwsPackage = require('../index');
-   7 
-   8 describe('#mergeIamTemplates()', () => {
-   9   let awsPackage;
-  10   let serverless;
-  11   const serviceName = 'new-service';
-  12   co...
-```
+AGENT:
+I've identified the issue. In `mergeIamTemplates.js`, lines 92-103 unconditionally add a wildcard permission for the default naming pattern (e.g., `/aws/lambda/log-group-policy-dev*`), even when ALL functions have custom names that don't follow this pattern. I need to modify the code to only add this wildcard permission if there are functions that use the default naming pattern.
 ========================================================================================================================
 AGENT:
+MODIFY CODE: Fixing the IAM policy generation
+
 <thinking>
-Now I understand the issue completely. The test at line 129 ("should ensure IAM policies for custom named functions") shows the current (buggy) behavior where both the canonical prefix wildcard AND the custom function name are included. According to the bug report, when ALL functions have custom names, only the custom function name should be included, not the wildcard.
+Now I'll modify the code to:
+1. First check if there are any functions that use the default naming pattern
+2. Only add the wildcard permission for the default pattern if there are such functions
 
-The fix should be:
-1. First, check if there are any functions that use the default naming convention (i.e., functions without a custom `name` property or whose name starts with the `canonicalFunctionNamePrefix`).
-2. Only add the general wildcard policy if there are such functions.
-3. For functions with custom names that don't start with the canonical prefix, add specific policies.
+The logic should be:
+- A function uses the default naming pattern if:
+  - It doesn't have a custom `name` property, OR
+  - Its custom `name` starts with the canonical prefix (`service-stage`)
 
-Let me now implement the fix in `mergeIamTemplates.js`.
-
-The current code structure is:
-1. Lines 92-103: Always add the general wildcard policy
-2. Lines 105-127: Add specific policies for custom-named functions
-
-The fix should be:
-1. First, determine if there are any functions that use the default naming convention
-2. Only add the general wildcard policy if there are such functions
-3. Add specific policies for custom-named functions
-
-Let me implement this fix.
+Let me implement this fix:
 </thinking>
-
-STEP 2: IMPLEMENT THE FIX
-========================================================================================================================
-AGENT:
-I've identified the issue in lib/plugins/aws/package/lib/mergeIamTemplates.js. The code always adds a general wildcard policy for the canonical function prefix, even when all functions have custom names. I will now implement the fix to only add the wildcard policy when there are functions using the default naming convention.
 ========================================================================================================================
 TOOL CALL (find_and_replace_code)
 file_path: lib/plugins/aws/package/lib/mergeIamTemplates.js
@@ -304,24 +310,28 @@ replace: "    const canonicalFunctionNamePrefix = `${\n      this.provider.serve
   \    }-${this.provider.getStage()}`;\n    const logGroupsPrefix = this.provider.naming.getLogGroupName(canonicalFunctionNamePrefix);\n\
   \n    const policyDocumentStatements = this.serverless.service.provider.compiledCloudFormationTemplate\n\
   \      .Resources[this.provider.naming.getRoleLogicalId()].Properties.Policies[0].PolicyDocument\n\
-  \      .Statement;\n\n    let hasOneOrMoreCanonicallyNamedFunctions = false;\n \
-  \   // Ensure policies for functions with custom name resolution\n    this.serverless.service.getAllFunctions().forEach(functionName\
+  \      .Statement;\n\n    // Ensure general policies for functions with default\
+  \ name resolution\n    // but only if there are functions that use the default naming\
+  \ scheme\n    let shouldAddDefaultLogGroupPolicy = false;\n    this.serverless.service.getAllFunctions().forEach(functionName\
   \ => {\n      const { name: resolvedFunctionName } = this.serverless.service.getFunction(functionName);\n\
   \      if (!resolvedFunctionName || resolvedFunctionName.startsWith(canonicalFunctionNamePrefix))\
-  \ {\n        hasOneOrMoreCanonicallyNamedFunctions = true;\n        return;\n  \
-  \    }\n\n      const customFunctionNamelogGroupsPrefix = this.provider.naming.getLogGroupName(\n\
-  \        resolvedFunctionName\n      );\n\n      policyDocumentStatements[0].Resource.push({\n\
-  \        'Fn::Sub':\n          'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}'\
-  \ +\n          `:log-group:${customFunctionNamelogGroupsPrefix}:*`,\n      });\n\
-  \n      policyDocumentStatements[1].Resource.push({\n        'Fn::Sub':\n      \
-  \    'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}' +\n         \
-  \ `:log-group:${customFunctionNamelogGroupsPrefix}:*:*`,\n      });\n    });\n\n\
-  \    // Ensure general policies for functions with default name resolution\n   \
-  \ if (hasOneOrMoreCanonicallyNamedFunctions) {\n      policyDocumentStatements[0].Resource.push({\n\
+  \ {\n        shouldAddDefaultLogGroupPolicy = true;\n      }\n    });\n\n    if\
+  \ (shouldAddDefaultLogGroupPolicy) {\n      policyDocumentStatements[0].Resource.push({\n\
   \        'Fn::Sub':\n          'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}'\
   \ +\n          `:log-group:${logGroupsPrefix}*:*`,\n      });\n\n      policyDocumentStatements[1].Resource.push({\n\
   \        'Fn::Sub':\n          'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}'\
-  \ +\n          `:log-group:${logGroupsPrefix}*:*:*`,\n      });\n    }"
+  \ +\n          `:log-group:${logGroupsPrefix}*:*:*`,\n      });\n    }\n\n    //\
+  \ Ensure policies for functions with custom name resolution\n    this.serverless.service.getAllFunctions().forEach(functionName\
+  \ => {\n      const { name: resolvedFunctionName } = this.serverless.service.getFunction(functionName);\n\
+  \      if (!resolvedFunctionName || resolvedFunctionName.startsWith(canonicalFunctionNamePrefix))\
+  \ {\n        return;\n      }\n\n      const customFunctionNamelogGroupsPrefix =\
+  \ this.provider.naming.getLogGroupName(\n        resolvedFunctionName\n      );\n\
+  \n      policyDocumentStatements[0].Resource.push({\n        'Fn::Sub':\n      \
+  \    'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}' +\n         \
+  \ `:log-group:${customFunctionNamelogGroupsPrefix}:*`,\n      });\n\n      policyDocumentStatements[1].Resource.push({\n\
+  \        'Fn::Sub':\n          'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}'\
+  \ +\n          `:log-group:${customFunctionNamelogGroupsPrefix}:*:*`,\n      });\n\
+  \    });"
 
 ========================================================================================================================
 TOOL RETURN (find_and_replace_code)
@@ -330,7 +340,7 @@ Successfully replaced code in lib/plugins/aws/package/lib/mergeIamTemplates.js:
 
 --- lib/plugins/aws/package/lib/mergeIamTemplates.js
 +++ lib/plugins/aws/package/lib/mergeIamTemplates.js
-@@ -90,23 +90,12 @@
+@@ -90,18 +90,29 @@
        .Resources[this.provider.naming.getRoleLogicalId()].Properties.Policies[0].PolicyDocument
        .Statement;
  
@@ -341,12 +351,46 @@ Successfully replaced code in lib/plugins/aws/package/lib/mergeIamTemplates.js:
 ```
 ========================================================================================================================
 AGENT:
-STEP 3: UPDATE THE TEST FILE
+UPDATE TESTS: Now I need to update the test file to reflect the new expected behavior
 
 <thinking>
-Now I need to update the test file to reflect the correct expected behavior. The test "should ensure IAM policies for custom named functions" should expect that when all functions have custom names, only the custom function name policies are included, not the wildcard.
+Now I need to update the test file. The test at line 129-228 expects both the wildcard permission and the custom function permission. But with my fix, when ALL functions have custom names that don't start with the canonical prefix, only the custom function permission should be added.
 
-Let me update the test.
+Let me update the test to reflect the correct expected behavior.
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: lib/plugins/aws/package/lib/mergeIamTemplates.test.js
+line_ranges:
+- - 0
+  - 130
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in lib/plugins/aws/package/lib/mergeIamTemplates.test.js:
+
+````javascript
+   0 'use strict';
+   1 
+   2 const expect = require('chai').expect;
+   3 
+   4 const Serverless = require('../../../../Serverless');
+   5 const AwsProvider = require('../../provider/awsProvider');
+   6 const AwsPackage = require('../index');
+   7 
+   8 describe('#mergeIamTemplates()', () => {
+   9   let awsPackage;
+  10   let serverless;
+  11   const serviceName = 'new-service';
+  12   co...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Now I need to update the test at line 129-228. The test currently expects both the wildcard permission for the canonical prefix AND the custom function permission. But with my fix, when ALL functions have custom names that don't start with the canonical prefix, only the custom function permission should be added.
+
+Let me update this test to reflect the correct expected behavior:
 </thinking>
 ========================================================================================================================
 TOOL CALL (find_and_replace_code)
@@ -444,10 +488,10 @@ Successfully replaced code in lib/plugins/aws/package/lib/mergeIamTemplates.test
 ```
 ========================================================================================================================
 AGENT:
-STEP 4: RUN TESTS TO VERIFY THE FIX
+RUN TESTS: Now let me run the tests to verify the changes work correctly
 
 <thinking>
-Now I need to run the tests to verify that the fix works correctly. Let me first install the dependencies and then run the specific test file.
+Let me run the tests for the mergeIamTemplates module to verify the changes work correctly.
 </thinking>
 ========================================================================================================================
 TOOL CALL (bash)
@@ -458,7 +502,7 @@ timeout: 120
 TOOL RETURN (bash)
 ```
 
-added 903 packages, and audited 904 packages in 35s
+added 903 packages, and audited 904 packages in 41s
 
 117 packages are looking for funding
   run `npm fund` for details
@@ -473,7 +517,7 @@ a different dependency.
 
 Run `npm audit` for details.
 npm notice
-npm notice New major version of npm available! 10.9.3 -> 11.6.4
+npm notice New major version of npm available! 10.9.3 -> 11.7.0
 npm notice Changelog: https://github.com/npm/cl...
 ```
 ========================================================================================================================
@@ -491,316 +535,24 @@ TOOL RETURN (bash)
 
 
   #mergeIamTemplates()
-(node:614) NOTE: The AWS SDK for JavaScript (v2) is in maintenance mode.
- SDK releases are limited to address critical bug fixes and security issues only.
+(node:614) NOTE: The AWS SDK for JavaScript (v2) has reached end-of-support.
+It will no longer receive updates or releases.
 
 Please migrate your code to use AWS SDK for JavaScript (v3).
 For more information, check the blog post at https://a.co/cUPnyil
 (Use `node --trace-warnings ...` to show where the warning was created)
-    ✓ should not merge if the...
+    ✓ should not merge if there are no functions
+    ✓ shoul...
 ```
 ========================================================================================================================
 AGENT:
-All tests pass. Now let me create a minimal reproduction script to verify the fix works as expected for the scenario described in the bug report.
-========================================================================================================================
-TOOL CALL (bash)
-command: "mkdir -p /tmp/test-fix && cd /tmp/test-fix && cat > serverless.yml << 'EOF'\n\
-  service: log-group-policy\n\nprovider:\n  name: aws\n  runtime: nodejs8.10\n\nfunctions:\n\
-  \  testFunction:\n    name: ${self:service}-custom-named-fn\n    handler: index.handler\n\
-  EOF\n\ncat > index.js << 'EOF'\nmodule.exports.handler = async (event) => {\n  return\
-  \ { statusCode: 200, body: 'Hello' };\n};\nEOF\n\necho \"Created test files\""
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Created test files...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /tmp/test-fix && /workspace/bin/serverless package 2>&1 | tail -20
-timeout: 60
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-(node:1146) NOTE: The AWS SDK for JavaScript (v2) is in maintenance mode.
- SDK releases are limited to address critical bug fixes and security issues only.
-
-Please migrate your code to use AWS SDK for JavaScript (v3).
-For more information, check the blog post at https://a.co/cUPnyil
-(Use `node --trace-warnings ...` to show where the warning was created)
-Serverless: Packaging service...
-Serverless: Excluding development dependencies......
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: "cd /tmp/test-fix && cat .serverless/cloudformation-template-update-stack.json\
-  \ | python3 -c \"\nimport json\nimport sys\n\ndata = json.load(sys.stdin)\nrole\
-  \ = data['Resources']['IamRoleLambdaExecution']\nstatements = role['Properties']['Policies'][0]['PolicyDocument']['Statement']\n\
-  \nprint('=== IAM Policy Statements ===')\nfor stmt in statements:\n    print(f\\\
-  \"Action: {stmt['Action']}\\\")\n    print(f\\\"Resources:\\\")\n    for res in\
-  \ stmt['Resource']:\n        if isinstance(res, dict) and 'Fn::Sub' in res:\n  \
-  \          print(f\\\"  - {res['Fn::Sub']}\\\")\n        else:\n            print(f\\\
-  \"  - {res}\\\")\n    print()\n\""
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-=== IAM Policy Statements ===
-Action: ['logs:CreateLogStream']
-Resources:
-  - arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/log-group-policy-custom-named-fn:*
-
-Action: ['logs:PutLogEvents']
-Resources:
-  - arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/log-group-policy-custom-named-fn:*:*...
-```
-========================================================================================================================
-AGENT:
-The fix is working correctly. Now the IAM policy only includes the specific log group for the custom-named function (`log-group-policy-custom-named-fn`), and does NOT include the wildcard permission for `log-group-policy-dev*`.
-
-Let me also verify that the fix still works correctly when there's a mix of custom-named and default-named functions:
-========================================================================================================================
-TOOL CALL (bash)
-command: "mkdir -p /tmp/test-fix-mixed && cd /tmp/test-fix-mixed && cat > serverless.yml\
-  \ << 'EOF'\nservice: log-group-policy\n\nprovider:\n  name: aws\n  runtime: nodejs8.10\n\
-  \nfunctions:\n  testFunction:\n    name: ${self:service}-custom-named-fn\n    handler:\
-  \ index.handler\n  defaultFunction:\n    handler: index.handler\nEOF\n\ncat > index.js\
-  \ << 'EOF'\nmodule.exports.handler = async (event) => {\n  return { statusCode:\
-  \ 200, body: 'Hello' };\n};\nEOF\n\necho \"Created test files for mixed scenario\""
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Created test files for mixed scenario...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /tmp/test-fix-mixed && /workspace/bin/serverless package 2>&1 | tail -10
-timeout: 60
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-(node:1975) NOTE: The AWS SDK for JavaScript (v2) is in maintenance mode.
- SDK releases are limited to address critical bug fixes and security issues only.
-
-Please migrate your code to use AWS SDK for JavaScript (v3).
-For more information, check the blog post at https://a.co/cUPnyil
-(Use `node --trace-warnings ...` to show where the warning was created)
-Serverless: Packaging service...
-Serverless: Excluding development dependencies......
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: "cd /tmp/test-fix-mixed && cat .serverless/cloudformation-template-update-stack.json\
-  \ | python3 -c \"\nimport json\nimport sys\n\ndata = json.load(sys.stdin)\nrole\
-  \ = data['Resources']['IamRoleLambdaExecution']\nstatements = role['Properties']['Policies'][0]['PolicyDocument']['Statement']\n\
-  \nprint('=== IAM Policy Statements (Mixed Scenario) ===')\nfor stmt in statements:\n\
-  \    print(f\\\"Action: {stmt['Action']}\\\")\n    print(f\\\"Resources:\\\")\n\
-  \    for res in stmt['Resource']:\n        if isinstance(res, dict) and 'Fn::Sub'\
-  \ in res:\n            print(f\\\"  - {res['Fn::Sub']}\\\")\n        else:\n   \
-  \         print(f\\\"  - {res}\\\")\n    print()\n\""
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-=== IAM Policy Statements (Mixed Scenario) ===
-Action: ['logs:CreateLogStream']
-Resources:
-  - arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/log-group-policy-custom-named-fn:*
-  - arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/log-group-policy-dev*:*
-
-Action: ['logs:PutLogEvents']
-Resources:
-  - arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/log-group-policy-custom-named-fn:*:*
-  - arn:${AWS...
-```
-========================================================================================================================
-AGENT:
-The mixed scenario also works correctly. When there's a mix of custom-named and default-named functions:
-1. The custom-named function gets its specific log group permission
-2. The default-named function gets the wildcard permission for the canonical prefix
-
-Let me also test the scenario where all functions use the default naming convention:
-========================================================================================================================
-TOOL CALL (bash)
-command: "mkdir -p /tmp/test-fix-default && cd /tmp/test-fix-default && cat > serverless.yml\
-  \ << 'EOF'\nservice: log-group-policy\n\nprovider:\n  name: aws\n  runtime: nodejs8.10\n\
-  \nfunctions:\n  testFunction:\n    handler: index.handler\n  anotherFunction:\n\
-  \    handler: index.handler\nEOF\n\ncat > index.js << 'EOF'\nmodule.exports.handler\
-  \ = async (event) => {\n  return { statusCode: 200, body: 'Hello' };\n};\nEOF\n\n\
-  echo \"Created test files for default naming scenario\""
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Created test files for default naming scenario...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /tmp/test-fix-default && /workspace/bin/serverless package 2>&1 | tail
-  -10
-timeout: 60
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-(node:2804) NOTE: The AWS SDK for JavaScript (v2) is in maintenance mode.
- SDK releases are limited to address critical bug fixes and security issues only.
-
-Please migrate your code to use AWS SDK for JavaScript (v3).
-For more information, check the blog post at https://a.co/cUPnyil
-(Use `node --trace-warnings ...` to show where the warning was created)
-Serverless: Packaging service...
-Serverless: Excluding development dependencies......
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: "cd /tmp/test-fix-default && cat .serverless/cloudformation-template-update-stack.json\
-  \ | python3 -c \"\nimport json\nimport sys\n\ndata = json.load(sys.stdin)\nrole\
-  \ = data['Resources']['IamRoleLambdaExecution']\nstatements = role['Properties']['Policies'][0]['PolicyDocument']['Statement']\n\
-  \nprint('=== IAM Policy Statements (Default Naming Scenario) ===')\nfor stmt in\
-  \ statements:\n    print(f\\\"Action: {stmt['Action']}\\\")\n    print(f\\\"Resources:\\\
-  \")\n    for res in stmt['Resource']:\n        if isinstance(res, dict) and 'Fn::Sub'\
-  \ in res:\n            print(f\\\"  - {res['Fn::Sub']}\\\")\n        else:\n   \
-  \         print(f\\\"  - {res}\\\")\n    print()\n\""
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-=== IAM Policy Statements (Default Naming Scenario) ===
-Action: ['logs:CreateLogStream']
-Resources:
-  - arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/log-group-policy-dev*:*
-
-Action: ['logs:PutLogEvents']
-Resources:
-  - arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/log-group-policy-dev*:*:*...
-```
-========================================================================================================================
-AGENT:
-All three scenarios work correctly:
-
-1. **Custom-named functions only**: Only specific log group permissions for the custom-named function (no wildcard)
-2. **Mixed (custom + default)**: Both specific permissions for custom-named functions AND wildcard for default-named functions
-3. **Default-named functions only**: Only wildcard permission for the canonical prefix
-
-Let me run the full test suite for the mergeIamTemplates module one more time to make sure everything passes:
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && npm test -- --grep "mergeIamTemplates" 2>&1
-timeout: 120
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-
-> serverless@1.49.0 test
-> mocha "!(node_modules)/**/*.test.js" --grep mergeIamTemplates
-
-
-
-  #mergeIamTemplates()
-(node:3381) NOTE: The AWS SDK for JavaScript (v2) is in maintenance mode.
- SDK releases are limited to address critical bug fixes and security issues only.
-
-Please migrate your code to use AWS SDK for JavaScript (v3).
-For more information, check the blog post at https://a.co/cUPnyil
-(Use `node --trace-warnings ...` to show where the warning was created)
-    ✓ should not merge if th...
-```
-========================================================================================================================
-AGENT:
-All 23 tests pass. Let me also verify the changes I made by reviewing the modified files:
-========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: lib/plugins/aws/package/lib/mergeIamTemplates.js
-line_ranges:
-- - 80
-  - 140
-
-========================================================================================================================
-TOOL RETURN (inspect_code)
-```
-Successfully expanded code chunks in lib/plugins/aws/package/lib/mergeIamTemplates.js:
-
-````javascript
-   0 'use strict';
-   1 
-   2 const _ = require('lodash');
-   3 const BbPromise = require('bluebird');
-   4 const path = require('path');
-   5 
-   6 module.exports = {
-   7   mergeIamTemplates() {
-   8     this.validateStatements(this.serverless.service.provider.iamRoleStatements);
-   9     this.validateManagedPolicies(this.serverless.service.provider.iamManagedPolicies);
-  10     return this.m...
-```
-========================================================================================================================
-AGENT:
-The code looks correct. Let me also run a broader set of tests to ensure the fix doesn't break anything else:
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && npm test -- --grep "package" 2>&1 | tail -50
-timeout: 180
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Serverless: Excluding development dependencies...
-      ✓ should call zipService with settings
-
-  zipService
-    #excludeDevDependencies()
-      when dealing with Node.js runtimes
-Serverless: Excluding development dependencies...
-        ✓ should do nothing if no packages are used
-Serverless: Excluding development dependencies...
-        ✓ should not include packages if in both dependencies and devDependencies
-
-  Package
-    hooks
-      ✓ should implement the package:createDeploymentArtifacts ev...
-```
-========================================================================================================================
-AGENT:
-All tests pass. Let me also run the AWS-specific tests to ensure nothing is broken:
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && npm test -- --grep "AwsPackage" 2>&1 | tail -50
-timeout: 180
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-
-> serverless@1.49.0 test
-> mocha "!(node_modules)/**/*.test.js" --grep AwsPackage
-
-
-
-  AwsPackage
-    #constructor()
-      ✓ should set the serverless instance
-      ✓ should set options
-      ✓ should set the service path if provided
-      ✓ should default to an empty service path if not provided
-      ✓ should use the options package path if provided
-      ✓ should use the services package path if provided
-      ✓ should default to the .serverless directory as the package path
-      ✓ should ...
-```
-========================================================================================================================
-AGENT:
-All tests pass. Let me also verify the test file changes are correct:
+All tests pass. Now let me also add a test case for the scenario where there's a mix of functions - some with default names and some with custom names - to ensure the wildcard permission is added in that case.
 ========================================================================================================================
 TOOL CALL (inspect_code)
 file_path: lib/plugins/aws/package/lib/mergeIamTemplates.test.js
 line_ranges:
-- - 129
-  - 230
+- - 200
+  - 250
 
 ========================================================================================================================
 TOOL RETURN (inspect_code)
@@ -824,12 +576,422 @@ Successfully expanded code chunks in lib/plugins/aws/package/lib/mergeIamTemplat
 ```
 ========================================================================================================================
 AGENT:
-The test file looks correct. The test "should ensure IAM policies for custom named functions" now expects only the custom function name in the policy, without the wildcard for the canonical prefix.
+<thinking>
+Let me add a new test case for the scenario where there's a mix of functions - some with default names and some with custom names. This will ensure the wildcard permission is added in that case. I'll add it right after the existing test for custom named functions.
+</thinking>
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: lib/plugins/aws/package/lib/mergeIamTemplates.test.js
+find: "  it('should add custom IAM policy statements', () => {\n    awsPackage.serverless.service.provider.iamRoleStatements\
+  \ = [\n      {\n        Effect: 'Allow',\n        Action: ['something:SomethingElse'],\n\
+  \        Resource: 'some:aws:arn:xxx:*:*',\n      },\n    ];\n\n    return awsPackage.mergeIamTemplates().then(()\
+  \ => {\n      expect(\n        awsPackage.serverless.service.provider.compiledCloudFormationTemplate.Resources[\n\
+  \          awsPackage.provider.naming.getRoleLogicalId()\n        ].Properties.Policies[0].PolicyDocument.Statement[2]\n\
+  \      ).to.deep.equal(awsPackage.serverless.service.provider.iamRoleStatements[0]);\n\
+  \    });\n  });"
+replace: "  it('should ensure IAM policies for functions with custom names and default\
+  \ names', () => {\n    const customFunctionName = 'foo-bar';\n    awsPackage.serverless.service.functions\
+  \ = {\n      [functionName]: {\n        artifact: 'test.zip',\n        handler:\
+  \ 'handler.hello',\n      },\n      customFunc: {\n        name: customFunctionName,\n\
+  \        artifact: 'test.zip',\n        handler: 'handler.hello',\n      },\n  \
+  \  };\n    serverless.service.setFunctionNames(); // Ensure to resolve function\
+  \ names\n\n    return awsPackage.mergeIamTemplates().then(() => {\n      const canonicalFunctionsPrefix\
+  \ = `${\n        awsPackage.serverless.service.service\n      }-${awsPackage.provider.getStage()}`;\n\
+  \n      const statements =\n        awsPackage.serverless.service.provider.compiledCloudFormationTemplate.Resources[\n\
+  \          awsPackage.provider.naming.getRoleLogicalId()\n        ].Properties.Policies[0].PolicyDocument.Statement;\n\
+  \n      expect(statements[0].Resource).to.deep.equal([\n        {\n          'Fn::Sub':\n\
+  \            'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:' +\n\
+  \            `log-group:/aws/lambda/${canonicalFunctionsPrefix}*:*`,\n        },\n\
+  \        {\n          'Fn::Sub':\n            'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:'\
+  \ +\n            `log-group:/aws/lambda/${customFunctionName}:*`,\n        },\n\
+  \      ]);\n\n      expect(statements[1].Resource).to.deep.equal([\n        {\n\
+  \          'Fn::Sub':\n            'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:'\
+  \ +\n            `log-group:/aws/lambda/${canonicalFunctionsPrefix}*:*:*`,\n   \
+  \     },\n        {\n          'Fn::Sub':\n            'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:'\
+  \ +\n            `log-group:/aws/lambda/${customFunctionName}:*:*`,\n        },\n\
+  \      ]);\n    });\n  });\n\n  it('should add custom IAM policy statements', ()\
+  \ => {\n    awsPackage.serverless.service.provider.iamRoleStatements = [\n     \
+  \ {\n        Effect: 'Allow',\n        Action: ['something:SomethingElse'],\n  \
+  \      Resource: 'some:aws:arn:xxx:*:*',\n      },\n    ];\n\n    return awsPackage.mergeIamTemplates().then(()\
+  \ => {\n      expect(\n        awsPackage.serverless.service.provider.compiledCloudFormationTemplate.Resources[\n\
+  \          awsPackage.provider.naming.getRoleLogicalId()\n        ].Properties.Policies[0].PolicyDocument.Statement[2]\n\
+  \      ).to.deep.equal(awsPackage.serverless.service.provider.iamRoleStatements[0]);\n\
+  \    });\n  });"
 
-Let me clean up the temporary test directories:
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in lib/plugins/aws/package/lib/mergeIamTemplates.test.js:
+
+--- lib/plugins/aws/package/lib/mergeIamTemplates.test.js
++++ lib/plugins/aws/package/lib/mergeIamTemplates.test.js
+@@ -214,6 +214,59 @@
+     });
+   });
+ 
++  it('should ensure IAM policies for functions with custom names and default names', () => {
++    const customFunctionName = 'foo-bar';
++    awsPackage.serverless.service.functions = {
++      [functionName]: {
++        artifact: 'test.zip',
++        handler:...
+```
+========================================================================================================================
+AGENT:
+Now let me run the tests again to make sure all tests pass:
 ========================================================================================================================
 TOOL CALL (bash)
-command: rm -rf /tmp/test-fix /tmp/test-fix-mixed /tmp/test-fix-default
+command: cd /workspace && npm test -- --grep "mergeIamTemplates" 2>&1 | tail -50
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+> serverless@1.49.0 test
+> mocha "!(node_modules)/**/*.test.js" --grep mergeIamTemplates
+
+
+
+  #mergeIamTemplates()
+(node:895) NOTE: The AWS SDK for JavaScript (v2) has reached end-of-support.
+It will no longer receive updates or releases.
+
+Please migrate your code to use AWS SDK for JavaScript (v3).
+For more information, check the blog post at https://a.co/cUPnyil
+(Use `node --trace-warnings ...` to show where the warning was created)
+    ✓ should not merge if there are no functions
+    ✓ shoul...
+```
+========================================================================================================================
+AGENT:
+All 24 tests pass. Now let me create a minimal reproduction script to verify the fix works as expected for the scenario described in the problem statement:
+========================================================================================================================
+TOOL CALL (bash)
+command: "mkdir -p /tmp/test-log-group-policy && cd /tmp/test-log-group-policy &&\
+  \ cat > serverless.yml << 'EOF'\nservice: log-group-policy\n\nprovider:\n  name:\
+  \ aws\n  runtime: nodejs8.10\n\nfunctions:\n  testFunction:\n    name: ${self:service}-custom-named-fn\n\
+  \    handler: index.handler\nEOF\ncat > index.js << 'EOF'\nmodule.exports.handler\
+  \ = async (event) => {\n  return { statusCode: 200, body: 'Hello' };\n};\nEOF\n"
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /tmp/test-log-group-policy && /workspace/bin/serverless package 2>&1
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+(node:1427) NOTE: The AWS SDK for JavaScript (v2) has reached end-of-support.
+It will no longer receive updates or releases.
+
+Please migrate your code to use AWS SDK for JavaScript (v3).
+For more information, check the blog post at https://a.co/cUPnyil
+(Use `node --trace-warnings ...` to show where the warning was created)
+Serverless: Packaging service...
+Serverless: Excluding development dependencies......
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /tmp/test-log-group-policy && cat .serverless/cloudformation-template-update-stack.json\
+  \ | python3 -c \"\nimport json\nimport sys\n\ndata = json.load(sys.stdin)\nrole\
+  \ = data['Resources']['IamRoleLambdaExecution']\npolicies = role['Properties']['Policies'][0]['PolicyDocument']['Statement']\n\
+  \nprint('=== logs:CreateLogStream Resources ===')\nfor r in policies[0]['Resource']:\n\
+  \    print(json.dumps(r, indent=2))\n\nprint()\nprint('=== logs:PutLogEvents Resources\
+  \ ===')\nfor r in policies[1]['Resource']:\n    print(json.dumps(r, indent=2))\n\
+  \""
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+=== logs:CreateLogStream Resources ===
+{
+  "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/log-group-policy-custom-named-fn:*"
+}
+
+=== logs:PutLogEvents Resources ===
+{
+  "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/log-group-policy-custom-named-fn:*:*"
+}...
+```
+========================================================================================================================
+AGENT:
+The fix works correctly. Now the IAM policy only includes the specific permission for the custom-named function (`log-group-policy-custom-named-fn`) and does NOT include the wildcard permission for the default naming pattern (`log-group-policy-dev*`).
+
+Let me also test the scenario where there's a mix of functions (one with default name and one with custom name):
+========================================================================================================================
+TOOL CALL (bash)
+command: "mkdir -p /tmp/test-mixed-functions && cd /tmp/test-mixed-functions && cat\
+  \ > serverless.yml << 'EOF'\nservice: mixed-service\n\nprovider:\n  name: aws\n\
+  \  runtime: nodejs8.10\n\nfunctions:\n  defaultNamedFunction:\n    handler: index.handler\n\
+  \  customNamedFunction:\n    name: my-custom-function\n    handler: index.handler\n\
+  EOF\ncat > index.js << 'EOF'\nmodule.exports.handler = async (event) => {\n  return\
+  \ { statusCode: 200, body: 'Hello' };\n};\nEOF\n"
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /tmp/test-mixed-functions && /workspace/bin/serverless package 2>&1
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+(node:2255) NOTE: The AWS SDK for JavaScript (v2) has reached end-of-support.
+It will no longer receive updates or releases.
+
+Please migrate your code to use AWS SDK for JavaScript (v3).
+For more information, check the blog post at https://a.co/cUPnyil
+(Use `node --trace-warnings ...` to show where the warning was created)
+Serverless: Packaging service...
+Serverless: Excluding development dependencies......
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /tmp/test-mixed-functions && cat .serverless/cloudformation-template-update-stack.json\
+  \ | python3 -c \"\nimport json\nimport sys\n\ndata = json.load(sys.stdin)\nrole\
+  \ = data['Resources']['IamRoleLambdaExecution']\npolicies = role['Properties']['Policies'][0]['PolicyDocument']['Statement']\n\
+  \nprint('=== logs:CreateLogStream Resources ===')\nfor r in policies[0]['Resource']:\n\
+  \    print(json.dumps(r, indent=2))\n\nprint()\nprint('=== logs:PutLogEvents Resources\
+  \ ===')\nfor r in policies[1]['Resource']:\n    print(json.dumps(r, indent=2))\n\
+  \""
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+=== logs:CreateLogStream Resources ===
+{
+  "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/mixed-service-dev*:*"
+}
+{
+  "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/my-custom-function:*"
+}
+
+=== logs:PutLogEvents Resources ===
+{
+  "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/mixed-service-dev*:*:*"
+}
+{
+  "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region...
+```
+========================================================================================================================
+AGENT:
+Excellent! The mixed scenario also works correctly:
+- The wildcard permission for the default naming pattern (`mixed-service-dev*`) is included because there's a function with the default name
+- The specific permission for the custom-named function (`my-custom-function`) is also included
+
+Let me also verify the scenario where all functions have default names:
+========================================================================================================================
+TOOL CALL (bash)
+command: "mkdir -p /tmp/test-default-functions && cd /tmp/test-default-functions &&\
+  \ cat > serverless.yml << 'EOF'\nservice: default-service\n\nprovider:\n  name:\
+  \ aws\n  runtime: nodejs8.10\n\nfunctions:\n  function1:\n    handler: index.handler\n\
+  \  function2:\n    handler: index.handler\nEOF\ncat > index.js << 'EOF'\nmodule.exports.handler\
+  \ = async (event) => {\n  return { statusCode: 200, body: 'Hello' };\n};\nEOF\n"
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /tmp/test-default-functions && /workspace/bin/serverless package 2>&1
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+(node:3083) NOTE: The AWS SDK for JavaScript (v2) has reached end-of-support.
+It will no longer receive updates or releases.
+
+Please migrate your code to use AWS SDK for JavaScript (v3).
+For more information, check the blog post at https://a.co/cUPnyil
+(Use `node --trace-warnings ...` to show where the warning was created)
+Serverless: Packaging service...
+Serverless: Excluding development dependencies......
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /tmp/test-default-functions && cat .serverless/cloudformation-template-update-stack.json\
+  \ | python3 -c \"\nimport json\nimport sys\n\ndata = json.load(sys.stdin)\nrole\
+  \ = data['Resources']['IamRoleLambdaExecution']\npolicies = role['Properties']['Policies'][0]['PolicyDocument']['Statement']\n\
+  \nprint('=== logs:CreateLogStream Resources ===')\nfor r in policies[0]['Resource']:\n\
+  \    print(json.dumps(r, indent=2))\n\nprint()\nprint('=== logs:PutLogEvents Resources\
+  \ ===')\nfor r in policies[1]['Resource']:\n    print(json.dumps(r, indent=2))\n\
+  \""
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+=== logs:CreateLogStream Resources ===
+{
+  "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/default-service-dev*:*"
+}
+
+=== logs:PutLogEvents Resources ===
+{
+  "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/default-service-dev*:*:*"
+}...
+```
+========================================================================================================================
+AGENT:
+All three scenarios work correctly:
+
+1. **All functions with custom names** (the bug scenario): Only the specific permissions for custom-named functions are added, no wildcard permission for the default naming pattern.
+
+2. **Mixed functions** (some with default names, some with custom names): Both the wildcard permission for the default naming pattern AND the specific permissions for custom-named functions are added.
+
+3. **All functions with default names**: Only the wildcard permission for the default naming pattern is added.
+
+Let me also run a broader set of tests to make sure I haven't broken anything else:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test -- --grep "package" 2>&1 | tail -100
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+      ✓ should run "package:finalize" hook
+      ✓ should run "aws:package:finalize:mergeCustomProviderResources" hook
+      ✓ should run "aws:package:finalize:saveServiceState" hook
+
+  Deploy
+    "before:deploy:deploy" hook
+      ✓ should resolve if the package option is set
+      ✓ should resolve if the service package path is set
+
+  #packageService()
+    #getIncludes()
+      ✓ should return an empty array if no includes are provided
+      ✓ should merge package includes
+      ✓ should merge p...
+```
+========================================================================================================================
+AGENT:
+All tests pass. Let me also verify the modified code one more time:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: lib/plugins/aws/package/lib/mergeIamTemplates.js
+line_ranges:
+- - 80
+  - 145
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in lib/plugins/aws/package/lib/mergeIamTemplates.js:
+
+````javascript
+   0 'use strict';
+   1 
+   2 const _ = require('lodash');
+   3 const BbPromise = require('bluebird');
+   4 const path = require('path');
+   5 
+   6 module.exports = {
+   7   mergeIamTemplates() {
+   8     this.validateStatements(this.serverless.service.provider.iamRoleStatements);
+   9     this.validateManagedPolicies(this.serverless.service.provider.iamManagedPolicies);
+  10     return this.m...
+```
+========================================================================================================================
+AGENT:
+The code looks correct. Let me also run a broader test to ensure I haven't broken anything else in the codebase:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test -- --grep "IAM" 2>&1 | tail -50
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+      ✓ should create a IAM Role resource
+
+  #validate()
+    ✓ should accept AWS_IAM as authorizer
+
+  AwsCompileSQSEvents
+    #compileSQSEvents()
+      ✓ should not throw error if custom IAM role is set in function
+      ✓ should not throw error if custom IAM role name reference is set in function
+      ✓ should not throw error if custom IAM role reference is set in function
+      ✓ should not throw error if custom IAM role is set in provider
+      ✓ should not throw error if IAM role is importe...
+```
+========================================================================================================================
+AGENT:
+All IAM-related tests pass. Let me now verify the changes one more time by reviewing the test file:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: lib/plugins/aws/package/lib/mergeIamTemplates.test.js
+line_ranges:
+- - 129
+  - 275
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in lib/plugins/aws/package/lib/mergeIamTemplates.test.js:
+
+````javascript
+   0 'use strict';
+   1 
+   2 const expect = require('chai').expect;
+   3 
+   4 const Serverless = require('../../../../Serverless');
+   5 const AwsProvider = require('../../provider/awsProvider');
+   6 const AwsPackage = require('../index');
+   7 
+   8 describe('#mergeIamTemplates()', () => {
+   9   let awsPackage;
+  10   let serverless;
+  11   const serviceName = 'new-service';
+  12   co...
+```
+========================================================================================================================
+AGENT:
+The changes look correct. Let me run the full test suite for the mergeIamTemplates module one more time to confirm everything is working:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test -- --grep "mergeIamTemplates" 2>&1
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+> serverless@1.49.0 test
+> mocha "!(node_modules)/**/*.test.js" --grep mergeIamTemplates
+
+
+
+  #mergeIamTemplates()
+(node:4229) NOTE: The AWS SDK for JavaScript (v2) has reached end-of-support.
+It will no longer receive updates or releases.
+
+Please migrate your code to use AWS SDK for JavaScript (v3).
+For more information, check the blog post at https://a.co/cUPnyil
+(Use `node --trace-warnings ...` to show where the warning was created)
+    ✓ should not merge if there are no functions
+    ✓ shou...
+```
+========================================================================================================================
+AGENT:
+All 24 tests pass. Let me also clean up the temporary test directories:
+========================================================================================================================
+TOOL CALL (bash)
+command: rm -rf /tmp/test-log-group-policy /tmp/test-mixed-functions /tmp/test-default-functions
 
 ========================================================================================================================
 TOOL RETURN (bash)
@@ -838,28 +1000,164 @@ TOOL RETURN (bash)
 ```
 ========================================================================================================================
 AGENT:
-Successfully resolved the issue with wider `logs:CreateLogStream`/`logs:PutLogEvents` permissions in IAM policies for Lambda functions with manual names.
+I have made the necessary changes to fix the issue. Let me verify the changes one more time by reviewing the modified files and running a final test.
+========================================================================================================================
+AGENT:
+REVIEW CHANGES: Final verification of the fix
+
+<thinking>
+Let me summarize the changes I made:
+
+1. **Modified `lib/plugins/aws/package/lib/mergeIamTemplates.js`**:
+   - Added a check to determine if any functions use the default naming scheme (no custom name, or custom name starting with the canonical prefix)
+   - Only add the wildcard permission for the default naming pattern if there are functions that use the default naming scheme
+   - This ensures that when ALL functions have custom names that don't follow the default pattern, the wildcard permission is not added
+
+2. **Modified `lib/plugins/aws/package/lib/mergeIamTemplates.test.js`**:
+   - Updated the test "should ensure IAM policies for custom named functions" to expect only the custom function permission (not the wildcard permission)
+   - Added a new test "should ensure IAM policies for functions with custom names and default names" to verify that when there's a mix of functions, both permissions are added
+
+Let me run a broader test to ensure nothing else is broken:
+</thinking>
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test -- --grep "AwsPackage" 2>&1 | tail -100
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+> serverless@1.49.0 test
+> mocha "!(node_modules)/**/*.test.js" --grep AwsPackage
+
+
+
+  AwsPackage
+    #constructor()
+      ✓ should set the serverless instance
+      ✓ should set options
+      ✓ should set the service path if provided
+      ✓ should default to an empty service path if not provided
+      ✓ should use the options package path if provided
+      ✓ should use the services package path if provided
+      ✓ should default to the .serverless directory as the package path
+      ✓ should ...
+```
+========================================================================================================================
+AGENT:
+All tests pass. Let me also verify the changes by looking at the diff of the modified files:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && git diff lib/plugins/aws/package/lib/mergeIamTemplates.js
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+diff --git a/lib/plugins/aws/package/lib/mergeIamTemplates.js b/lib/plugins/aws/package/lib/mergeIamTemplates.js
+index 945312b69..fb467d443 100644
+--- a/lib/plugins/aws/package/lib/mergeIamTemplates.js
++++ b/lib/plugins/aws/package/lib/mergeIamTemplates.js
+@@ -90,18 +90,29 @@ module.exports = {
+       .Resources[this.provider.naming.getRoleLogicalId()].Properties.Policies[0].PolicyDocument
+       .Statement;
+ 
+-    // Ensure general polices for functions with default name resolution
+-    policyD...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && git diff lib/plugins/aws/package/lib/mergeIamTemplates.test.js
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+diff --git a/lib/plugins/aws/package/lib/mergeIamTemplates.test.js b/lib/plugins/aws/package/lib/mergeIamTemplates.test.js
+index 09447f641..fe7fd51a7 100644
+--- a/lib/plugins/aws/package/lib/mergeIamTemplates.test.js
++++ b/lib/plugins/aws/package/lib/mergeIamTemplates.test.js
+@@ -139,10 +139,6 @@ describe('#mergeIamTemplates()', () => {
+     serverless.service.setFunctionNames(); // Ensure to resolve function names
+ 
+     return awsPackage.mergeIamTemplates().then(() => {
+-      const canonicalF...
+```
+========================================================================================================================
+AGENT:
+The changes look correct. Let me run one final comprehensive test to make sure everything is working:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test -- --grep "mergeIamTemplates\|AwsPackage" 2>&1
+  | tail -60
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+> serverless@1.49.0 test
+> mocha "!(node_modules)/**/*.test.js" --grep mergeIamTemplates\|AwsPackage
+
+
+
+  0 passing (2ms)
+
+(node:5581) NOTE: The AWS SDK for JavaScript (v2) has reached end-of-support.
+It will no longer receive updates or releases.
+
+Please migrate your code to use AWS SDK for JavaScript (v3).
+For more information, check the blog post at https://a.co/cUPnyil
+(Use `node --trace-warnings ...` to show where the warning was created)...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && npm test -- --grep "mergeIamTemplates" 2>&1 | tail -40
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+> mocha "!(node_modules)/**/*.test.js" --grep mergeIamTemplates
+
+
+
+  #mergeIamTemplates()
+(node:5862) NOTE: The AWS SDK for JavaScript (v2) has reached end-of-support.
+It will no longer receive updates or releases.
+
+Please migrate your code to use AWS SDK for JavaScript (v3).
+For more information, check the blog post at https://a.co/cUPnyil
+(Use `node --trace-warnings ...` to show where the warning was created)
+    ✓ should not merge if there are no functions
+    ✓ should merge the IamRoleLambda...
+```
+========================================================================================================================
+AGENT:
+All 24 tests pass. Let me now mark the task as complete.
+========================================================================================================================
+AGENT:
+Successfully fixed the issue with wider `logs:CreateLogStream`/`logs:PutLogEvents` permissions in IAM policy for Lambda functions with manual names.
 
 ## Summary of Changes
 
 ### Problem
-When a service contained only custom-named functions (using the `name:` property), the IAM policies for `logs:CreateLogStream` and `logs:PutLogEvents` were getting wider permissions than necessary. Specifically, a wildcard permission for the canonical prefix (e.g., `/aws/lambda/service-dev*`) was being added even when no functions used the default naming convention.
+When a service contains only custom-named functions (functions with explicit `name` property that doesn't follow the default `service-stage-functionName` pattern), the IAM policies for `logs:CreateLogStream` and `logs:PutLogEvents` were incorrectly including a wildcard permission for the default naming pattern (e.g., `/aws/lambda/log-group-policy-dev*`) in addition to the specific permissions for the custom-named functions. This violated the principle of least privilege.
 
 ### Solution
 Modified `lib/plugins/aws/package/lib/mergeIamTemplates.js` to:
-1. Track whether any functions use the canonical (default) naming convention
-2. Only add the wildcard policy for the canonical prefix if at least one function uses the default naming
-3. Continue to add specific policies for custom-named functions
+1. First check if any functions use the default naming scheme (no custom name, or custom name starting with the canonical prefix `service-stage`)
+2. Only add the wildcard permission for the default naming pattern if there are functions that use the default naming scheme
 
 ### Files Modified
-1. **lib/plugins/aws/package/lib/mergeIamTemplates.js**: Changed the logic to conditionally add the wildcard policy based on whether there are any canonically-named functions
-2. **lib/plugins/aws/package/lib/mergeIamTemplates.test.js**: Updated the test "should ensure IAM policies for custom named functions" to expect only the custom function name in the policy (without the wildcard)
+1. **`lib/plugins/aws/package/lib/mergeIamTemplates.js`**: Added conditional logic to only add the default log group policy when there are functions using the default naming scheme.
+
+2. **`lib/plugins/aws/package/lib/mergeIamTemplates.test.js`**: 
+   - Updated the test "should ensure IAM policies for custom named functions" to expect only the custom function permission (not the wildcard permission)
+   - Added a new test "should ensure IAM policies for functions with custom names and default names" to verify that when there's a mix of functions, both permissions are added
 
 ### Verification
-- All 23 tests in the mergeIamTemplates test suite pass
-- Tested three scenarios:
-  1. **Custom-named functions only**: Only specific log group permissions (no wildcard) ✓
-  2. **Mixed (custom + default)**: Both specific and wildcard permissions ✓
-  3. **Default-named functions only**: Only wildcard permission ✓
-
-This fix ensures the principle of least privilege is followed by not adding unnecessary wildcard permissions when all functions have custom names.
+- All 24 tests in the mergeIamTemplates test suite pass
+- Manual testing confirmed:
+  - When all functions have custom names: Only specific permissions for custom-named functions are added
+  - When there's a mix of functions: Both wildcard and specific permissions are added
+  - When all functions have default names: Only wildcard permission is added

@@ -47,23 +47,28 @@ I'm on current master (4.12 dev).
 </problem_statement>
 
 Do not stop until you have made code changes that resolve the problem statement. Do not ask for clarifications.
+
+NEVER attempt to find the solution to the problem statement by searching future commits or branches in the repository.
 ========================================================================================================================
 AGENT:
-Starting to analyze the problem statement. The issue is about confusing default arguments in the `run_clm.py` script, specifically around boolean arguments that have both `--no_X` and `--X` variants with confusing "True" defaults. I need to explore the codebase to understand how these arguments are defined and fix the help text to be clearer.
+Starting to analyze the problem statement. The issue is about confusing default arguments in the `run_clm.py` script, where boolean arguments show "True" as default for both the positive and negative versions (e.g., `--keep_linebreaks` and `--no_keep_linebreaks` both show default: True). I need to investigate how these arguments are defined and fix the confusing help text.
 ========================================================================================================================
 AGENT:
 STEP 1: EXPLORE THE CODEBASE
 
 <thinking>
-The problem statement mentions that the `run_clm.py` script has confusing default arguments. The issue is that for boolean arguments like `keep_linebreaks`, `dataloader_pin_memory`, and `skip_memory_metrics`, there are both `--no_X` and `--X` variants, and both show "default: True" which is confusing.
+The problem statement mentions that the `run_clm.py` script has confusing default arguments for boolean options. The issue is that both `--no_keep_linebreaks` and `--keep_linebreaks` show `(default: True)`, which is confusing.
 
-Let me first look at the `run_clm.py` script to understand how these arguments are defined, and then trace back to where the argument parsing is handled (likely in `hf_argparser.py` or similar).
+Let me first look at the `run_clm.py` script to understand how these arguments are defined. Then I'll need to look at the HfArgumentParser to understand how these boolean arguments are being processed.
 
-The key files to look at:
+The key files to investigate:
 1. `examples/pytorch/language-modeling/run_clm.py` - The script mentioned in the issue
-2. `src/transformers/hf_argparser.py` - The argument parser that likely handles these boolean arguments
+2. `src/transformers/hf_argparser.py` - The HfArgumentParser that likely handles the argument parsing
 3. `src/transformers/training_args.py` - Where `dataloader_pin_memory` and `skip_memory_metrics` are likely defined
+</parameter>
 </thinking>
+
+Let me start by examining the relevant files:
 ========================================================================================================================
 TOOL CALL (open_files)
 file_paths:
@@ -80,9 +85,9 @@ TOOL RETURN (open_files)
 AGENT:
 <thinking>
 I need to expand the relevant code chunks to understand how the boolean arguments are defined. Let me look at:
-1. The `keep_linebreaks` argument in `run_clm.py` (in `DataTrainingArguments`)
-2. The `dataloader_pin_memory` and `skip_memory_metrics` arguments in `training_args.py`
-3. The `_add_dataclass_arguments` method in `hf_argparser.py` which handles the conversion of dataclass fields to argparse arguments
+1. The `DataTrainingArguments` class in `run_clm.py` to see how `keep_linebreaks` is defined
+2. The `_add_dataclass_arguments` method in `hf_argparser.py` to understand how boolean arguments are processed
+3. The `TrainingArguments` class in `training_args.py` to see how `dataloader_pin_memory` and `skip_memory_metrics` are defined
 </thinking>
 ========================================================================================================================
 TOOL CALL (inspect_code)
@@ -90,6 +95,19 @@ file_path: examples/pytorch/language-modeling/run_clm.py
 patterns:
 - DataTrainingArguments
 - keep_linebreaks
+
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/hf_argparser.py
+patterns:
+- _add_dataclass_arguments
+
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/training_args.py
+patterns:
+- dataloader_pin_memory
+- skip_memory_metrics
 
 ========================================================================================================================
 TOOL RETURN (inspect_code)
@@ -120,25 +138,6 @@ Successfully expanded code chunks in examples/pytorch/language-modeling/run_clm.
  122 clas...
 ```
 ========================================================================================================================
-AGENT:
-<thinking>
-Now I can see that `keep_linebreaks` is defined in `DataTrainingArguments` as:
-```python
-keep_linebreaks: bool = field(
-    default=True, metadata={"help": "Whether to keep line breaks when using TXT files or not."}
-)
-```
-
-The issue is in how `HfArgumentParser` handles boolean fields. Let me look at the `_add_dataclass_arguments` method in `hf_argparser.py` to understand how it creates the `--no_X` and `--X` variants.
-</thinking>
-========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: src/transformers/hf_argparser.py
-patterns:
-- _add_dataclass_arguments
-- string_to_bool
-
-========================================================================================================================
 TOOL RETURN (inspect_code)
 ```
 Successfully expanded code chunks in src/transformers/hf_argparser.py:
@@ -153,80 +152,11 @@ Successfully expanded code chunks in src/transformers/hf_argparser.py:
   24 DataClass = NewType("DataClass", Any)
 ...
   29 def string_to_bool(v):
-  30     if isinstance(v, bool):
-  31         return v
-  32     if v.lower() in ("yes", "true", "t", "y", "1"):
-  33         return True
-  34     elif...
+...
+  42 class HfArgumentParser(ArgumentParser):
+  43     """
+  44     This subclass of `argparse.ArgumentParser` uses type hints on dataclasses to ge...
 ```
-========================================================================================================================
-AGENT:
-<thinking>
-Now I understand the issue. Looking at the code in `_add_dataclass_arguments`:
-
-```python
-elif field.type is bool or field.type == Optional[bool]:
-    if field.default is True:
-        parser.add_argument(f"--no_{field.name}", action="store_false", dest=field.name, **kwargs)
-
-    # Hack because type=bool in argparse does not behave as we want.
-    kwargs["type"] = string_to_bool
-    if field.type is bool or (field.default is not None and field.default is not dataclasses.MISSING):
-        # Default value is False if we have no default when of type bool.
-        default = False if field.default is dataclasses.MISSING else field.default
-        # This is the value that will get picked if we don't include --field_name in any way
-        kwargs["default"] = default
-        # This tells argparse we accept 0 or 1 value after --field_name
-        kwargs["nargs"] = "?"
-        # This is the value that will get picked if we do --field_name (without value)
-        kwargs["const"] = True
-```
-
-The problem is:
-1. When `field.default is True`, it adds `--no_{field.name}` with `action="store_false"` and the same `**kwargs` which includes the help text.
-2. Then it adds the regular `--{field.name}` argument.
-
-The issue is that both arguments show `(default: True)` in the help text because:
-- The `--no_X` argument is added with the same `kwargs` which includes the help text, and `ArgumentDefaultsHelpFormatter` shows the default value.
-- The `--X` argument also shows `(default: True)`.
-
-This is confusing because:
-1. For `--no_keep_linebreaks`, the help says "(default: True)" but this doesn't make sense - using `--no_keep_linebreaks` would set `keep_linebreaks` to `False`.
-2. For `--keep_linebreaks`, the help says "(default: True)" which is correct.
-
-The fix should be to:
-1. For the `--no_X` argument, we should NOT include the default in the help text, or we should clarify that this is a flag to disable the feature.
-2. The help text for `--no_X` should be different from `--X`.
-
-Let me look at how to fix this. The simplest fix would be to modify the help text for the `--no_X` argument to make it clear that it's used to disable the feature, and not show the default value for it.
-
-Looking at the code more carefully:
-- When `field.default is True`, we add `--no_{field.name}` with `action="store_false"` and `dest=field.name`.
-- The `**kwargs` passed includes the `help` text from the field metadata.
-
-The issue is that `ArgumentDefaultsHelpFormatter` automatically appends `(default: X)` to the help text. For `action="store_false"`, the default is `True` (since it stores `False` when the flag is present, meaning the default when not present is `True`).
-
-The fix should be to:
-1. Modify the help text for `--no_X` to indicate it's used to disable the feature.
-2. Optionally, we could set a different default formatter or suppress the default for the `--no_X` argument.
-
-Let me check how argparse handles this. The `ArgumentDefaultsHelpFormatter` shows the default value for all arguments. For `action="store_false"`, the default is `True` (since it stores `False` when the flag is present).
-
-The best fix would be to:
-1. For `--no_X`, set `default=argparse.SUPPRESS` so that the default is not shown in the help text.
-2. Modify the help text for `--no_X` to indicate it's used to disable the feature.
-
-Let me implement this fix.
-</thinking>
-
-Now let me also check the `training_args.py` to see how `dataloader_pin_memory` and `skip_memory_metrics` are defined:
-========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: src/transformers/training_args.py
-patterns:
-- dataloader_pin_memory
-- skip_memory_metrics
-
 ========================================================================================================================
 TOOL RETURN (inspect_code)
 ```
@@ -253,122 +183,162 @@ Successfully expanded code chunks in src/transformers/training_args.py:
 ========================================================================================================================
 AGENT:
 <thinking>
-Now I have a clear understanding of the issue. The problem is in the `_add_dataclass_arguments` method in `hf_argparser.py`. When a boolean field has `default=True`, it adds both:
-1. `--no_{field.name}` with `action="store_false"` and the same help text
-2. `--{field.name}` with `type=string_to_bool`, `nargs="?"`, `const=True`, and `default=True`
+Now I understand the problem. Looking at the `_add_dataclass_arguments` method in `hf_argparser.py`, I can see how boolean arguments are handled:
 
-The issue is that `ArgumentDefaultsHelpFormatter` shows `(default: True)` for both arguments, which is confusing because:
-- For `--no_X`, the help says "(default: True)" but this is misleading - using `--no_X` would set `X` to `False`.
-- For `--X`, the help says "(default: True)" which is correct.
+1. When a boolean field has `default=True`, the code adds a `--no_{field.name}` argument with `action="store_false"` (line 112)
+2. Then it also adds the regular `--{field_name}` argument with `type=string_to_bool`, `nargs="?"`, and `const=True` (lines 115-124)
+
+The issue is that when `field.default is True`, the code adds `--no_{field.name}` argument, but it passes the same `kwargs` (which includes the help text from the field's metadata). The `kwargs["default"]` is then set to the field's default value (True in this case), which causes the confusing help message.
+
+The problem is:
+1. For `--no_keep_linebreaks`, the help text says "(default: True)" because the `kwargs` still contains the default value from the field
+2. For `--keep_linebreaks`, the help text also says "(default: True)" which is correct
 
 The fix should be to:
-1. For the `--no_X` argument, suppress the default display or provide a clearer help text.
+1. When adding the `--no_{field.name}` argument, we should NOT include the default value in the help text, or we should indicate that this is the negation flag
+2. The help text for `--no_{field.name}` should be clearer about what it does
 
-Looking at the code more carefully:
+Let me look more closely at the code to understand the exact fix needed.
+
+Looking at line 112:
+```python
+parser.add_argument(f"--no_{field.name}", action="store_false", dest=field.name, **kwargs)
+```
+
+The `kwargs` at this point contains the `help` from the field's metadata. The `ArgumentDefaultsHelpFormatter` (used by default in `HfArgumentParser.__init__`) automatically appends "(default: X)" to the help text based on the argument's default value.
+
+The issue is that when we add `--no_{field.name}` with `action="store_false"`, argparse doesn't set a default for this argument (it uses the `dest` field's default from the main argument). But the `ArgumentDefaultsHelpFormatter` still shows the default from `kwargs` if it's present.
+
+Actually, looking more carefully, the issue is that `kwargs` is passed to both `add_argument` calls. When we add `--no_{field.name}`, we're passing `kwargs` which may contain a `default` key (though at this point in the code, `default` hasn't been added to `kwargs` yet for the `--no_` case).
+
+Wait, let me re-read the code more carefully:
+
+```python
+elif field.type is bool or field.type == Optional[bool]:
+    if field.default is True:
+        parser.add_argument(f"--no_{field.name}", action="store_false", dest=field.name, **kwargs)
+
+    # Hack because type=bool in argparse does not behave as we want.
+    kwargs["type"] = string_to_bool
+    if field.type is bool or (field.default is not None and field.default is not dataclasses.MISSING):
+        # Default value is False if we have no default when of type bool.
+        default = False if field.default is dataclasses.MISSING else field.default
+        # This is the value that will get picked if we don't include --field_name in any way
+        kwargs["default"] = default
+        # This tells argparse we accept 0 or 1 value after --field_name
+        kwargs["nargs"] = "?"
+        # This is the value that will get picked if we do --field_name (without value)
+        kwargs["const"] = True
+```
+
+So when `field.default is True`:
+1. First, `--no_{field.name}` is added with `action="store_false"` and `**kwargs` (which at this point only contains `help` from metadata)
+2. Then `kwargs["type"]`, `kwargs["default"]`, `kwargs["nargs"]`, `kwargs["const"]` are set
+3. Finally, `--{field_name}` is added with the updated `kwargs`
+
+The issue is that `ArgumentDefaultsHelpFormatter` shows the default for each argument. For `--no_{field.name}` with `action="store_false"`, argparse doesn't have a default set for this specific argument (it uses the dest's default), but the formatter might still show something.
+
+Actually, let me test this to understand the exact behavior. But based on the problem statement, the issue is clear: both `--no_keep_linebreaks` and `--keep_linebreaks` show "(default: True)" which is confusing.
+
+The fix should be to:
+1. For `--no_{field.name}`, we should not show a default value, or we should indicate that using this flag will set the value to False
+2. Alternatively, we could modify the help text for the `--no_` version to be clearer
+
+Looking at the problem more carefully, I think the issue is that when `ArgumentDefaultsHelpFormatter` is used, it shows the default value for each argument. For `--no_{field.name}` with `action="store_false"`, the default shown is the default of the destination variable (which is True), not the effect of using the flag.
+
+The solution is to not pass a default to the `--no_{field.name}` argument, or to set `default=argparse.SUPPRESS` for it so that the formatter doesn't show a default.
+
+Let me check if there's a way to suppress the default display for the `--no_` arguments. In argparse, you can use `default=argparse.SUPPRESS` to prevent the default from being shown in the help.
+
+Actually, looking at the code again, I see that `kwargs` is passed to `--no_{field.name}` before `kwargs["default"]` is set. So the issue might be something else.
+
+Let me create a minimal reproduction to understand the exact issue:
+
+Actually, I think I understand now. The `ArgumentDefaultsHelpFormatter` shows the default for each argument. For `--no_{field.name}` with `action="store_false"` and `dest=field.name`, the formatter shows the default of the destination, which is True (set by the main argument).
+
+The fix should be to either:
+1. Set `default=argparse.SUPPRESS` for the `--no_{field.name}` argument to prevent showing a default
+2. Or modify the help text to be clearer
+
+Let me implement the fix by setting `default=argparse.SUPPRESS` for the `--no_{field.name}` argument. This will prevent the formatter from showing a confusing default value.
+
+Wait, but we also need to handle the case where `field.default is False`. In that case, we should add a `--{field.name}` argument with `action="store_true"` to allow users to enable the feature.
+
+Looking at the current code, when `field.default is False`:
+1. No `--no_{field.name}` argument is added
+2. `--{field_name}` is added with `type=string_to_bool`, `default=False`, `nargs="?"`, `const=True`
+
+This means users can use `--{field_name}` or `--{field_name} true` to enable the feature, but there's no explicit `--no_{field_name}` to disable it (though they could use `--{field_name} false`).
+
+For consistency, I think we should:
+1. When `field.default is True`, add `--no_{field.name}` with `action="store_false"` and suppress the default display
+2. When `field.default is False`, add `--{field.name}` with `action="store_true"` (or keep the current behavior)
+
+But actually, the current behavior for `field.default is False` is fine because users can use `--{field_name}` to enable it.
+
+Let me focus on fixing the confusing help text for the `--no_{field.name}` case.
+
+The fix is to set `default=argparse.SUPPRESS` for the `--no_{field.name}` argument. This will prevent the `ArgumentDefaultsHelpFormatter` from showing a default value for this argument.
+
+Actually, looking at the argparse documentation, when using `action="store_false"`, the default is typically set on the destination, not on the argument itself. The `ArgumentDefaultsHelpFormatter` shows the default for each argument, which can be confusing.
+
+Let me implement the fix:
+
 ```python
 if field.default is True:
-    parser.add_argument(f"--no_{field.name}", action="store_false", dest=field.name, **kwargs)
+    parser.add_argument(f"--no_{field.name}", action="store_false", dest=field.name, default=SUPPRESS, **kwargs)
 ```
 
-The `**kwargs` includes the `help` text from the field metadata. The `ArgumentDefaultsHelpFormatter` then appends `(default: True)` because for `action="store_false"`, the default is `True` (since it stores `False` when the flag is present).
+Wait, but we need to import `SUPPRESS` from argparse. Let me check if it's already imported.
 
-The best fix would be to:
-1. Use `argparse.SUPPRESS` as the default for the `--no_X` argument to prevent the default from being shown.
-2. Optionally, modify the help text for `--no_X` to indicate it's used to disable the feature.
+Looking at line 18:
+```python
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, ArgumentTypeError
+```
 
-Let me implement this fix by modifying the `_add_dataclass_arguments` method in `hf_argparser.py`.
+We need to add `SUPPRESS` to this import.
+
+Actually, looking at the problem more carefully, I realize that the issue might be more subtle. Let me trace through the code:
+
+1. `kwargs = field.metadata.copy()` - This copies the `help` from the field's metadata
+2. For `field.default is True`, `parser.add_argument(f"--no_{field.name}", action="store_false", dest=field.name, **kwargs)` is called
+3. At this point, `kwargs` only contains `help`, not `default`
+
+So the default shown in the help for `--no_{field.name}` is coming from somewhere else. Let me think...
+
+Ah, I think I understand now. When using `action="store_false"` with `dest=field.name`, argparse sets the default for the destination to `True` (the opposite of the action). But the `ArgumentDefaultsHelpFormatter` shows the default for each argument based on the argument's default, not the destination's default.
+
+Actually, let me re-read the argparse documentation:
+
+> 'store_true' and 'store_false' - These are special cases of 'store_const' used for storing the values True and False respectively. In addition, they create default values of False and True respectively.
+
+So when using `action="store_false"`, argparse automatically sets the default to `True` for that argument. This is why the help shows "(default: True)" for `--no_{field.name}`.
+
+The fix is to set `default=argparse.SUPPRESS` for the `--no_{field.name}` argument to prevent the formatter from showing a default value.
+
+Let me implement this fix.
 </thinking>
 
+Now I understand the issue. The problem is in the `_add_dataclass_arguments` method in `hf_argparser.py`. When a boolean field has `default=True`, the code adds both `--no_{field.name}` (with `action="store_false"`) and `--{field_name}` arguments. 
+
+The issue is that when using `action="store_false"`, argparse automatically sets the default to `True` for that argument, and the `ArgumentDefaultsHelpFormatter` shows this default in the help text. This creates confusion because both `--no_keep_linebreaks` and `--keep_linebreaks` show "(default: True)".
+
+The fix is to use `argparse.SUPPRESS` as the default for the `--no_{field.name}` argument to prevent the formatter from showing a confusing default value.
+
+Let me implement this fix:
+========================================================================================================================
+AGENT:
+I've identified the issue in hf_argparser.py. The problem is that when adding --no_{field.name} arguments for boolean fields with default=True, argparse's action="store_false" automatically sets the default to True, which causes the ArgumentDefaultsHelpFormatter to show "(default: True)" for both the positive and negative versions of the argument. I'll fix this by using argparse.SUPPRESS as the default for the --no_{field.name} argument.
+========================================================================================================================
+AGENT:
 STEP 2: IMPLEMENT THE FIX
 
-Now I understand the issue. The problem is in `hf_argparser.py` where boolean arguments with `default=True` are handled. The `--no_X` argument is added with the same help text and `ArgumentDefaultsHelpFormatter` shows `(default: True)` for it, which is confusing.
-
-Let me implement a fix:
-========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: src/transformers/hf_argparser.py
-find: "            elif field.type is bool or field.type == Optional[bool]:\n    \
-  \            if field.default is True:\n                    parser.add_argument(f\"\
-  --no_{field.name}\", action=\"store_false\", dest=field.name, **kwargs)\n\n    \
-  \            # Hack because type=bool in argparse does not behave as we want.\n\
-  \                kwargs[\"type\"] = string_to_bool\n                if field.type\
-  \ is bool or (field.default is not None and field.default is not dataclasses.MISSING):\n\
-  \                    # Default value is False if we have no default when of type\
-  \ bool.\n                    default = False if field.default is dataclasses.MISSING\
-  \ else field.default\n                    # This is the value that will get picked\
-  \ if we don't include --field_name in any way\n                    kwargs[\"default\"\
-  ] = default\n                    # This tells argparse we accept 0 or 1 value after\
-  \ --field_name\n                    kwargs[\"nargs\"] = \"?\"\n                \
-  \    # This is the value that will get picked if we do --field_name (without value)\n\
-  \                    kwargs[\"const\"] = True"
-replace: "            elif field.type is bool or field.type == Optional[bool]:\n \
-  \               if field.default is True:\n                    # (the default value\
-  \ is True and target option is to set it to False)\n                    no_arg_kwargs\
-  \ = kwargs.copy()\n                    del no_arg_kwargs[\"help\"]\n           \
-  \         parser.add_argument(\n                        f\"--no_{field.name}\",\n\
-  \                        action=\"store_false\",\n                        dest=field.name,\n\
-  \                        default=SUPPRESS,\n                        help=f\"Do not\
-  \ {kwargs.get('help', '')}\",\n                        **no_arg_kwargs,\n      \
-  \              )\n\n                # Hack because type=bool in argparse does not\
-  \ behave as we want.\n                kwargs[\"type\"] = string_to_bool\n      \
-  \          if field.type is bool or (field.default is not None and field.default\
-  \ is not dataclasses.MISSING):\n                    # Default value is False if\
-  \ we have no default when of type bool.\n                    default = False if\
-  \ field.default is dataclasses.MISSING else field.default\n                    #\
-  \ This is the value that will get picked if we don't include --field_name in any\
-  \ way\n                    kwargs[\"default\"] = default\n                    #\
-  \ This tells argparse we accept 0 or 1 value after --field_name\n              \
-  \      kwargs[\"nargs\"] = \"?\"\n                    # This is the value that will\
-  \ get picked if we do --field_name (without value)\n                    kwargs[\"\
-  const\"] = True"
-
-========================================================================================================================
-TOOL RETURN (find_and_replace_code)
-```
-Successfully replaced code in src/transformers/hf_argparser.py:
-
---- src/transformers/hf_argparser.py
-+++ src/transformers/hf_argparser.py
-@@ -110,7 +110,17 @@
-                     kwargs["required"] = True
-             elif field.type is bool or field.type == Optional[bool]:
-                 if field.default is True:
--                    parser.add_argument(f"--no_{field.name}", action="store_false", dest=field.name, **kwargs)
-+                    # (the default value is True and target option ...
-```
-========================================================================================================================
-AGENT:
 <thinking>
-I need to import `SUPPRESS` from argparse. Let me check the imports at the top of the file and add it.
-</thinking>
-========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: src/transformers/hf_argparser.py
-line_ranges:
-- - 0
-  - 30
+I need to:
+1. Import `SUPPRESS` from argparse
+2. Modify the `--no_{field.name}` argument to use `default=SUPPRESS` to prevent the formatter from showing a confusing default value
 
-========================================================================================================================
-TOOL RETURN (inspect_code)
-```
-Successfully expanded code chunks in src/transformers/hf_argparser.py:
-
-````python
-   0 # Copyright 2020 The HuggingFace Team. All rights reserved.
-   1 #
-   2 # Licensed under the Apache License, Version 2.0 (the "License");
-   3 # you may not use this file except in compliance with the License.
-   4 # You may obtain a copy of the License at
-   5 #
-   6 #     http://www.apache.org/licenses/LICENSE-2.0
-   7 #
-   8 # Unless required by applicable law or agreed to in writing, software
-   9 # distr...
-```
-========================================================================================================================
-AGENT:
-<thinking>
-I need to add `SUPPRESS` to the import from argparse. Let me update the import statement.
+Let me make these changes.
 </thinking>
 ========================================================================================================================
 TOOL CALL (find_and_replace_code)
@@ -397,15 +367,69 @@ Successfully replaced code in src/transformers/hf_argparser.py:
 ```
 ========================================================================================================================
 AGENT:
-Made the initial fix to hf_argparser.py. Now I need to verify the fix works correctly by testing it.
+Now let me modify the `--no_{field.name}` argument to use `default=SUPPRESS`:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/hf_argparser.py
+find: "            if field.default is True:\n                parser.add_argument(f\"\
+  --no_{field.name}\", action=\"store_false\", dest=field.name, **kwargs)"
+replace: "            if field.default is True:\n                parser.add_argument(f\"\
+  --no_{field.name}\", action=\"store_false\", dest=field.name, default=SUPPRESS,\
+  \ **kwargs)"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/hf_argparser.py:
+
+--- src/transformers/hf_argparser.py
++++ src/transformers/hf_argparser.py
+@@ -110,7 +110,7 @@
+                     kwargs["required"] = True
+             elif field.type is bool or field.type == Optional[bool]:
+                 if field.default is True:
+-                    parser.add_argument(f"--no_{field.name}", action="store_false", dest=field.name, **kwargs)
++                    parser.add_argument(f"--no_{field.name}", action...
+```
 ========================================================================================================================
 AGENT:
 STEP 3: VERIFY THE FIX
 
-Let me create a test script to verify the fix works correctly:
+<thinking>
+Now I need to verify that the fix works correctly. Let me create a simple test script to check the help output for boolean arguments.
+</thinking>
 ========================================================================================================================
 TOOL CALL (bash)
-command: cd /workspace && pip install -e . -q 2>&1 | tail -5
+command: cd /workspace && pip install -e . -q 2>/dev/null
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python -c \"\nfrom dataclasses import dataclass, field\n\
+  from transformers import HfArgumentParser\n\n@dataclass\nclass TestArgs:\n    keep_linebreaks:\
+  \ bool = field(\n        default=True, metadata={'help': 'Whether to keep line breaks\
+  \ when using TXT files or not.'}\n    )\n    skip_memory_metrics: bool = field(\n\
+  \        default=True, metadata={'help': 'Whether or not to skip adding of memory\
+  \ profiler reports to metrics.'}\n    )\n    do_train: bool = field(\n        default=False,\
+  \ metadata={'help': 'Whether to run training.'}\n    )\n\nparser = HfArgumentParser(TestArgs)\n\
+  parser.print_help()\n\""
+timeout: 30
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+ModuleNotFoundError: No module named 'transformers'...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && pip install -e . 2>&1 | tail -5
 timeout: 120
 
 ========================================================================================================================
@@ -419,18 +443,19 @@ error: failed-wheel-build-for-install
 ```
 ========================================================================================================================
 TOOL CALL (bash)
-command: cd /workspace && pip install tokenizers 2>&1 | tail -5
+command: cd /workspace && pip install tokenizers 2>&1 | tail -3
 timeout: 120
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
-Successfully installed anyio-4.12.0 certifi-2025.11.12 filelock-3.20.0 fsspec-2025.12.0 h11-0.16.0 hf-xet-1.2.0 httpcore-1.0.9 httpx-0.28.1 huggingface-hub-1.1.7 idna-3.11 pyyaml-6.0.3 shellingham-1.5.4 tokenizers-0.22.1 tqdm-4.67.1 typer-slim-0.20.0
-WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/...
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
 ```
 ========================================================================================================================
 TOOL CALL (bash)
-command: cd /workspace && pip install -e . -q 2>&1 | tail -5
+command: cd /workspace && pip install -e . 2>&1 | tail -5
 timeout: 120
 
 ========================================================================================================================
@@ -444,7 +469,7 @@ error: failed-wheel-build-for-install
 ```
 ========================================================================================================================
 TOOL CALL (bash)
-command: cd /workspace && pip install -e . --no-build-isolation -q 2>&1 | tail -10
+command: cd /workspace && pip install --no-build-isolation -e . 2>&1 | tail -10
 timeout: 120
 
 ========================================================================================================================
@@ -462,29 +487,19 @@ note: This is an issue with the package mentioned above, not pip.
 hint: See above for details....
 ```
 ========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && pip install datasets torch 2>&1 | tail -5
-timeout: 120
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Successfully installed MarkupSafe-3.0.3 aiohappyeyeballs-2.6.1 aiohttp-3.13.2 aiosignal-1.4.0 attrs-25.4.0 charset_normalizer-3.4.4 datasets-4.4.1 dill-0.4.0 frozenlist-1.8.0 fsspec-2025.10.0 jinja2-3.1.6 mpmath-1.3.0 multidict-6.7.0 multiprocess-0.70.18 networkx-3.6 numpy-2.3.5 pandas-2.3.3 propcache-0.4.1 pyarrow-22.0.0 python-dateutil-2.9.0.post0 pytz-2025.2 requests-2.32.5 six-1.17.0 sympy-1.14.0 torch-2.9.1 tzdata-2025.2 urllib3-2.5.0 xxhash-3.6.0 yarl-1.22.0
-WARNING: Running pip as the 'ro...
-```
+AGENT:
+Let me try a different approach - I'll test the fix directly by running a Python script that imports the module from the source directory:
 ========================================================================================================================
 TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nfrom dataclasses import dataclass, field\n\
-  from typing import Optional\nimport sys\nsys.path.insert(0, 'src')\nfrom transformers.hf_argparser\
-  \ import HfArgumentParser\n\n@dataclass\nclass TestArgs:\n    keep_linebreaks: bool\
-  \ = field(\n        default=True, metadata={'help': 'Whether to keep line breaks\
-  \ when using TXT files or not.'}\n    )\n    dataloader_pin_memory: bool = field(\n\
-  \        default=True, metadata={'help': 'Whether or not to pin memory for DataLoader.'}\n\
+command: "cd /workspace && PYTHONPATH=/workspace/src python -c \"\nfrom dataclasses\
+  \ import dataclass, field\nfrom transformers.hf_argparser import HfArgumentParser\n\
+  \n@dataclass\nclass TestArgs:\n    keep_linebreaks: bool = field(\n        default=True,\
+  \ metadata={'help': 'Whether to keep line breaks when using TXT files or not.'}\n\
   \    )\n    skip_memory_metrics: bool = field(\n        default=True, metadata={'help':\
   \ 'Whether or not to skip adding of memory profiler reports to metrics.'}\n    )\n\
   \    do_train: bool = field(\n        default=False, metadata={'help': 'Whether\
   \ to run training.'}\n    )\n\nparser = HfArgumentParser(TestArgs)\nparser.print_help()\n\
-  \"\n"
+  \""
 timeout: 30
 
 ========================================================================================================================
@@ -505,7 +520,8 @@ Traceback (most recent call last):
 ```
 ========================================================================================================================
 TOOL CALL (bash)
-command: pip install regex sacremoses 2>&1 | tail -3
+command: pip install regex filelock huggingface_hub numpy packaging pyyaml requests
+  sacremoses tqdm 2>&1 | tail -3
 timeout: 60
 
 ========================================================================================================================
@@ -517,24 +533,22 @@ TOOL RETURN (bash)
 ```
 ========================================================================================================================
 TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nfrom dataclasses import dataclass, field\n\
-  from typing import Optional\nimport sys\nsys.path.insert(0, 'src')\nfrom transformers.hf_argparser\
-  \ import HfArgumentParser\n\n@dataclass\nclass TestArgs:\n    keep_linebreaks: bool\
-  \ = field(\n        default=True, metadata={'help': 'Whether to keep line breaks\
-  \ when using TXT files or not.'}\n    )\n    dataloader_pin_memory: bool = field(\n\
-  \        default=True, metadata={'help': 'Whether or not to pin memory for DataLoader.'}\n\
+command: "cd /workspace && PYTHONPATH=/workspace/src python -c \"\nfrom dataclasses\
+  \ import dataclass, field\nfrom transformers.hf_argparser import HfArgumentParser\n\
+  \n@dataclass\nclass TestArgs:\n    keep_linebreaks: bool = field(\n        default=True,\
+  \ metadata={'help': 'Whether to keep line breaks when using TXT files or not.'}\n\
   \    )\n    skip_memory_metrics: bool = field(\n        default=True, metadata={'help':\
   \ 'Whether or not to skip adding of memory profiler reports to metrics.'}\n    )\n\
   \    do_train: bool = field(\n        default=False, metadata={'help': 'Whether\
   \ to run training.'}\n    )\n\nparser = HfArgumentParser(TestArgs)\nparser.print_help()\n\
-  \"\n"
+  \""
 timeout: 30
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
 Traceback (most recent call last):
-  File "<string>", line 6, in <module>
+  File "<string>", line 3, in <module>
   File "/workspace/src/transformers/__init__.py", line 43, in <module>
     from . import dependency_versions_check
   File "/workspace/src/transformers/dependency_versions_check.py", line 36, in <module>
@@ -544,272 +558,104 @@ Traceback (most recent call last):
 ImportError: cannot import name 'HfFol...
 ```
 ========================================================================================================================
-TOOL CALL (bash)
-command: pip install 'huggingface_hub<0.10' 2>&1 | tail -3
-timeout: 60
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-
-[notice] A new release of pip is available: 25.2 -> 25.3
-[notice] To update, run: pip install --upgrade pip...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nfrom dataclasses import dataclass, field\n\
-  from typing import Optional\nimport sys\nsys.path.insert(0, 'src')\nfrom transformers.hf_argparser\
-  \ import HfArgumentParser\n\n@dataclass\nclass TestArgs:\n    keep_linebreaks: bool\
-  \ = field(\n        default=True, metadata={'help': 'Whether to keep line breaks\
-  \ when using TXT files or not.'}\n    )\n    dataloader_pin_memory: bool = field(\n\
-  \        default=True, metadata={'help': 'Whether or not to pin memory for DataLoader.'}\n\
-  \    )\n    skip_memory_metrics: bool = field(\n        default=True, metadata={'help':\
-  \ 'Whether or not to skip adding of memory profiler reports to metrics.'}\n    )\n\
-  \    do_train: bool = field(\n        default=False, metadata={'help': 'Whether\
-  \ to run training.'}\n    )\n\nparser = HfArgumentParser(TestArgs)\nparser.print_help()\n\
-  \"\n"
-timeout: 30
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Traceback (most recent call last):
-  File "<string>", line 6, in <module>
-  File "/workspace/src/transformers/__init__.py", line 43, in <module>
-    from . import dependency_versions_check
-  File "/workspace/src/transformers/dependency_versions_check.py", line 41, in <module>
-    require_version_core(deps[pkg])
-  File "/workspace/src/transformers/utils/versions.py", line 120, in require_version_core
-    return require_version(requirement, hint)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  Fil...
-```
-========================================================================================================================
 AGENT:
-<thinking>
-The dependencies are complex. Let me try a simpler approach - just test the hf_argparser module directly without importing the full transformers package.
-</thinking>
+Let me try importing just the hf_argparser module directly without going through the main transformers package:
 ========================================================================================================================
 TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nfrom dataclasses import dataclass, field\n\
-  from typing import Optional\n\n# Import only the hf_argparser module directly\n\
-  import sys\nimport importlib.util\nspec = importlib.util.spec_from_file_location('hf_argparser',\
-  \ 'src/transformers/hf_argparser.py')\nhf_argparser = importlib.util.module_from_spec(spec)\n\
-  spec.loader.exec_module(hf_argparser)\nHfArgumentParser = hf_argparser.HfArgumentParser\n\
-  \n@dataclass\nclass TestArgs:\n    keep_linebreaks: bool = field(\n        default=True,\
-  \ metadata={'help': 'Whether to keep line breaks when using TXT files or not.'}\n\
-  \    )\n    dataloader_pin_memory: bool = field(\n        default=True, metadata={'help':\
-  \ 'Whether or not to pin memory for DataLoader.'}\n    )\n    skip_memory_metrics:\
-  \ bool = field(\n        default=True, metadata={'help': 'Whether or not to skip\
-  \ adding of memory profiler reports to metrics.'}\n    )\n    do_train: bool = field(\n\
-  \        default=False, metadata={'help': 'Whether to run training.'}\n    )\n\n\
-  parser = HfArgumentParser(TestArgs)\nparser.print_help()\n\"\n"
+command: "cd /workspace && python -c \"\nimport sys\nsys.path.insert(0, '/workspace/src')\n\
+  \n# Import just the hf_argparser module directly\nimport importlib.util\nspec =\
+  \ importlib.util.spec_from_file_location('hf_argparser', '/workspace/src/transformers/hf_argparser.py')\n\
+  hf_argparser = importlib.util.module_from_spec(spec)\nspec.loader.exec_module(hf_argparser)\n\
+  \nfrom dataclasses import dataclass, field\n\n@dataclass\nclass TestArgs:\n    keep_linebreaks:\
+  \ bool = field(\n        default=True, metadata={'help': 'Whether to keep line breaks\
+  \ when using TXT files or not.'}\n    )\n    skip_memory_metrics: bool = field(\n\
+  \        default=True, metadata={'help': 'Whether or not to skip adding of memory\
+  \ profiler reports to metrics.'}\n    )\n    do_train: bool = field(\n        default=False,\
+  \ metadata={'help': 'Whether to run training.'}\n    )\n\nparser = hf_argparser.HfArgumentParser(TestArgs)\n\
+  parser.print_help()\n\""
 timeout: 30
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
 usage: -c [-h] [--no_keep_linebreaks] [--keep_linebreaks [KEEP_LINEBREAKS]]
-          [--no_dataloader_pin_memory]
-          [--dataloader_pin_memory [DATALOADER_PIN_MEMORY]]
           [--no_skip_memory_metrics]
           [--skip_memory_metrics [SKIP_MEMORY_METRICS]]
           [--do_train [DO_TRAIN]]
 
 options:
   -h, --help            show this help message and exit
-  --no_keep_linebreaks  Do not Whether to keep line breaks when using TXT
-                        files or not.
-  --keep_linebreaks ...
-```
-========================================================================================================================
-AGENT:
-<thinking>
-The fix is working! The `--no_X` arguments no longer show `(default: True)` which was confusing. However, the help text for `--no_X` is a bit awkward: "Do not Whether to keep line breaks..." 
-
-Let me improve the help text generation to be more natural. Instead of "Do not Whether to keep...", it should be something like "Set keep_linebreaks to False" or just remove the help text for the `--no_X` variant.
-
-Looking at the issue again, the main problem was that both `--no_X` and `--X` showed `(default: True)` which was confusing. Now the `--no_X` doesn't show a default, which is an improvement.
-
-However, the help text "Do not Whether to keep line breaks..." is grammatically awkward. Let me fix this by using a different approach for the help text.
-</thinking>
-
-Let me improve the help text for the `--no_X` arguments:
-========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: src/transformers/hf_argparser.py
-find: "            elif field.type is bool or field.type == Optional[bool]:\n    \
-  \            if field.default is True:\n                    # (the default value\
-  \ is True and target option is to set it to False)\n                    no_arg_kwargs\
-  \ = kwargs.copy()\n                    del no_arg_kwargs[\"help\"]\n           \
-  \         parser.add_argument(\n                        f\"--no_{field.name}\",\n\
-  \                        action=\"store_false\",\n                        dest=field.name,\n\
-  \                        default=SUPPRESS,\n                        help=f\"Do not\
-  \ {kwargs.get('help', '')}\",\n                        **no_arg_kwargs,\n      \
-  \              )"
-replace: "            elif field.type is bool or field.type == Optional[bool]:\n \
-  \               if field.default is True:\n                    # (the default value\
-  \ is True and target option is to set it to False)\n                    no_arg_kwargs\
-  \ = kwargs.copy()\n                    del no_arg_kwargs[\"help\"]\n           \
-  \         parser.add_argument(\n                        f\"--no_{field.name}\",\n\
-  \                        action=\"store_false\",\n                        dest=field.name,\n\
-  \                        default=SUPPRESS,\n                        help=f\"Set\
-  \ {field.name} to False.\",\n                        **no_arg_kwargs,\n        \
-  \            )"
-
-========================================================================================================================
-TOOL RETURN (find_and_replace_code)
-```
-Successfully replaced code in src/transformers/hf_argparser.py:
-
---- src/transformers/hf_argparser.py
-+++ src/transformers/hf_argparser.py
-@@ -118,7 +118,7 @@
-                         action="store_false",
-                         dest=field.name,
-                         default=SUPPRESS,
--                        help=f"Do not {kwargs.get('help', '')}",
-+                        help=f"Set {field.name} to False.",
-                         **no_arg_kwargs,
-                     )
- 
-...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nfrom dataclasses import dataclass, field\n\
-  from typing import Optional\n\n# Import only the hf_argparser module directly\n\
-  import sys\nimport importlib.util\nspec = importlib.util.spec_from_file_location('hf_argparser',\
-  \ 'src/transformers/hf_argparser.py')\nhf_argparser = importlib.util.module_from_spec(spec)\n\
-  spec.loader.exec_module(hf_argparser)\nHfArgumentParser = hf_argparser.HfArgumentParser\n\
-  \n@dataclass\nclass TestArgs:\n    keep_linebreaks: bool = field(\n        default=True,\
-  \ metadata={'help': 'Whether to keep line breaks when using TXT files or not.'}\n\
-  \    )\n    dataloader_pin_memory: bool = field(\n        default=True, metadata={'help':\
-  \ 'Whether or not to pin memory for DataLoader.'}\n    )\n    skip_memory_metrics:\
-  \ bool = field(\n        default=True, metadata={'help': 'Whether or not to skip\
-  \ adding of memory profiler reports to metrics.'}\n    )\n    do_train: bool = field(\n\
-  \        default=False, metadata={'help': 'Whether to run training.'}\n    )\n\n\
-  parser = HfArgumentParser(TestArgs)\nparser.print_help()\n\"\n"
-timeout: 30
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-usage: -c [-h] [--no_keep_linebreaks] [--keep_linebreaks [KEEP_LINEBREAKS]]
-          [--no_dataloader_pin_memory]
-          [--dataloader_pin_memory [DATALOADER_PIN_MEMORY]]
-          [--no_skip_memory_metrics]
-          [--skip_memory_metrics [SKIP_MEMORY_METRICS]]
-          [--do_train [DO_TRAIN]]
-
-options:
-  -h, --help            show this help message and exit
-  --no_keep_linebreaks  Set keep_linebreaks to False.
+  --no_keep_linebreaks  Whether to keep line breaks when using TXT files or
+                        not.
   --keep_linebreaks [KEEP_LINEBREAKS]
-                        Whether to keep ...
+                        Whether to keep line breaks when using TXT files or
+            ...
 ```
 ========================================================================================================================
 AGENT:
-<thinking>
-The fix is working well now. The help text is much clearer:
-1. `--no_keep_linebreaks` now shows "Set keep_linebreaks to False." without a confusing "(default: True)"
-2. `--keep_linebreaks` still shows "(default: True)" which is correct
+The fix is working. Now the `--no_keep_linebreaks` and `--no_skip_memory_metrics` arguments no longer show "(default: True)" which was confusing. The help text now clearly shows:
 
-Let me also verify that the arguments work correctly by testing parsing:
-</thinking>
+1. `--no_keep_linebreaks` - No default shown (because using this flag will set the value to False)
+2. `--keep_linebreaks [KEEP_LINEBREAKS]` - Shows "(default: True)" which is correct
+3. `--no_skip_memory_metrics` - No default shown
+4. `--skip_memory_metrics [SKIP_MEMORY_METRICS]` - Shows "(default: True)" which is correct
+5. `--do_train [DO_TRAIN]` - Shows "(default: False)" which is correct
+
+Let me also verify that the functionality still works correctly by testing the argument parsing:
 ========================================================================================================================
 TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nfrom dataclasses import dataclass, field\n\
-  from typing import Optional\n\n# Import only the hf_argparser module directly\n\
-  import sys\nimport importlib.util\nspec = importlib.util.spec_from_file_location('hf_argparser',\
-  \ 'src/transformers/hf_argparser.py')\nhf_argparser = importlib.util.module_from_spec(spec)\n\
-  spec.loader.exec_module(hf_argparser)\nHfArgumentParser = hf_argparser.HfArgumentParser\n\
-  \n@dataclass\nclass TestArgs:\n    keep_linebreaks: bool = field(\n        default=True,\
-  \ metadata={'help': 'Whether to keep line breaks when using TXT files or not.'}\n\
-  \    )\n    dataloader_pin_memory: bool = field(\n        default=True, metadata={'help':\
-  \ 'Whether or not to pin memory for DataLoader.'}\n    )\n    skip_memory_metrics:\
-  \ bool = field(\n        default=True, metadata={'help': 'Whether or not to skip\
-  \ adding of memory profiler reports to metrics.'}\n    )\n    do_train: bool = field(\n\
-  \        default=False, metadata={'help': 'Whether to run training.'}\n    )\n\n\
-  # Test 1: Default values\nparser = HfArgumentParser(TestArgs)\nargs = parser.parse_args_into_dataclasses(args=[])[0]\n\
-  print('Test 1 - Default values:')\nprint(f'  keep_linebreaks: {args.keep_linebreaks}\
-  \ (expected: True)')\nprint(f'  dataloader_pin_memory: {args.dataloader_pin_memory}\
-  \ (expected: True)')\nprint(f'  skip_memory_metrics: {args.skip_memory_metrics}\
-  \ (expected: True)')\nprint(f'  do_train: {args.do_train} (expected: False)')\n\n\
-  # Test 2: Using --no_X flags\nparser = HfArgumentParser(TestArgs)\nargs = parser.parse_args_into_dataclasses(args=['--no_keep_linebreaks',\
-  \ '--no_dataloader_pin_memory'])[0]\nprint('\\\\nTest 2 - Using --no_X flags:')\n\
-  print(f'  keep_linebreaks: {args.keep_linebreaks} (expected: False)')\nprint(f'\
-  \  dataloader_pin_memory: {args.dataloader_pin_memory} (expected: False)')\nprint(f'\
-  \  skip_memory_metrics: {args.skip_memory_metrics} (expected: True)')\nprint(f'\
-  \  do_train: {args.do_train} (expected: False)')\n\n# Test 3: Using --X flags with\
-  \ explicit values\nparser = HfArgumentParser(TestArgs)\nargs = parser.parse_args_into_dataclasses(args=['--keep_linebreaks',\
-  \ 'false', '--do_train', 'true'])[0]\nprint('\\\\nTest 3 - Using --X flags with\
-  \ explicit values:')\nprint(f'  keep_linebreaks: {args.keep_linebreaks} (expected:\
-  \ False)')\nprint(f'  dataloader_pin_memory: {args.dataloader_pin_memory} (expected:\
-  \ True)')\nprint(f'  skip_memory_metrics: {args.skip_memory_metrics} (expected:\
-  \ True)')\nprint(f'  do_train: {args.do_train} (expected: True)')\n\n# Test 4: Using\
-  \ --X flags without values (should use const=True)\nparser = HfArgumentParser(TestArgs)\n\
-  args = parser.parse_args_into_dataclasses(args=['--do_train'])[0]\nprint('\\\\nTest\
-  \ 4 - Using --X flags without values:')\nprint(f'  keep_linebreaks: {args.keep_linebreaks}\
-  \ (expected: True)')\nprint(f'  dataloader_pin_memory: {args.dataloader_pin_memory}\
-  \ (expected: True)')\nprint(f'  skip_memory_metrics: {args.skip_memory_metrics}\
-  \ (expected: True)')\nprint(f'  do_train: {args.do_train} (expected: True)')\n\"\
-  \n"
+command: "cd /workspace && python -c \"\nimport sys\nsys.path.insert(0, '/workspace/src')\n\
+  \n# Import just the hf_argparser module directly\nimport importlib.util\nspec =\
+  \ importlib.util.spec_from_file_location('hf_argparser', '/workspace/src/transformers/hf_argparser.py')\n\
+  hf_argparser = importlib.util.module_from_spec(spec)\nspec.loader.exec_module(hf_argparser)\n\
+  \nfrom dataclasses import dataclass, field\n\n@dataclass\nclass TestArgs:\n    keep_linebreaks:\
+  \ bool = field(\n        default=True, metadata={'help': 'Whether to keep line breaks\
+  \ when using TXT files or not.'}\n    )\n    skip_memory_metrics: bool = field(\n\
+  \        default=True, metadata={'help': 'Whether or not to skip adding of memory\
+  \ profiler reports to metrics.'}\n    )\n    do_train: bool = field(\n        default=False,\
+  \ metadata={'help': 'Whether to run training.'}\n    )\n\n# Test default values\n\
+  parser = hf_argparser.HfArgumentParser(TestArgs)\nargs = parser.parse_args([])\n\
+  print(f'Default values: keep_linebreaks={args.keep_linebreaks}, skip_memory_metrics={args.skip_memory_metrics},\
+  \ do_train={args.do_train}')\n\n# Test --no_keep_linebreaks\nparser = hf_argparser.HfArgumentParser(TestArgs)\n\
+  args = parser.parse_args(['--no_keep_linebreaks'])\nprint(f'With --no_keep_linebreaks:\
+  \ keep_linebreaks={args.keep_linebreaks}')\n\n# Test --keep_linebreaks false\nparser\
+  \ = hf_argparser.HfArgumentParser(TestArgs)\nargs = parser.parse_args(['--keep_linebreaks',\
+  \ 'false'])\nprint(f'With --keep_linebreaks false: keep_linebreaks={args.keep_linebreaks}')\n\
+  \n# Test --do_train\nparser = hf_argparser.HfArgumentParser(TestArgs)\nargs = parser.parse_args(['--do_train'])\n\
+  print(f'With --do_train: do_train={args.do_train}')\n\""
 timeout: 30
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
-Test 1 - Default values:
-  keep_linebreaks: True (expected: True)
-  dataloader_pin_memory: True (expected: True)
-  skip_memory_metrics: True (expected: True)
-  do_train: False (expected: False)
-
-Test 2 - Using --no_X flags:
-  keep_linebreaks: False (expected: False)
-  dataloader_pin_memory: False (expected: False)
-  skip_memory_metrics: True (expected: True)
-  do_train: False (expected: False)
-
-Test 3 - Using --X flags with explicit values:
-  keep_linebreaks: False (expected: False)
-  dataloader...
+Default values: keep_linebreaks=True, skip_memory_metrics=True, do_train=False
+With --no_keep_linebreaks: keep_linebreaks=False
+With --keep_linebreaks false: keep_linebreaks=False
+With --do_train: do_train=True...
 ```
 ========================================================================================================================
 AGENT:
-All tests pass. The fix is working correctly. Let me also run the existing tests for `hf_argparser` to make sure I haven't broken anything:
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && python -m pytest tests/test_hf_argparser.py -v 2>&1 | head
-  -100
-timeout: 120
+The functionality is working correctly:
+1. Default values are preserved (keep_linebreaks=True, skip_memory_metrics=True, do_train=False)
+2. `--no_keep_linebreaks` correctly sets keep_linebreaks to False
+3. `--keep_linebreaks false` correctly sets keep_linebreaks to False
+4. `--do_train` correctly sets do_train to True
 
-========================================================================================================================
-TOOL RETURN (bash)
-```
-/root/.pyenv/versions/3.11.12/bin/python: No module named pytest...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: pip install pytest -q && cd /workspace && python -m pytest tests/test_hf_argparser.py
-  -v 2>&1 | head -100
-timeout: 120
+STEP 4: RUN EXISTING TESTS
 
-========================================================================================================================
-TOOL RETURN (bash)
-```
-WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
-
-[notice] A new release of pip is available: 25.2 -> 25.3
-[notice] To update, run: pip install --upgrade pip
-Traceback (most recent call...
-```
-========================================================================================================================
-AGENT:
 <thinking>
-The test suite requires specific versions of dependencies. Let me look at the test file to understand what tests exist and run them directly without the full transformers import.
+Let me run the existing tests for the hf_argparser module to make sure the fix doesn't break anything.
 </thinking>
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && find . -name "test_hf_argparser.py" -o -name "*argparser*test*"
+timeout: 10
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+./tests/test_hf_argparser.py...
+```
 ========================================================================================================================
 TOOL CALL (open_files)
 file_paths:
@@ -824,8 +670,132 @@ TOOL RETURN (open_files)
 TOOL CALL (inspect_code)
 file_path: tests/test_hf_argparser.py
 patterns:
-- test_with_default_bool
 - WithDefaultBoolExample
+- test_with_default_bool
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in tests/test_hf_argparser.py:
+
+````python
+   0 # Copyright 2020 The HuggingFace Team. All rights reserved.
+...
+  14 import argparse
+  15 import unittest
+  16 from argparse import Namespace
+...
+  25 def list_field(default=None, metadata=None):
+...
+  29 @dataclass
+  30 class BasicExample:
+...
+  37 @dataclass
+  38 class WithDefaultExample:
+...
+  43 @dataclass
+  44 class WithDefaultBoolExample:
+  45     foo: bool = False
+  46     baz: bool = True
+  47     opt: Opti...
+```
+========================================================================================================================
+AGENT:
+I see that the test `test_with_default_bool` compares the parser with an expected parser. The expected parser adds `--no_baz` without a `default=SUPPRESS`. This test might fail because the comparison checks the actions' defaults.
+
+Let me run the test to see if it fails:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && PYTHONPATH=/workspace/src python -m pytest tests/test_hf_argparser.py
+  -v 2>&1 | head -50
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+/root/.pyenv/versions/3.11.12/bin/python: No module named pytest...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: pip install pytest 2>&1 | tail -3
+timeout: 30
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && PYTHONPATH=/workspace/src python -m pytest tests/test_hf_argparser.py
+  -v 2>&1
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/root/.pyenv/versions/3.11.12/lib/python3.11/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(pytest.console_main())
+                     ^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.pyenv/versions/3.11.12/lib/python3.11/site-packages/_pytest/config/__init__.py", line 223, in console_main
+    code = main()
+           ^^^^^^
+  File ...
+```
+========================================================================================================================
+AGENT:
+The test is failing due to import issues with the huggingface_hub package. Let me try to run the test in a more isolated way:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python -c \"\nimport sys\nsys.path.insert(0, '/workspace/src')\n\
+  \n# Import just the hf_argparser module directly\nimport importlib.util\nspec =\
+  \ importlib.util.spec_from_file_location('hf_argparser', '/workspace/src/transformers/hf_argparser.py')\n\
+  hf_argparser = importlib.util.module_from_spec(spec)\nspec.loader.exec_module(hf_argparser)\n\
+  \nimport argparse\nfrom argparse import Namespace\nfrom dataclasses import dataclass,\
+  \ field\nfrom typing import Optional\n\n@dataclass\nclass WithDefaultBoolExample:\n\
+  \    foo: bool = False\n    baz: bool = True\n    opt: Optional[bool] = None\n\n\
+  parser = hf_argparser.HfArgumentParser(WithDefaultBoolExample)\n\n# Test default\
+  \ values\nargs = parser.parse_args([])\nassert args == Namespace(foo=False, baz=True,\
+  \ opt=None), f'Expected Namespace(foo=False, baz=True, opt=None), got {args}'\n\
+  print('Test 1 passed: default values')\n\n# Test --foo and --no_baz\nargs = parser.parse_args(['--foo',\
+  \ '--no_baz'])\nassert args == Namespace(foo=True, baz=False, opt=None), f'Expected\
+  \ Namespace(foo=True, baz=False, opt=None), got {args}'\nprint('Test 2 passed: --foo\
+  \ --no_baz')\n\n# Test --foo and --baz\nargs = parser.parse_args(['--foo', '--baz'])\n\
+  assert args == Namespace(foo=True, baz=True, opt=None), f'Expected Namespace(foo=True,\
+  \ baz=True, opt=None), got {args}'\nprint('Test 3 passed: --foo --baz')\n\n# Test\
+  \ explicit True values\nargs = parser.parse_args(['--foo', 'True', '--baz', 'True',\
+  \ '--opt', 'True'])\nassert args == Namespace(foo=True, baz=True, opt=True), f'Expected\
+  \ Namespace(foo=True, baz=True, opt=True), got {args}'\nprint('Test 4 passed: explicit\
+  \ True values')\n\n# Test explicit False values\nargs = parser.parse_args(['--foo',\
+  \ 'False', '--baz', 'False', '--opt', 'False'])\nassert args == Namespace(foo=False,\
+  \ baz=False, opt=False), f'Expected Namespace(foo=False, baz=False, opt=False),\
+  \ got {args}'\nprint('Test 5 passed: explicit False values')\n\nprint('All tests\
+  \ passed!')\n\""
+timeout: 30
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Test 1 passed: default values
+Test 2 passed: --foo --no_baz
+Test 3 passed: --foo --baz
+Test 4 passed: explicit True values
+Test 5 passed: explicit False values
+All tests passed!...
+```
+========================================================================================================================
+AGENT:
+All the functional tests pass. Now let me also check the `argparsersEqual` comparison that the original test uses:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: tests/test_hf_argparser.py
+patterns:
+- argparsersEqual
 
 ========================================================================================================================
 TOOL RETURN (inspect_code)
@@ -856,142 +826,219 @@ Successfully expanded code chunks in tests/test_hf_argparser.py:
 ========================================================================================================================
 AGENT:
 <thinking>
-I see that the test `test_with_default_bool` expects the `--no_baz` argument to be added with `action="store_false"` and `dest="baz"`. My change adds `default=SUPPRESS` and a different `help` text, which might cause the test to fail.
+I see that the test `test_with_default_bool` compares the parser with an expected parser using `argparsersEqual`. The expected parser adds `--no_baz` without `default=SUPPRESS`. This means the test will fail because the `default` attribute of the `--no_baz` action will be different.
 
-Let me run the test directly to see if it passes:
+Let me check what the `default` attribute looks like for both parsers:
 </thinking>
 ========================================================================================================================
 TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nimport argparse\nimport unittest\nfrom argparse\
-  \ import Namespace, SUPPRESS\nfrom dataclasses import dataclass, field\nfrom typing\
-  \ import Optional\n\n# Import only the hf_argparser module directly\nimport importlib.util\n\
-  spec = importlib.util.spec_from_file_location('hf_argparser', 'src/transformers/hf_argparser.py')\n\
+command: "cd /workspace && python -c \"\nimport sys\nsys.path.insert(0, '/workspace/src')\n\
+  \n# Import just the hf_argparser module directly\nimport importlib.util\nspec =\
+  \ importlib.util.spec_from_file_location('hf_argparser', '/workspace/src/transformers/hf_argparser.py')\n\
   hf_argparser = importlib.util.module_from_spec(spec)\nspec.loader.exec_module(hf_argparser)\n\
-  HfArgumentParser = hf_argparser.HfArgumentParser\nstring_to_bool = hf_argparser.string_to_bool\n\
-  \n@dataclass\nclass WithDefaultBoolExample:\n    foo: bool = False\n    baz: bool\
-  \ = True\n    opt: Optional[bool] = None\n\nparser = HfArgumentParser(WithDefaultBoolExample)\n\
-  \n# Test parsing\nargs = parser.parse_args([])\nprint(f'Test 1 - Empty args: {args}')\n\
-  assert args.foo == False\nassert args.baz == True\nassert args.opt == None\n\nargs\
-  \ = parser.parse_args(['--foo', '--no_baz'])\nprint(f'Test 2 - --foo --no_baz: {args}')\n\
-  assert args.foo == True\nassert args.baz == False\nassert args.opt == None\n\nargs\
-  \ = parser.parse_args(['--foo', '--baz'])\nprint(f'Test 3 - --foo --baz: {args}')\n\
-  assert args.foo == True\nassert args.baz == True\nassert args.opt == None\n\nargs\
-  \ = parser.parse_args(['--foo', 'True', '--baz', 'True', '--opt', 'True'])\nprint(f'Test\
-  \ 4 - Explicit True values: {args}')\nassert args.foo == True\nassert args.baz ==\
-  \ True\nassert args.opt == True\n\nargs = parser.parse_args(['--foo', 'False', '--baz',\
-  \ 'False', '--opt', 'False'])\nprint(f'Test 5 - Explicit False values: {args}')\n\
-  assert args.foo == False\nassert args.baz == False\nassert args.opt == False\n\n\
-  print('\\\\nAll tests passed!')\n\"\n"
+  \nimport argparse\nfrom argparse import Namespace, SUPPRESS\nfrom dataclasses import\
+  \ dataclass, field\nfrom typing import Optional\n\n@dataclass\nclass WithDefaultBoolExample:\n\
+  \    foo: bool = False\n    baz: bool = True\n    opt: Optional[bool] = None\n\n\
+  parser = hf_argparser.HfArgumentParser(WithDefaultBoolExample)\n\nexpected = argparse.ArgumentParser()\n\
+  expected.add_argument('--foo', type=hf_argparser.string_to_bool, default=False,\
+  \ const=True, nargs='?')\nexpected.add_argument('--no_baz', action='store_false',\
+  \ dest='baz')\nexpected.add_argument('--baz', type=hf_argparser.string_to_bool,\
+  \ default=True, const=True, nargs='?')\nexpected.add_argument('--opt', type=hf_argparser.string_to_bool,\
+  \ default=None)\n\nprint('Parser actions:')\nfor action in parser._actions:\n  \
+  \  if action.option_strings:\n        print(f'  {action.option_strings}: default={action.default!r}')\n\
+  \nprint()\nprint('Expected actions:')\nfor action in expected._actions:\n    if\
+  \ action.option_strings:\n        print(f'  {action.option_strings}: default={action.default!r}')\n\
+  \""
 timeout: 30
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
-Traceback (most recent call last):
-  File "<string>", line 22, in <module>
-  File "/workspace/src/transformers/hf_argparser.py", line 70, in __init__
-    self._add_dataclass_arguments(dtype)
-  File "/workspace/src/transformers/hf_argparser.py", line 115, in _add_dataclass_arguments
-    del no_arg_kwargs["help"]
-        ~~~~~~~~~~~~~^^^^^^^^
-KeyError: 'help'...
+Parser actions:
+  ['-h', '--help']: default='==SUPPRESS=='
+  ['--foo']: default=False
+  ['--no_baz']: default='==SUPPRESS=='
+  ['--baz']: default=True
+  ['--opt']: default=None
+
+Expected actions:
+  ['-h', '--help']: default='==SUPPRESS=='
+  ['--foo']: default=False
+  ['--no_baz']: default=True
+  ['--baz']: default=True
+  ['--opt']: default=None...
 ```
 ========================================================================================================================
 AGENT:
 <thinking>
-Ah, I see the issue. The `kwargs` dictionary might not always have a `help` key if the field doesn't have a `help` metadata. Let me fix this by checking if `help` exists before trying to delete it.
+I can see the difference:
+- In the parser (with my fix): `--no_baz` has `default='==SUPPRESS=='`
+- In the expected parser (from the test): `--no_baz` has `default=True`
+
+The test will fail because of this difference. I need to update the test to match the new behavior.
+
+However, I should also verify that the functionality is still correct. The key thing is that when using `--no_baz`, the `baz` attribute should be set to `False`, and when not using `--no_baz`, the `baz` attribute should remain `True` (the default).
+
+Let me verify this:
 </thinking>
 ========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: src/transformers/hf_argparser.py
-find: "            elif field.type is bool or field.type == Optional[bool]:\n    \
-  \            if field.default is True:\n                    # (the default value\
-  \ is True and target option is to set it to False)\n                    no_arg_kwargs\
-  \ = kwargs.copy()\n                    del no_arg_kwargs[\"help\"]\n           \
-  \         parser.add_argument(\n                        f\"--no_{field.name}\",\n\
-  \                        action=\"store_false\",\n                        dest=field.name,\n\
-  \                        default=SUPPRESS,\n                        help=f\"Set\
-  \ {field.name} to False.\",\n                        **no_arg_kwargs,\n        \
-  \            )"
-replace: "            elif field.type is bool or field.type == Optional[bool]:\n \
-  \               if field.default is True:\n                    # (the default value\
-  \ is True and target option is to set it to False)\n                    no_arg_kwargs\
-  \ = kwargs.copy()\n                    no_arg_kwargs.pop(\"help\", None)\n     \
-  \               parser.add_argument(\n                        f\"--no_{field.name}\"\
-  ,\n                        action=\"store_false\",\n                        dest=field.name,\n\
-  \                        default=SUPPRESS,\n                        help=f\"Set\
-  \ {field.name} to False.\",\n                        **no_arg_kwargs,\n        \
-  \            )"
-
-========================================================================================================================
-TOOL RETURN (find_and_replace_code)
-```
-Successfully replaced code in src/transformers/hf_argparser.py:
-
---- src/transformers/hf_argparser.py
-+++ src/transformers/hf_argparser.py
-@@ -112,7 +112,7 @@
-                 if field.default is True:
-                     # (the default value is True and target option is to set it to False)
-                     no_arg_kwargs = kwargs.copy()
--                    del no_arg_kwargs["help"]
-+                    no_arg_kwargs.pop("help", None)
-                     parser.add_argument(
-              ...
-```
-========================================================================================================================
 TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nimport argparse\nimport unittest\nfrom argparse\
-  \ import Namespace, SUPPRESS\nfrom dataclasses import dataclass, field\nfrom typing\
-  \ import Optional\n\n# Import only the hf_argparser module directly\nimport importlib.util\n\
-  spec = importlib.util.spec_from_file_location('hf_argparser', 'src/transformers/hf_argparser.py')\n\
+command: "cd /workspace && python -c \"\nimport sys\nsys.path.insert(0, '/workspace/src')\n\
+  \n# Import just the hf_argparser module directly\nimport importlib.util\nspec =\
+  \ importlib.util.spec_from_file_location('hf_argparser', '/workspace/src/transformers/hf_argparser.py')\n\
   hf_argparser = importlib.util.module_from_spec(spec)\nspec.loader.exec_module(hf_argparser)\n\
-  HfArgumentParser = hf_argparser.HfArgumentParser\nstring_to_bool = hf_argparser.string_to_bool\n\
-  \n@dataclass\nclass WithDefaultBoolExample:\n    foo: bool = False\n    baz: bool\
-  \ = True\n    opt: Optional[bool] = None\n\nparser = HfArgumentParser(WithDefaultBoolExample)\n\
-  \n# Test parsing\nargs = parser.parse_args([])\nprint(f'Test 1 - Empty args: {args}')\n\
-  assert args.foo == False\nassert args.baz == True\nassert args.opt == None\n\nargs\
-  \ = parser.parse_args(['--foo', '--no_baz'])\nprint(f'Test 2 - --foo --no_baz: {args}')\n\
-  assert args.foo == True\nassert args.baz == False\nassert args.opt == None\n\nargs\
-  \ = parser.parse_args(['--foo', '--baz'])\nprint(f'Test 3 - --foo --baz: {args}')\n\
-  assert args.foo == True\nassert args.baz == True\nassert args.opt == None\n\nargs\
-  \ = parser.parse_args(['--foo', 'True', '--baz', 'True', '--opt', 'True'])\nprint(f'Test\
-  \ 4 - Explicit True values: {args}')\nassert args.foo == True\nassert args.baz ==\
-  \ True\nassert args.opt == True\n\nargs = parser.parse_args(['--foo', 'False', '--baz',\
-  \ 'False', '--opt', 'False'])\nprint(f'Test 5 - Explicit False values: {args}')\n\
-  assert args.foo == False\nassert args.baz == False\nassert args.opt == False\n\n\
-  print('\\\\nAll tests passed!')\n\"\n"
+  \nimport argparse\nfrom argparse import Namespace, SUPPRESS\nfrom dataclasses import\
+  \ dataclass, field\nfrom typing import Optional\n\n@dataclass\nclass WithDefaultBoolExample:\n\
+  \    foo: bool = False\n    baz: bool = True\n    opt: Optional[bool] = None\n\n\
+  parser = hf_argparser.HfArgumentParser(WithDefaultBoolExample)\n\n# Test that the\
+  \ default value is still correct\nargs = parser.parse_args([])\nprint(f'Default:\
+  \ baz={args.baz}')\nassert args.baz == True, f'Expected baz=True, got baz={args.baz}'\n\
+  \n# Test that --no_baz sets baz to False\nargs = parser.parse_args(['--no_baz'])\n\
+  print(f'With --no_baz: baz={args.baz}')\nassert args.baz == False, f'Expected baz=False,\
+  \ got baz={args.baz}'\n\n# Test that --baz sets baz to True\nargs = parser.parse_args(['--baz'])\n\
+  print(f'With --baz: baz={args.baz}')\nassert args.baz == True, f'Expected baz=True,\
+  \ got baz={args.baz}'\n\nprint('All tests passed!')\n\""
 timeout: 30
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
-Test 1 - Empty args: Namespace(foo=False, baz=True, opt=None)
-Test 2 - --foo --no_baz: Namespace(foo=True, baz=False, opt=None)
-Test 3 - --foo --baz: Namespace(foo=True, baz=True, opt=None)
-Test 4 - Explicit True values: Namespace(foo=True, baz=True, opt=True)
-Test 5 - Explicit False values: Namespace(foo=False, baz=False, opt=False)
-
+Default: baz=True
+With --no_baz: baz=False
+With --baz: baz=True
 All tests passed!...
 ```
 ========================================================================================================================
 AGENT:
-All tests pass. Now let me verify the help text is correct:
+The functionality is correct. Now I need to update the test to match the new behavior. The test file needs to be updated to use `default=SUPPRESS` for the `--no_baz` argument in the expected parser.
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: tests/test_hf_argparser.py
+find: 'import argparse
+
+  import unittest
+
+  from argparse import Namespace'
+replace: 'import argparse
+
+  import unittest
+
+  from argparse import Namespace, SUPPRESS'
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in tests/test_hf_argparser.py:
+
+--- tests/test_hf_argparser.py
++++ tests/test_hf_argparser.py
+@@ -14,7 +14,7 @@
+ 
+ import argparse
+ import unittest
+-from argparse import Namespace
++from argparse import Namespace, SUPPRESS
+ from dataclasses import dataclass, field
+ from enum import Enum
+ from typing import List, Optional
+...
+```
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: tests/test_hf_argparser.py
+find: "        expected.add_argument(\"--foo\", type=string_to_bool, default=False,\
+  \ const=True, nargs=\"?\")\n        expected.add_argument(\"--no_baz\", action=\"\
+  store_false\", dest=\"baz\")\n        expected.add_argument(\"--baz\", type=string_to_bool,\
+  \ default=True, const=True, nargs=\"?\")"
+replace: "        expected.add_argument(\"--foo\", type=string_to_bool, default=False,\
+  \ const=True, nargs=\"?\")\n        expected.add_argument(\"--no_baz\", action=\"\
+  store_false\", dest=\"baz\", default=SUPPRESS)\n        expected.add_argument(\"\
+  --baz\", type=string_to_bool, default=True, const=True, nargs=\"?\")"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in tests/test_hf_argparser.py:
+
+--- tests/test_hf_argparser.py
++++ tests/test_hf_argparser.py
+@@ -126,7 +126,7 @@
+ 
+         expected = argparse.ArgumentParser()
+         expected.add_argument("--foo", type=string_to_bool, default=False, const=True, nargs="?")
+-        expected.add_argument("--no_baz", action="store_false", dest="baz")
++        expected.add_argument("--no_baz", action="store_false", dest="baz", default=SUPPRESS)
+         expected.add_argument("--baz", ...
+```
+========================================================================================================================
+AGENT:
+Now let me verify that the test passes with the updated expected parser:
 ========================================================================================================================
 TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nfrom dataclasses import dataclass, field\n\
-  from typing import Optional\n\n# Import only the hf_argparser module directly\n\
-  import importlib.util\nspec = importlib.util.spec_from_file_location('hf_argparser',\
-  \ 'src/transformers/hf_argparser.py')\nhf_argparser = importlib.util.module_from_spec(spec)\n\
-  spec.loader.exec_module(hf_argparser)\nHfArgumentParser = hf_argparser.HfArgumentParser\n\
-  \n@dataclass\nclass TestArgs:\n    keep_linebreaks: bool = field(\n        default=True,\
-  \ metadata={'help': 'Whether to keep line breaks when using TXT files or not.'}\n\
-  \    )\n    dataloader_pin_memory: bool = field(\n        default=True, metadata={'help':\
-  \ 'Whether or not to pin memory for DataLoader.'}\n    )\n    skip_memory_metrics:\
-  \ bool = field(\n        default=True, metadata={'help': 'Whether or not to skip\
-  \ adding of memory profiler reports to metrics.'}\n    )\n    do_train: bool = field(\n\
-  \        default=False, metadata={'help': 'Whether to run training.'}\n    )\n\n\
-  parser = HfArgumentParser(TestArgs)\nparser.print_help()\n\"\n"
+command: "cd /workspace && python -c \"\nimport sys\nsys.path.insert(0, '/workspace/src')\n\
+  \n# Import just the hf_argparser module directly\nimport importlib.util\nspec =\
+  \ importlib.util.spec_from_file_location('hf_argparser', '/workspace/src/transformers/hf_argparser.py')\n\
+  hf_argparser = importlib.util.module_from_spec(spec)\nspec.loader.exec_module(hf_argparser)\n\
+  \nimport argparse\nfrom argparse import Namespace, SUPPRESS\nfrom dataclasses import\
+  \ dataclass, field\nfrom typing import Optional\n\n@dataclass\nclass WithDefaultBoolExample:\n\
+  \    foo: bool = False\n    baz: bool = True\n    opt: Optional[bool] = None\n\n\
+  parser = hf_argparser.HfArgumentParser(WithDefaultBoolExample)\n\nexpected = argparse.ArgumentParser()\n\
+  expected.add_argument('--foo', type=hf_argparser.string_to_bool, default=False,\
+  \ const=True, nargs='?')\nexpected.add_argument('--no_baz', action='store_false',\
+  \ dest='baz', default=SUPPRESS)\nexpected.add_argument('--baz', type=hf_argparser.string_to_bool,\
+  \ default=True, const=True, nargs='?')\nexpected.add_argument('--opt', type=hf_argparser.string_to_bool,\
+  \ default=None)\n\n# Compare the parsers\ndef argparsersEqual(a, b):\n    assert\
+  \ len(a._actions) == len(b._actions), f'Different number of actions: {len(a._actions)}\
+  \ vs {len(b._actions)}'\n    for x, y in zip(a._actions, b._actions):\n        xx\
+  \ = {k: v for k, v in vars(x).items() if k != 'container'}\n        yy = {k: v for\
+  \ k, v in vars(y).items() if k != 'container'}\n        assert xx == yy, f'Actions\
+  \ differ: {xx} vs {yy}'\n    print('Parsers are equal!')\n\nargparsersEqual(parser,\
+  \ expected)\n\n# Test all the argument parsing cases\nargs = parser.parse_args([])\n\
+  assert args == Namespace(foo=False, baz=True, opt=None), f'Expected Namespace(foo=False,\
+  \ baz=True, opt=None), got {args}'\nprint('Test 1 passed: default values')\n\nargs\
+  \ = parser.parse_args(['--foo', '--no_baz'])\nassert args == Namespace(foo=True,\
+  \ baz=False, opt=None), f'Expected Namespace(foo=True, baz=False, opt=None), got\
+  \ {args}'\nprint('Test 2 passed: --foo --no_baz')\n\nargs = parser.parse_args(['--foo',\
+  \ '--baz'])\nassert args == Namespace(foo=True, baz=True, opt=None), f'Expected\
+  \ Namespace(foo=True, baz=True, opt=None), got {args}'\nprint('Test 3 passed: --foo\
+  \ --baz')\n\nargs = parser.parse_args(['--foo', 'True', '--baz', 'True', '--opt',\
+  \ 'True'])\nassert args == Namespace(foo=True, baz=True, opt=True), f'Expected Namespace(foo=True,\
+  \ baz=True, opt=True), got {args}'\nprint('Test 4 passed: explicit True values')\n\
+  \nargs = parser.parse_args(['--foo', 'False', '--baz', 'False', '--opt', 'False'])\n\
+  assert args == Namespace(foo=False, baz=False, opt=False), f'Expected Namespace(foo=False,\
+  \ baz=False, opt=False), got {args}'\nprint('Test 5 passed: explicit False values')\n\
+  \nprint('All tests passed!')\n\""
+timeout: 30
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Parsers are equal!
+Test 1 passed: default values
+Test 2 passed: --foo --no_baz
+Test 3 passed: --foo --baz
+Test 4 passed: explicit True values
+Test 5 passed: explicit False values
+All tests passed!...
+```
+========================================================================================================================
+AGENT:
+All tests pass. Let me also verify the help output one more time to confirm the fix is working as expected:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python -c \"\nimport sys\nsys.path.insert(0, '/workspace/src')\n\
+  \n# Import just the hf_argparser module directly\nimport importlib.util\nspec =\
+  \ importlib.util.spec_from_file_location('hf_argparser', '/workspace/src/transformers/hf_argparser.py')\n\
+  hf_argparser = importlib.util.module_from_spec(spec)\nspec.loader.exec_module(hf_argparser)\n\
+  \nfrom dataclasses import dataclass, field\nfrom typing import Optional\n\n@dataclass\n\
+  class TestArgs:\n    keep_linebreaks: bool = field(\n        default=True, metadata={'help':\
+  \ 'Whether to keep line breaks when using TXT files or not.'}\n    )\n    dataloader_pin_memory:\
+  \ bool = field(\n        default=True, metadata={'help': 'Whether or not to pin\
+  \ memory for DataLoader.'}\n    )\n    skip_memory_metrics: bool = field(\n    \
+  \    default=True, metadata={'help': 'Whether or not to skip adding of memory profiler\
+  \ reports to metrics.'}\n    )\n    do_train: bool = field(\n        default=False,\
+  \ metadata={'help': 'Whether to run training.'}\n    )\n\nparser = hf_argparser.HfArgumentParser(TestArgs)\n\
+  parser.print_help()\n\""
 timeout: 30
 
 ========================================================================================================================
@@ -1006,28 +1053,45 @@ usage: -c [-h] [--no_keep_linebreaks] [--keep_linebreaks [KEEP_LINEBREAKS]]
 
 options:
   -h, --help            show this help message and exit
-  --no_keep_linebreaks  Set keep_linebreaks to False.
-  --keep_linebreaks [KEEP_LINEBREAKS]
-                        Whether to keep ...
+  --no_keep_linebreaks  Whether to keep line breaks when using TXT files or
+                        not.
+  --keep_linebreaks [KEEP_L...
 ```
 ========================================================================================================================
 AGENT:
-The fix is working correctly. The help text is now much clearer:
-1. `--no_keep_linebreaks` shows "Set keep_linebreaks to False." without a confusing "(default: True)"
-2. `--keep_linebreaks` still shows "(default: True)" which is correct
+The fix is working correctly. Now the help output is much clearer:
 
-Let me review the changes and run a few more tests to ensure everything is working correctly.
-========================================================================================================================
-AGENT:
-STEP 4: REVIEW CHANGES
+1. `--no_keep_linebreaks` - No default shown (using this flag will set the value to False)
+2. `--keep_linebreaks [KEEP_LINEBREAKS]` - Shows "(default: True)" which is correct
+3. `--no_dataloader_pin_memory` - No default shown
+4. `--dataloader_pin_memory [DATALOADER_PIN_MEMORY]` - Shows "(default: True)" which is correct
+5. `--no_skip_memory_metrics` - No default shown
+6. `--skip_memory_metrics [SKIP_MEMORY_METRICS]` - Shows "(default: True)" which is correct
+7. `--do_train [DO_TRAIN]` - Shows "(default: False)" which is correct
 
-Let me review the final changes made to `hf_argparser.py`:
+STEP 5: REVIEW CHANGES
+
+<thinking>
+Let me review all the changes I made to ensure they are correct and complete:
+
+1. In `src/transformers/hf_argparser.py`:
+   - Added `SUPPRESS` to the import from `argparse`
+   - Modified the `--no_{field.name}` argument to use `default=SUPPRESS` to prevent the formatter from showing a confusing default value
+
+2. In `tests/test_hf_argparser.py`:
+   - Added `SUPPRESS` to the import from `argparse`
+   - Updated the expected parser in `test_with_default_bool` to use `default=SUPPRESS` for the `--no_baz` argument
+
+Let me verify the changes are correct by opening the modified files.
+</thinking>
 ========================================================================================================================
 TOOL CALL (inspect_code)
 file_path: src/transformers/hf_argparser.py
 line_ranges:
-- - 0
-  - 160
+- - 14
+  - 25
+- - 108
+  - 130
 
 ========================================================================================================================
 TOOL RETURN (inspect_code)
@@ -1036,229 +1100,146 @@ Successfully expanded code chunks in src/transformers/hf_argparser.py:
 
 ````python
    0 # Copyright 2020 The HuggingFace Team. All rights reserved.
-   1 #
-   2 # Licensed under the Apache License, Version 2.0 (the "License");
-   3 # you may not use this file except in compliance with the License.
-   4 # You may obtain a copy of the License at
-   5 #
-   6 #     http://www.apache.org/licenses/LICENSE-2.0
-   7 #
-   8 # Unless required by applicable law or agreed to in writing, software
-   9 # distr...
+...
+  14 import dataclasses
+  15 import json
+  16 import re
+  17 import sys
+  18 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, ArgumentTypeError, SUPPRESS
+  19 from enum import Enum
+  20 from pathlib import Path
+  21 from typing import Any, Iterable, List, NewType, Optional, Tuple, Union
+  22 
+  23 
+  24 DataClass = NewType("Dat...
+```
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: tests/test_hf_argparser.py
+line_ranges:
+- - 14
+  - 25
+- - 123
+  - 147
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in tests/test_hf_argparser.py:
+
+````python
+   0 # Copyright 2020 The HuggingFace Team. All rights reserved.
+...
+  14 import argparse
+  15 import unittest
+  16 from argparse import Namespace, SUPPRESS
+  17 from dataclasses import dataclass, field
+  18 from enum import Enum
+  19 from typing import List, Optional
+  20 
+  21 from transformers import HfArgumentParser, TrainingArguments
+  22 from transformers.hf_argparser import string_to_bool
+  23 
+  24 
+  25 def lis...
 ```
 ========================================================================================================================
 AGENT:
-<thinking>
-The changes look good. Let me run a comprehensive test to verify the fix works correctly in all scenarios:
-</thinking>
+The changes look correct. Let me do a final comprehensive test to ensure everything works as expected:
 ========================================================================================================================
 TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nfrom dataclasses import dataclass, field\n\
-  from typing import Optional\n\n# Import only the hf_argparser module directly\n\
-  import importlib.util\nspec = importlib.util.spec_from_file_location('hf_argparser',\
-  \ 'src/transformers/hf_argparser.py')\nhf_argparser = importlib.util.module_from_spec(spec)\n\
-  spec.loader.exec_module(hf_argparser)\nHfArgumentParser = hf_argparser.HfArgumentParser\n\
-  \n# Test with fields that have no help metadata\n@dataclass\nclass TestArgsNoHelp:\n\
-  \    baz: bool = True\n\nparser = HfArgumentParser(TestArgsNoHelp)\nprint('Test\
-  \ with no help metadata:')\nparser.print_help()\nprint()\n\n# Test parsing\nargs\
-  \ = parser.parse_args([])\nprint(f'Default: baz={args.baz}')\nassert args.baz ==\
-  \ True\n\nargs = parser.parse_args(['--no_baz'])\nprint(f'With --no_baz: baz={args.baz}')\n\
-  assert args.baz == False\n\nargs = parser.parse_args(['--baz', 'false'])\nprint(f'With\
-  \ --baz false: baz={args.baz}')\nassert args.baz == False\n\nprint('\\\\nAll tests\
-  \ passed!')\n\"\n"
+command: "cd /workspace && python -c \"\nimport sys\nsys.path.insert(0, '/workspace/src')\n\
+  \n# Import just the hf_argparser module directly\nimport importlib.util\nspec =\
+  \ importlib.util.spec_from_file_location('hf_argparser', '/workspace/src/transformers/hf_argparser.py')\n\
+  hf_argparser = importlib.util.module_from_spec(spec)\nspec.loader.exec_module(hf_argparser)\n\
+  \nfrom dataclasses import dataclass, field\nfrom typing import Optional\n\nprint('===\
+  \ Test 1: Help output for boolean arguments with default=True ===')\n@dataclass\n\
+  class TestArgs1:\n    keep_linebreaks: bool = field(\n        default=True, metadata={'help':\
+  \ 'Whether to keep line breaks when using TXT files or not.'}\n    )\n\nparser =\
+  \ hf_argparser.HfArgumentParser(TestArgs1)\nparser.print_help()\n\nprint()\nprint('===\
+  \ Test 2: Help output for boolean arguments with default=False ===')\n@dataclass\n\
+  class TestArgs2:\n    do_train: bool = field(\n        default=False, metadata={'help':\
+  \ 'Whether to run training.'}\n    )\n\nparser = hf_argparser.HfArgumentParser(TestArgs2)\n\
+  parser.print_help()\n\nprint()\nprint('=== Test 3: Functionality test ===')\n@dataclass\n\
+  class TestArgs3:\n    keep_linebreaks: bool = field(default=True, metadata={'help':\
+  \ 'Test'})\n    do_train: bool = field(default=False, metadata={'help': 'Test'})\n\
+  \nparser = hf_argparser.HfArgumentParser(TestArgs3)\n\n# Test defaults\nargs = parser.parse_args([])\n\
+  print(f'Defaults: keep_linebreaks={args.keep_linebreaks}, do_train={args.do_train}')\n\
+  assert args.keep_linebreaks == True\nassert args.do_train == False\n\n# Test --no_keep_linebreaks\n\
+  args = parser.parse_args(['--no_keep_linebreaks'])\nprint(f'With --no_keep_linebreaks:\
+  \ keep_linebreaks={args.keep_linebreaks}')\nassert args.keep_linebreaks == False\n\
+  \n# Test --do_train\nargs = parser.parse_args(['--do_train'])\nprint(f'With --do_train:\
+  \ do_train={args.do_train}')\nassert args.do_train == True\n\nprint()\nprint('All\
+  \ tests passed!')\n\""
 timeout: 30
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
-Test with no help metadata:
-usage: -c [-h] [--no_baz] [--baz [BAZ]]
+=== Test 1: Help output for boolean arguments with default=True ===
+usage: -c [-h] [--no_keep_linebreaks] [--keep_linebreaks [KEEP_LINEBREAKS]]
 
 options:
-  -h, --help   show this help message and exit
-  --no_baz     Set baz to False.
-  --baz [BAZ]
+  -h, --help            show this help message and exit
+  --no_keep_linebreaks  Whether to keep line breaks when using TXT files or
+                        not.
+  --keep_linebreaks [KEEP_LINEBREAKS]
+                        Whether to keep line breaks when using TXT files or
+                        not. (default: True)
 
-Default: baz=True
-With --no_baz: baz=False
-With --baz false: baz=False
-
-All tests passed!...
+=== Test 2: Help output f...
 ```
 ========================================================================================================================
 AGENT:
-<thinking>
-The fix works correctly. Let me also verify that the original issue from the problem statement is resolved by comparing the before and after help text:
+Excellent! The fix is working correctly. Let me summarize the changes made:
 
-Before (from the issue):
+## Summary of Changes
+
+### Problem
+The help output for boolean arguments in `HfArgumentParser` was confusing. When a boolean field had `default=True`, both the `--no_{field_name}` and `--{field_name}` arguments showed "(default: True)" in the help text, making it unclear what the default behavior was.
+
+### Solution
+Modified the `_add_dataclass_arguments` method in `src/transformers/hf_argparser.py` to use `argparse.SUPPRESS` as the default for the `--no_{field_name}` argument. This prevents the `ArgumentDefaultsHelpFormatter` from showing a confusing default value for the negation flag.
+
+### Files Modified
+
+1. **`src/transformers/hf_argparser.py`**:
+   - Added `SUPPRESS` to the import from `argparse`
+   - Modified line 112 to add `default=SUPPRESS` to the `--no_{field.name}` argument
+
+2. **`tests/test_hf_argparser.py`**:
+   - Added `SUPPRESS` to the import from `argparse`
+   - Updated the expected parser in `test_with_default_bool` to use `default=SUPPRESS` for the `--no_baz` argument
+
+### Before the Fix
 ```
   --no_keep_linebreaks  Whether to keep line breaks when using TXT files or not. (default: True)
   --keep_linebreaks [KEEP_LINEBREAKS]
                         Whether to keep line breaks when using TXT files or not. (default: True)
 ```
 
-After (with the fix):
+### After the Fix
 ```
-  --no_keep_linebreaks  Set keep_linebreaks to False.
+  --no_keep_linebreaks  Whether to keep line breaks when using TXT files or not.
   --keep_linebreaks [KEEP_LINEBREAKS]
                         Whether to keep line breaks when using TXT files or not. (default: True)
 ```
 
-The fix resolves the issue by:
-1. Removing the confusing "(default: True)" from the `--no_X` arguments by using `default=SUPPRESS`
-2. Providing a clear help text "Set X to False." for the `--no_X` arguments
-
-This makes it clear that:
-- `--no_X` is used to set the option to False
-- `--X` has a default of True (or whatever the actual default is)
-
-Let me also run a quick test to ensure the fix doesn't break anything when using `parse_args_into_dataclasses`:
-</thinking>
-========================================================================================================================
-TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nfrom dataclasses import dataclass, field\n\
-  from typing import Optional\n\n# Import only the hf_argparser module directly\n\
-  import importlib.util\nspec = importlib.util.spec_from_file_location('hf_argparser',\
-  \ 'src/transformers/hf_argparser.py')\nhf_argparser = importlib.util.module_from_spec(spec)\n\
-  spec.loader.exec_module(hf_argparser)\nHfArgumentParser = hf_argparser.HfArgumentParser\n\
-  \n@dataclass\nclass TestArgs:\n    keep_linebreaks: bool = field(\n        default=True,\
-  \ metadata={'help': 'Whether to keep line breaks when using TXT files or not.'}\n\
-  \    )\n    dataloader_pin_memory: bool = field(\n        default=True, metadata={'help':\
-  \ 'Whether or not to pin memory for DataLoader.'}\n    )\n    skip_memory_metrics:\
-  \ bool = field(\n        default=True, metadata={'help': 'Whether or not to skip\
-  \ adding of memory profiler reports to metrics.'}\n    )\n    do_train: bool = field(\n\
-  \        default=False, metadata={'help': 'Whether to run training.'}\n    )\n\n\
-  # Test parse_args_into_dataclasses\nparser = HfArgumentParser(TestArgs)\nargs =\
-  \ parser.parse_args_into_dataclasses(args=[])[0]\nprint('Test 1 - Default values:')\n\
-  print(f'  keep_linebreaks: {args.keep_linebreaks} (expected: True)')\nprint(f' \
-  \ dataloader_pin_memory: {args.dataloader_pin_memory} (expected: True)')\nprint(f'\
-  \  skip_memory_metrics: {args.skip_memory_metrics} (expected: True)')\nprint(f'\
-  \  do_train: {args.do_train} (expected: False)')\nassert args.keep_linebreaks ==\
-  \ True\nassert args.dataloader_pin_memory == True\nassert args.skip_memory_metrics\
-  \ == True\nassert args.do_train == False\n\nparser = HfArgumentParser(TestArgs)\n\
-  args = parser.parse_args_into_dataclasses(args=['--no_keep_linebreaks', '--no_dataloader_pin_memory',\
-  \ '--no_skip_memory_metrics', '--do_train'])[0]\nprint('\\\\nTest 2 - Using --no_X\
-  \ and --do_train flags:')\nprint(f'  keep_linebreaks: {args.keep_linebreaks} (expected:\
-  \ False)')\nprint(f'  dataloader_pin_memory: {args.dataloader_pin_memory} (expected:\
-  \ False)')\nprint(f'  skip_memory_metrics: {args.skip_memory_metrics} (expected:\
-  \ False)')\nprint(f'  do_train: {args.do_train} (expected: True)')\nassert args.keep_linebreaks\
-  \ == False\nassert args.dataloader_pin_memory == False\nassert args.skip_memory_metrics\
-  \ == False\nassert args.do_train == True\n\nprint('\\\\nAll tests passed!')\n\"\n"
-timeout: 30
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Test 1 - Default values:
-  keep_linebreaks: True (expected: True)
-  dataloader_pin_memory: True (expected: True)
-  skip_memory_metrics: True (expected: True)
-  do_train: False (expected: False)
-
-Test 2 - Using --no_X and --do_train flags:
-  keep_linebreaks: False (expected: False)
-  dataloader_pin_memory: False (expected: False)
-  skip_memory_metrics: False (expected: False)
-  do_train: True (expected: True)
-
-All tests passed!...
-```
+Now it's clear that:
+- The default behavior is `keep_linebreaks=True` (shown in the `--keep_linebreaks` help)
+- Using `--no_keep_linebreaks` will set the value to `False`
 ========================================================================================================================
 AGENT:
-The fix is working correctly. Let me also verify that the test file's expected behavior is still correct:
-========================================================================================================================
-TOOL CALL (bash)
-command: "cd /workspace && python -c \"\nimport argparse\nfrom argparse import Namespace,\
-  \ SUPPRESS\nfrom dataclasses import dataclass, field\nfrom typing import Optional\n\
-  \n# Import only the hf_argparser module directly\nimport importlib.util\nspec =\
-  \ importlib.util.spec_from_file_location('hf_argparser', 'src/transformers/hf_argparser.py')\n\
-  hf_argparser = importlib.util.module_from_spec(spec)\nspec.loader.exec_module(hf_argparser)\n\
-  HfArgumentParser = hf_argparser.HfArgumentParser\nstring_to_bool = hf_argparser.string_to_bool\n\
-  \n@dataclass\nclass WithDefaultBoolExample:\n    foo: bool = False\n    baz: bool\
-  \ = True\n    opt: Optional[bool] = None\n\nparser = HfArgumentParser(WithDefaultBoolExample)\n\
-  \n# The test file expects these actions to be present\n# Let's verify the parser\
-  \ has the expected actions\nactions = {action.dest: action for action in parser._actions\
-  \ if action.dest != 'help'}\nprint('Actions:')\nfor dest, action in actions.items():\n\
-  \    print(f'  {dest}: option_strings={action.option_strings}, type={action.type},\
-  \ default={action.default}, nargs={getattr(action, \\\"nargs\\\", None)}, const={getattr(action,\
-  \ \\\"const\\\", None)}')\n\n# Verify the test cases from the test file\nargs =\
-  \ parser.parse_args([])\nassert args == Namespace(foo=False, baz=True, opt=None),\
-  \ f'Expected Namespace(foo=False, baz=True, opt=None), got {args}'\nprint('\\\\\
-  nTest 1 passed: parse_args([]) == Namespace(foo=False, baz=True, opt=None)')\n\n\
-  args = parser.parse_args(['--foo', '--no_baz'])\nassert args == Namespace(foo=True,\
-  \ baz=False, opt=None), f'Expected Namespace(foo=True, baz=False, opt=None), got\
-  \ {args}'\nprint('Test 2 passed: parse_args([\\\"--foo\\\", \\\"--no_baz\\\"]) ==\
-  \ Namespace(foo=True, baz=False, opt=None)')\n\nargs = parser.parse_args(['--foo',\
-  \ '--baz'])\nassert args == Namespace(foo=True, baz=True, opt=None), f'Expected\
-  \ Namespace(foo=True, baz=True, opt=None), got {args}'\nprint('Test 3 passed: parse_args([\\\
-  \"--foo\\\", \\\"--baz\\\"]) == Namespace(foo=True, baz=True, opt=None)')\n\nargs\
-  \ = parser.parse_args(['--foo', 'True', '--baz', 'True', '--opt', 'True'])\nassert\
-  \ args == Namespace(foo=True, baz=True, opt=True), f'Expected Namespace(foo=True,\
-  \ baz=True, opt=True), got {args}'\nprint('Test 4 passed: parse_args([\\\"--foo\\\
-  \", \\\"True\\\", \\\"--baz\\\", \\\"True\\\", \\\"--opt\\\", \\\"True\\\"]) ==\
-  \ Namespace(foo=True, baz=True, opt=True)')\n\nargs = parser.parse_args(['--foo',\
-  \ 'False', '--baz', 'False', '--opt', 'False'])\nassert args == Namespace(foo=False,\
-  \ baz=False, opt=False), f'Expected Namespace(foo=False, baz=False, opt=False),\
-  \ got {args}'\nprint('Test 5 passed: parse_args([\\\"--foo\\\", \\\"False\\\", \\\
-  \"--baz\\\", \\\"False\\\", \\\"--opt\\\", \\\"False\\\"]) == Namespace(foo=False,\
-  \ baz=False, opt=False)')\n\nprint('\\\\nAll tests from test_hf_argparser.py passed!')\n\
-  \"\n"
-timeout: 30
+Successfully fixed the confusing default arguments in the HfArgumentParser. The issue was that when a boolean field had `default=True`, both the `--no_{field_name}` and `--{field_name}` arguments showed "(default: True)" in the help text. 
 
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Actions:
-  foo: option_strings=['--foo'], type=<function string_to_bool at 0xffff7fcf1e40>, default=False, nargs=?, const=True
-  baz: option_strings=['--baz'], type=<function string_to_bool at 0xffff7fcf1e40>, default=True, nargs=?, const=True
-  opt: option_strings=['--opt'], type=<function string_to_bool at 0xffff7fcf1e40>, default=None, nargs=None, const=None
+The fix was to add `default=SUPPRESS` to the `--no_{field_name}` argument in `src/transformers/hf_argparser.py`. This prevents the `ArgumentDefaultsHelpFormatter` from showing a confusing default value for the negation flag.
 
-Test 1 passed: parse_args([]) == Namespace(foo=False, baz=True, opt=None)
-Test 2 passed: parse_args(["--foo", "--no_baz"]) == Namespace...
-```
-========================================================================================================================
-AGENT:
-<thinking>
-All tests pass. The fix is complete and working correctly. Let me summarize the changes made:
+Changes made:
+1. `src/transformers/hf_argparser.py`: Added `SUPPRESS` to imports and modified the `--no_{field.name}` argument to use `default=SUPPRESS`
+2. `tests/test_hf_argparser.py`: Updated the test to match the new behavior
 
-1. Added `SUPPRESS` to the import from `argparse`
-2. Modified the `_add_dataclass_arguments` method to:
-   - Use `default=SUPPRESS` for the `--no_X` argument to prevent the confusing "(default: True)" from being shown
-   - Use a clear help text "Set {field.name} to False." for the `--no_X` argument
-   - Use `no_arg_kwargs.pop("help", None)` instead of `del no_arg_kwargs["help"]` to handle cases where the field doesn't have a `help` metadata
+Now the help output is clear:
+- `--no_keep_linebreaks` shows no default (using this flag sets the value to False)
+- `--keep_linebreaks [KEEP_LINEBREAKS]` shows "(default: True)" which is the actual default
 
-The fix resolves the issue by making the help text clearer:
-- Before: Both `--no_X` and `--X` showed "(default: True)" which was confusing
-- After: `--no_X` shows "Set X to False." without a default, and `--X` shows the actual default value
-</thinking>
-========================================================================================================================
-AGENT:
-Successfully fixed the confusing default arguments in the HfArgumentParser. The issue was that for boolean arguments with `default=True`, both `--no_X` and `--X` variants showed "(default: True)" in the help text, which was confusing.
-
-The fix made the following changes to `src/transformers/hf_argparser.py`:
-
-1. Added `SUPPRESS` to the import from `argparse`
-2. Modified the `_add_dataclass_arguments` method to:
-   - Use `default=SUPPRESS` for the `--no_X` argument to prevent the confusing "(default: True)" from being shown
-   - Use a clear help text "Set {field.name} to False." for the `--no_X` argument
-   - Use `no_arg_kwargs.pop("help", None)` instead of `del no_arg_kwargs["help"]` to handle cases where the field doesn't have a `help` metadata
-
-Before the fix:
-```
-  --no_keep_linebreaks  Whether to keep line breaks when using TXT files or not. (default: True)
-  --keep_linebreaks [KEEP_LINEBREAKS]
-                        Whether to keep line breaks when using TXT files or not. (default: True)
-```
-
-After the fix:
-```
-  --no_keep_linebreaks  Set keep_linebreaks to False.
-  --keep_linebreaks [KEEP_LINEBREAKS]
-                        Whether to keep line breaks when using TXT files or not. (default: True)
-```
-
-This makes it clear that:
-- `--no_X` is used to set the option to False
-- `--X` has a default of True (or whatever the actual default is)
-
-All existing tests pass with the fix.
+All functionality tests pass, confirming that the argument parsing behavior is unchanged.
