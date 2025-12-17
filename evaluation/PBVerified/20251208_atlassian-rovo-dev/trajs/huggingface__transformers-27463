@@ -1,0 +1,1477 @@
+########################################################################################################################
+PHASE 1
+########################################################################################################################
+========================================================================================================================
+AGENT:
+I will start by viewing the workspace to understand its structure and contents. This will help me identify key files and locations that may be relevant to the task.
+========================================================================================================================
+USER PROMPT:
+Resolve the following problem statement:
+
+<problem_statement>
+Add how to preprocess mask for finetuning with SAM
+### Feature request
+
+The [SAM image processor](https://github.com/huggingface/transformers/blob/main/src/transformers/models/sam/image_processing_sam.py) takes images as input and resizes them so that the longest edge is 1024 (using default values). This is the size expect as input fo the SAM model. 
+For inference, this works fine as only the images need resizing but for fine-tuning as per [this tutorial](https://github.com/NielsRogge/Transformers-Tutorials/blob/master/SAM/Fine_tune_SAM_(segment_anything)_on_a_custom_dataset.ipynb), you need to resize both your images and your masks as the SAM model produces `pred_masks` with size 256x256. If I don't resize my masks I get `ground truth has different shape (torch.Size([2, 1, 768, 1024])) from input (torch.Size([2, 1, 256, 256]))` when trying to calculate loss.
+
+To fix this, I've currently written a resize and pad function into my code:
+
+```
+from PIL import Image
+
+def resize_mask(image):
+    longest_edge = 256
+    
+    # get new size
+    w, h = image.size
+    scale = longest_edge * 1.0 / max(h, w)
+    new_h, new_w = h * scale, w * scale
+    new_h = int(new_h + 0.5)
+    new_w = int(new_w + 0.5)
+
+    resized_image = image.resize((new_w, new_h), resample=Image.Resampling.BILINEAR)
+    return resized_image
+
+def pad_mask(image):
+    pad_height = 256 - image.height
+    pad_width = 256 - image.width
+
+    padding = ((0, pad_height), (0, pad_width))
+    padded_image = np.pad(image, padding, mode="constant")
+    return padded_image
+
+def process_mask(image):
+    resized_mask = resize_mask(image)
+    padded_mask = pad_mask(resized_mask)
+    return padded_mask
+```
+
+and then have added this to my definition of SAMDataset:
+
+```
+class SAMDataset(Dataset):
+    def __init__(self, dataset, processor, transform = None):
+        self.dataset = dataset
+        self.processor = processor
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        item = self.dataset[idx]
+        
+        if self.transform:
+            image = self.transform(item["pixel_values"])
+        else:
+            image = item["pixel_values"]
+        
+        # get bounding box prompt
+        padded_mask = process_mask(item["label"])
+        prompt = get_bounding_box(padded_mask)
+
+        # prepare image and prompt for the model
+        inputs = self.processor(image, input_boxes=[[prompt]], return_tensors="pt")
+
+        # remove batch dimension which the processor adds by default
+        inputs = {k:v.squeeze(0) for k,v in inputs.items()}
+
+        # add ground truth segmentation
+        inputs["ground_truth_mask"] = padded_mask
+
+        return inputs
+```
+
+This seems to work fine. 
+
+What I think would be good is to allow input of masks in the SAM image processor. For example, the [Segformer image processor](https://github.com/huggingface/transformers/blob/v4.35.0/src/transformers/models/segformer/image_processing_segformer.py#L305) takes images and masks as inputs and resizes both to the size expected by the Segformer model. 
+
+I have also seen there is a 'post_process_mask' method in the SAM image processor but I am unsure how to implement this in the tutorial I'm following. If you think this is a better way vs. what I am suggesting then please could you explain where I would add this in the code from the tutorial notebook.
+
+### Motivation
+
+Easier fine tuning of SAM model.
+
+### Your contribution
+
+I could try write a PR for this and/or make a PR to update the [notebook](https://github.com/NielsRogge/Transformers-Tutorials/blob/master/SAM/Fine_tune_SAM_(segment_anything)_on_a_custom_dataset.ipynb) instead .
+
+</problem_statement>
+
+Do not stop until you have made code changes that resolve the problem statement. Do not ask for clarifications.
+
+NEVER attempt to find the solution to the problem statement by searching future commits or branches in the repository.
+========================================================================================================================
+AGENT:
+Starting to analyze the problem statement. The request is to add mask preprocessing functionality to the SAM image processor, similar to how the Segformer image processor handles masks. I need to explore the SAM image processor code and understand how to add mask resizing/padding capabilities.
+========================================================================================================================
+AGENT:
+STEP 1: EXPLORE RELEVANT FILES
+
+<thinking>
+Let me start by exploring the SAM image processor and the Segformer image processor to understand:
+1. How the SAM image processor currently works
+2. How the Segformer image processor handles masks
+3. What changes need to be made to add mask preprocessing to SAM
+
+I'll open both files to understand the current implementation.
+</thinking>
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- src/transformers/models/sam/image_processing_sam.py
+- src/transformers/models/segformer/image_processing_segformer.py
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened src/transformers/models/sam/image_processing_sam.py:\n\n````python\n   0 # coding=utf-8\n...\n  15 import math\n  16 from copy import deepcopy\n...\n  20 import numpy as np\n  21 \n  22 from ...image_processing_utils import BaseImageProcessor, BatchFeature, get_size_dict\n  23 from ...image_transforms import convert_to_rgb, pad, resize, to_channel_dimension_format\n  24 from ...image_utils import (\n...\n  37 from ...utils import (\n...\n  48     import torch\n...\n  52    ...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+I can see the structure of both files. Now I need to expand the relevant code chunks to understand:
+1. How the Segformer image processor handles masks (especially `_preprocess_mask` and `preprocess` methods)
+2. How the SAM image processor's `preprocess` method works
+3. What changes need to be made to add mask preprocessing to SAM
+
+Let me expand the key methods in both files.
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/models/segformer/image_processing_segformer.py
+patterns:
+- _preprocess_mask
+- preprocess
+- __call__
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/transformers/models/segformer/image_processing_segformer.py:
+
+````python
+   0 # coding=utf-8
+...
+  16 import warnings
+  17 from typing import Any, Dict, List, Optional, Tuple, Union
+  18 
+  19 import numpy as np
+  20 
+  21 from ...image_processing_utils import BaseImageProcessor, BatchFeature, get_size_dict
+  22 from ...image_transforms import resize, to_channel_dimension_format
+  23 from ...image_utils import (
+...
+  35 from ...utils import TensorType, i...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Now I understand how the Segformer image processor handles masks. It has:
+1. A `_preprocess_mask` method that handles mask preprocessing
+2. The `preprocess` method accepts `segmentation_maps` as an optional parameter
+3. The `__call__` method is overridden to accept `segmentation_maps` as a positional argument
+
+Now let me look at the SAM image processor's `preprocess` method and other relevant methods to understand how to add similar functionality.
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/models/sam/image_processing_sam.py
+patterns:
+- preprocess
+- resize
+- pad_image
+- _get_preprocess_shape
+- __init__
+- class SamImageProcessor
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/transformers/models/sam/image_processing_sam.py:
+
+````python
+   0 # coding=utf-8
+...
+  15 import math
+  16 from copy import deepcopy
+...
+  20 import numpy as np
+  21 
+  22 from ...image_processing_utils import BaseImageProcessor, BatchFeature, get_size_dict
+  23 from ...image_transforms import convert_to_rgb, pad, resize, to_channel_dimension_format
+  24 from ...image_utils import (
+  25     IMAGENET_DEFAULT_MEAN,
+  26     IMAGENET_DEFAULT_STD,
+  27     C...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Now I have a good understanding of both the SAM and Segformer image processors. Based on the problem statement, I need to add functionality to the SAM image processor to preprocess segmentation masks for fine-tuning.
+
+Key observations:
+1. SAM model produces `pred_masks` with size 256x256
+2. The user needs to resize and pad their ground truth masks to 256x256 to match the model output
+3. The SAM image processor currently only handles images, not masks
+4. The Segformer image processor provides a good template for how to handle masks
+
+The solution should:
+1. Add a `_preprocess_mask` method to the SAM image processor
+2. Modify the `preprocess` method to accept `segmentation_maps` as an optional parameter
+3. Override the `__call__` method to accept `segmentation_maps` as a positional argument
+4. The mask should be resized to have the longest edge of 256 (since SAM outputs 256x256 masks) and padded to 256x256
+
+Let me now implement these changes. I'll need to:
+1. Add a `mask_size` parameter to `__init__` (default to 256)
+2. Add a `mask_pad_size` parameter to `__init__` (default to {"height": 256, "width": 256})
+3. Add a `_preprocess_mask` method
+4. Modify the `preprocess` method to handle masks
+5. Override the `__call__` method
+
+Let me start implementing these changes.
+</thinking>
+========================================================================================================================
+AGENT:
+I've analyzed both the SAM and Segformer image processors. Now I'll implement the mask preprocessing functionality for SAM. The changes include: 1) Adding mask-related parameters to __init__, 2) Adding a _preprocess_mask method, 3) Modifying the preprocess method to accept segmentation_maps, and 4) Overriding the __call__ method.
+========================================================================================================================
+AGENT:
+STEP 2: IMPLEMENT MASK PREPROCESSING FOR SAM
+
+<thinking>
+Now I'll implement the changes to the SAM image processor. Let me start by modifying the `__init__` method to add mask-related parameters, then add the `_preprocess_mask` method, modify the `preprocess` method, and finally override the `__call__` method.
+
+Looking at the problem statement more carefully:
+- SAM model produces `pred_masks` with size 256x256
+- The user needs to resize their ground truth masks to 256x256 to match the model output
+- The mask should be resized to have the longest edge of 256 and then padded to 256x256
+
+I'll add:
+1. `mask_size` parameter (default to `{"longest_edge": 256}`) - for resizing masks
+2. `mask_pad_size` parameter (default to `{"height": 256, "width": 256}`) - for padding masks
+
+Let me implement these changes step by step.
+</thinking>
+
+First, let me add the mask-related parameters to the `__init__` method and update the class docstring:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/models/sam/image_processing_sam.py
+find: "class SamImageProcessor(BaseImageProcessor):\n    r\"\"\"\n    Constructs a\
+  \ SAM image processor.\n\n    Args:\n        do_resize (`bool`, *optional*, defaults\
+  \ to `True`):\n            Whether to resize the image's (height, width) dimensions\
+  \ to the specified `size`. Can be overridden by the\n            `do_resize` parameter\
+  \ in the `preprocess` method.\n        size (`dict`, *optional*, defaults to `{\"\
+  longest_edge\": 1024}`):\n            Size of the output image after resizing. Resizes\
+  \ the longest edge of the image to match\n            `size[\"longest_edge\"]` while\
+  \ maintaining the aspect ratio. Can be overridden by the `size` parameter in the\n\
+  \            `preprocess` method.\n        resample (`PILImageResampling`, *optional*,\
+  \ defaults to `Resampling.BILINEAR`):\n            Resampling filter to use if resizing\
+  \ the image. Can be overridden by the `resample` parameter in the\n            `preprocess`\
+  \ method.\n        do_rescale (`bool`, *optional*, defaults to `True`):\n      \
+  \      Wwhether to rescale the image by the specified scale `rescale_factor`. Can\
+  \ be overridden by the\n            `do_rescale` parameter in the `preprocess` method.\n\
+  \        rescale_factor (`int` or `float`, *optional*, defaults to `1/255`):\n \
+  \           Scale factor to use if rescaling the image. Only has an effect if `do_rescale`\
+  \ is set to `True`. Can be\n            overridden by the `rescale_factor` parameter\
+  \ in the `preprocess` method.\n        do_normalize (`bool`, *optional*, defaults\
+  \ to `True`):\n            Whether to normalize the image. Can be overridden by\
+  \ the `do_normalize` parameter in the `preprocess`\n            method. Can be overridden\
+  \ by the `do_normalize` parameter in the `preprocess` method.\n        image_mean\
+  \ (`float` or `List[float]`, *optional*, defaults to `IMAGENET_DEFAULT_MEAN`):\n\
+  \            Mean to use if normalizing the image. This is a float or list of floats\
+  \ the length of the number of\n            channels in the image. Can be overridden\
+  \ by the `image_mean` parameter in the `preprocess` method. Can be\n           \
+  \ overridden by the `image_mean` parameter in the `preprocess` method.\n       \
+  \ image_std (`float` or `List[float]`, *optional*, defaults to `IMAGENET_DEFAULT_STD`):\n\
+  \            Standard deviation to use if normalizing the image. This is a float\
+  \ or list of floats the length of the\n            number of channels in the image.\
+  \ Can be overridden by the `image_std` parameter in the `preprocess` method.\n \
+  \           Can be overridden by the `image_std` parameter in the `preprocess` method.\n\
+  \        do_pad (`bool`, *optional*, defaults to `True`):\n            Whether to\
+  \ pad the image to the specified `pad_size`. Can be overridden by the `do_pad` parameter\
+  \ in the\n            `preprocess` method.\n        pad_size (`dict`, *optional*,\
+  \ defaults to `{\"height\": 1024, \"width\": 1024}`):\n            Size of the output\
+  \ image after padding. Can be overridden by the `pad_size` parameter in the `preprocess`\n\
+  \            method.\n        do_convert_rgb (`bool`, *optional*, defaults to `True`):\n\
+  \            Whether to convert the image to RGB.\n    \"\"\"\n\n    model_input_names\
+  \ = [\"pixel_values\"]\n\n    def __init__(\n        self,\n        do_resize: bool\
+  \ = True,\n        size: Dict[str, int] = None,\n        resample: PILImageResampling\
+  \ = PILImageResampling.BILINEAR,\n        do_rescale: bool = True,\n        rescale_factor:\
+  \ Union[int, float] = 1 / 255,\n        do_normalize: bool = True,\n        image_mean:\
+  \ Optional[Union[float, List[float]]] = None,\n        image_std: Optional[Union[float,\
+  \ List[float]]] = None,\n        do_pad: bool = True,\n        pad_size: int = None,\n\
+  \        do_convert_rgb: bool = True,\n        **kwargs,\n    ) -> None:\n     \
+  \   super().__init__(**kwargs)\n        size = size if size is not None else {\"\
+  longest_edge\": 1024}\n        size = get_size_dict(max_size=size, default_to_square=False)\
+  \ if not isinstance(size, dict) else size\n\n        pad_size = pad_size if pad_size\
+  \ is not None else {\"height\": 1024, \"width\": 1024}\n        pad_size = get_size_dict(pad_size,\
+  \ default_to_square=True)\n\n        self.do_resize = do_resize\n        self.size\
+  \ = size\n        self.resample = resample\n        self.do_rescale = do_rescale\n\
+  \        self.rescale_factor = rescale_factor\n        self.do_normalize = do_normalize\n\
+  \        self.image_mean = image_mean if image_mean is not None else IMAGENET_DEFAULT_MEAN\n\
+  \        self.image_std = image_std if image_std is not None else IMAGENET_DEFAULT_STD\n\
+  \        self.do_pad = do_pad\n        self.pad_size = pad_size\n        self.do_convert_rgb\
+  \ = do_convert_rgb"
+replace: "class SamImageProcessor(BaseImageProcessor):\n    r\"\"\"\n    Constructs\
+  \ a SAM image processor.\n\n    Args:\n        do_resize (`bool`, *optional*, defaults\
+  \ to `True`):\n            Whether to resize the image's (height, width) dimensions\
+  \ to the specified `size`. Can be overridden by the\n            `do_resize` parameter\
+  \ in the `preprocess` method.\n        size (`dict`, *optional*, defaults to `{\"\
+  longest_edge\": 1024}`):\n            Size of the output image after resizing. Resizes\
+  \ the longest edge of the image to match\n            `size[\"longest_edge\"]` while\
+  \ maintaining the aspect ratio. Can be overridden by the `size` parameter in the\n\
+  \            `preprocess` method.\n        mask_size (`dict`, *optional*, defaults\
+  \ to `{\"longest_edge\": 256}`):\n            Size of the output segmentation map\
+  \ after resizing. Resizes the longest edge of the image to match\n            `size[\"\
+  longest_edge\"]` while maintaining the aspect ratio. Can be overridden by the `mask_size`\
+  \ parameter\n            in the `preprocess` method.\n        resample (`PILImageResampling`,\
+  \ *optional*, defaults to `Resampling.BILINEAR`):\n            Resampling filter\
+  \ to use if resizing the image. Can be overridden by the `resample` parameter in\
+  \ the\n            `preprocess` method.\n        do_rescale (`bool`, *optional*,\
+  \ defaults to `True`):\n            Wwhether to rescale the image by the specified\
+  \ scale `rescale_factor`. Can be overridden by the\n            `do_rescale` parameter\
+  \ in the `preprocess` method.\n        rescale_factor (`int` or `float`, *optional*,\
+  \ defaults to `1/255`):\n            Scale factor to use if rescaling the image.\
+  \ Only has an effect if `do_rescale` is set to `True`. Can be\n            overridden\
+  \ by the `rescale_factor` parameter in the `preprocess` method.\n        do_normalize\
+  \ (`bool`, *optional*, defaults to `True`):\n            Whether to normalize the\
+  \ image. Can be overridden by the `do_normalize` parameter in the `preprocess`\n\
+  \            method. Can be overridden by the `do_normalize` parameter in the `preprocess`\
+  \ method.\n        image_mean (`float` or `List[float]`, *optional*, defaults to\
+  \ `IMAGENET_DEFAULT_MEAN`):\n            Mean to use if normalizing the image. This\
+  \ is a float or list of floats the length of the number of\n            channels\
+  \ in the image. Can be overridden by the `image_mean` parameter in the `preprocess`\
+  \ method. Can be\n            overridden by the `image_mean` parameter in the `preprocess`\
+  \ method.\n        image_std (`float` or `List[float]`, *optional*, defaults to\
+  \ `IMAGENET_DEFAULT_STD`):\n            Standard deviation to use if normalizing\
+  \ the image. This is a float or list of floats the length of the\n            number\
+  \ of channels in the image. Can be overridden by the `image_std` parameter in the\
+  \ `preprocess` method.\n            Can be overridden by the `image_std` parameter\
+  \ in the `preprocess` method.\n        do_pad (`bool`, *optional*, defaults to `True`):\n\
+  \            Whether to pad the image to the specified `pad_size`. Can be overridden\
+  \ by the `do_pad` parameter in the\n            `preprocess` method.\n        pad_size\
+  \ (`dict`, *optional*, defaults to `{\"height\": 1024, \"width\": 1024}`):\n   \
+  \         Size of the output image after padding. Can be overridden by the `pad_size`\
+  \ parameter in the `preprocess`\n            method.\n        mask_pad_size (`dict`,\
+  \ *optional*, defaults to `{\"height\": 256, \"width\": 256}`):\n            Size\
+  \ of the output segmentation map after padding. Can be overridden by the `mask_pad_size`\
+  \ parameter in\n            the `preprocess` method.\n        do_convert_rgb (`bool`,\
+  \ *optional*, defaults to `True`):\n            Whether to convert the image to\
+  \ RGB.\n    \"\"\"\n\n    model_input_names = [\"pixel_values\"]\n\n    def __init__(\n\
+  \        self,\n        do_resize: bool = True,\n        size: Dict[str, int] =\
+  \ None,\n        mask_size: Dict[str, int] = None,\n        resample: PILImageResampling\
+  \ = PILImageResampling.BILINEAR,\n        do_rescale: bool = True,\n        rescale_factor:\
+  \ Union[int, float] = 1 / 255,\n        do_normalize: bool = True,\n        image_mean:\
+  \ Optional[Union[float, List[float]]] = None,\n        image_std: Optional[Union[float,\
+  \ List[float]]] = None,\n        do_pad: bool = True,\n        pad_size: int = None,\n\
+  \        mask_pad_size: Dict[str, int] = None,\n        do_convert_rgb: bool = True,\n\
+  \        **kwargs,\n    ) -> None:\n        super().__init__(**kwargs)\n       \
+  \ size = size if size is not None else {\"longest_edge\": 1024}\n        size =\
+  \ get_size_dict(max_size=size, default_to_square=False) if not isinstance(size,\
+  \ dict) else size\n\n        pad_size = pad_size if pad_size is not None else {\"\
+  height\": 1024, \"width\": 1024}\n        pad_size = get_size_dict(pad_size, default_to_square=True)\n\
+  \n        mask_size = mask_size if mask_size is not None else {\"longest_edge\"\
+  : 256}\n        mask_size = get_size_dict(max_size=mask_size, default_to_square=False)\
+  \ if not isinstance(mask_size, dict) else mask_size\n\n        mask_pad_size = mask_pad_size\
+  \ if mask_pad_size is not None else {\"height\": 256, \"width\": 256}\n        mask_pad_size\
+  \ = get_size_dict(mask_pad_size, default_to_square=True)\n\n        self.do_resize\
+  \ = do_resize\n        self.size = size\n        self.mask_size = mask_size\n  \
+  \      self.resample = resample\n        self.do_rescale = do_rescale\n        self.rescale_factor\
+  \ = rescale_factor\n        self.do_normalize = do_normalize\n        self.image_mean\
+  \ = image_mean if image_mean is not None else IMAGENET_DEFAULT_MEAN\n        self.image_std\
+  \ = image_std if image_std is not None else IMAGENET_DEFAULT_STD\n        self.do_pad\
+  \ = do_pad\n        self.pad_size = pad_size\n        self.mask_pad_size = mask_pad_size\n\
+  \        self.do_convert_rgb = do_convert_rgb"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/models/sam/image_processing_sam.py:
+
+--- src/transformers/models/sam/image_processing_sam.py
++++ src/transformers/models/sam/image_processing_sam.py
+@@ -73,6 +73,10 @@
+             Size of the output image after resizing. Resizes the longest edge of the image to match
+             `size["longest_edge"]` while maintaining the aspect ratio. Can be overridden by the `size` parameter in the
+             `preprocess` method.
++        mask_size (`dict`, *...
+```
+========================================================================================================================
+AGENT:
+Now let me add the `_preprocess_mask` method. I'll add it after the `resize` method:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/models/sam/image_processing_sam.py
+line_ranges:
+- - 195
+  - 260
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/transformers/models/sam/image_processing_sam.py:
+
+````python
+   0 # coding=utf-8
+...
+  15 import math
+  16 from copy import deepcopy
+...
+  20 import numpy as np
+  21 
+  22 from ...image_processing_utils import BaseImageProcessor, BatchFeature, get_size_dict
+  23 from ...image_transforms import convert_to_rgb, pad, resize, to_channel_dimension_format
+  24 from ...image_utils import (
+  25     IMAGENET_DEFAULT_MEAN,
+  26     IMAGENET_DEFAULT_STD,
+  27     C...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Now I need to add the `_preprocess_mask` method after the `resize` method (around line 253). Then I need to modify the `preprocess` method to accept `segmentation_maps` and add the `__call__` method override.
+
+Let me add the `_preprocess_mask` method first.
+</thinking>
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/models/sam/image_processing_sam.py
+find: "        return resize(\n            image,\n            size=(output_height,\
+  \ output_width),\n            resample=resample,\n            data_format=data_format,\n\
+  \            input_data_format=input_data_format,\n            **kwargs,\n     \
+  \   )\n\n    def preprocess("
+replace: "        return resize(\n            image,\n            size=(output_height,\
+  \ output_width),\n            resample=resample,\n            data_format=data_format,\n\
+  \            input_data_format=input_data_format,\n            **kwargs,\n     \
+  \   )\n\n    def _preprocess(\n        self,\n        image: ImageInput,\n     \
+  \   do_resize: bool,\n        do_rescale: bool,\n        do_normalize: bool,\n \
+  \       size: Optional[Dict[str, int]] = None,\n        resample: PILImageResampling\
+  \ = None,\n        rescale_factor: Optional[float] = None,\n        image_mean:\
+  \ Optional[Union[float, List[float]]] = None,\n        image_std: Optional[Union[float,\
+  \ List[float]]] = None,\n        do_pad: Optional[bool] = None,\n        pad_size:\
+  \ Optional[Dict[str, int]] = None,\n        input_data_format: Optional[Union[str,\
+  \ ChannelDimension]] = None,\n    ):\n        if do_resize:\n            image =\
+  \ self.resize(image=image, size=size, resample=resample, input_data_format=input_data_format)\n\
+  \n        if do_rescale:\n            image = self.rescale(image=image, scale=rescale_factor,\
+  \ input_data_format=input_data_format)\n\n        if do_normalize:\n           \
+  \ image = self.normalize(image=image, mean=image_mean, std=image_std, input_data_format=input_data_format)\n\
+  \n        if do_pad:\n            image = self.pad_image(image=image, pad_size=pad_size,\
+  \ input_data_format=input_data_format)\n\n        return image\n\n    def _preprocess_image(\n\
+  \        self,\n        image: ImageInput,\n        do_resize: bool = None,\n  \
+  \      size: Dict[str, int] = None,\n        resample: PILImageResampling = None,\n\
+  \        do_rescale: bool = None,\n        rescale_factor: float = None,\n     \
+  \   do_normalize: bool = None,\n        image_mean: Optional[Union[float, List[float]]]\
+  \ = None,\n        image_std: Optional[Union[float, List[float]]] = None,\n    \
+  \    do_pad: Optional[bool] = None,\n        pad_size: Optional[Dict[str, int]]\
+  \ = None,\n        do_convert_rgb: bool = None,\n        data_format: Optional[Union[str,\
+  \ ChannelDimension]] = None,\n        input_data_format: Optional[Union[str, ChannelDimension]]\
+  \ = None,\n    ) -> np.ndarray:\n        \"\"\"Preprocesses a single image.\"\"\"\
+  \n        # PIL RGBA images are converted to RGB\n        if do_convert_rgb:\n \
+  \           image = convert_to_rgb(image)\n\n        # All transformations expect\
+  \ numpy arrays.\n        image = to_numpy_array(image)\n\n        if is_scaled_image(image)\
+  \ and do_rescale:\n            logger.warning_once(\n                \"It looks\
+  \ like you are trying to rescale already rescaled images. If the input\"\n     \
+  \           \" images have pixel values between 0 and 1, set `do_rescale=False`\
+  \ to avoid rescaling them again.\"\n            )\n\n        if input_data_format\
+  \ is None:\n            input_data_format = infer_channel_dimension_format(image)\n\
+  \n        original_size = get_image_size(image, channel_dim=input_data_format)\n\
+  \n        image = self._preprocess(\n            image=image,\n            do_resize=do_resize,\n\
+  \            size=size,\n            resample=resample,\n            do_rescale=do_rescale,\n\
+  \            rescale_factor=rescale_factor,\n            do_normalize=do_normalize,\n\
+  \            image_mean=image_mean,\n            image_std=image_std,\n        \
+  \    do_pad=do_pad,\n            pad_size=pad_size,\n            input_data_format=input_data_format,\n\
+  \        )\n\n        reshaped_input_size = get_image_size(image, channel_dim=input_data_format)\n\
+  \n        if data_format is not None:\n            image = to_channel_dimension_format(image,\
+  \ data_format, input_channel_dim=input_data_format)\n\n        return image, original_size,\
+  \ reshaped_input_size\n\n    def _preprocess_mask(\n        self,\n        segmentation_map:\
+  \ ImageInput,\n        do_resize: bool = None,\n        mask_size: Dict[str, int]\
+  \ = None,\n        do_pad: Optional[bool] = None,\n        mask_pad_size: Optional[Dict[str,\
+  \ int]] = None,\n        input_data_format: Optional[Union[str, ChannelDimension]]\
+  \ = None,\n    ) -> np.ndarray:\n        \"\"\"Preprocesses a single mask.\"\"\"\
+  \n        segmentation_map = to_numpy_array(segmentation_map)\n        # Add channel\
+  \ dimension if missing - needed for certain transformations\n        if segmentation_map.ndim\
+  \ == 2:\n            added_channel_dim = True\n            segmentation_map = segmentation_map[None,\
+  \ ...]\n            input_data_format = ChannelDimension.FIRST\n        else:\n\
+  \            added_channel_dim = False\n            if input_data_format is None:\n\
+  \                input_data_format = infer_channel_dimension_format(segmentation_map,\
+  \ num_channels=1)\n\n        segmentation_map = self._preprocess(\n            image=segmentation_map,\n\
+  \            do_resize=do_resize,\n            size=mask_size,\n            resample=PILImageResampling.NEAREST,\n\
+  \            do_rescale=False,\n            rescale_factor=None,\n            do_normalize=False,\n\
+  \            image_mean=None,\n            image_std=None,\n            do_pad=do_pad,\n\
+  \            pad_size=mask_pad_size,\n            input_data_format=input_data_format,\n\
+  \        )\n        # Remove extra channel dimension if added for processing\n \
+  \       if added_channel_dim:\n            segmentation_map = segmentation_map.squeeze(0)\n\
+  \        segmentation_map = segmentation_map.astype(np.int64)\n        return segmentation_map\n\
+  \n    def __call__(\n        self,\n        images,\n        segmentation_maps=None,\n\
+  \        **kwargs,\n    ):\n        \"\"\"\n        Preprocesses a batch of images\
+  \ and optionally segmentation maps.\n\n        Overrides the `__call__` method of\
+  \ the `Preprocessor` class so that both images and segmentation maps can be\n  \
+  \      passed in as positional arguments.\n        \"\"\"\n        return super().__call__(images,\
+  \ segmentation_maps=segmentation_maps, **kwargs)\n\n    def preprocess("
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/models/sam/image_processing_sam.py:
+
+--- src/transformers/models/sam/image_processing_sam.py
++++ src/transformers/models/sam/image_processing_sam.py
+@@ -252,6 +252,148 @@
+             input_data_format=input_data_format,
+             **kwargs,
+         )
++
++    def _preprocess(
++        self,
++        image: ImageInput,
++        do_resize: bool,
++        do_rescale: bool,
++        do_normalize: bool,
++        size: Optional[Dict[str, int]] = None,
++...
+```
+========================================================================================================================
+AGENT:
+Now I need to update the `preprocess` method to accept `segmentation_maps` and process them. Let me first look at the current `preprocess` method signature and body:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/models/sam/image_processing_sam.py
+line_ranges:
+- - 398
+  - 560
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/transformers/models/sam/image_processing_sam.py:
+
+````python
+   0 # coding=utf-8
+...
+  15 import math
+  16 from copy import deepcopy
+...
+  20 import numpy as np
+  21 
+  22 from ...image_processing_utils import BaseImageProcessor, BatchFeature, get_size_dict
+  23 from ...image_transforms import convert_to_rgb, pad, resize, to_channel_dimension_format
+  24 from ...image_utils import (
+  25     IMAGENET_DEFAULT_MEAN,
+  26     IMAGENET_DEFAULT_STD,
+  27     C...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Now I need to update the `preprocess` method to accept `segmentation_maps` and process them. Let me replace the current `preprocess` method with an updated version that includes `segmentation_maps` parameter and mask processing.
+</thinking>
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/models/sam/image_processing_sam.py
+find: "    def preprocess(\n        self,\n        images: ImageInput,\n        do_resize:\
+  \ Optional[bool] = None,\n        size: Optional[Dict[str, int]] = None,\n     \
+  \   resample: Optional[\"PILImageResampling\"] = None,\n        do_rescale: Optional[bool]\
+  \ = None,\n        rescale_factor: Optional[Union[int, float]] = None,\n       \
+  \ do_normalize: Optional[bool] = None,\n        image_mean: Optional[Union[float,\
+  \ List[float]]] = None,\n        image_std: Optional[Union[float, List[float]]]\
+  \ = None,\n        do_pad: Optional[bool] = None,\n        pad_size: Optional[Dict[str,\
+  \ int]] = None,\n        do_convert_rgb: bool = None,\n        return_tensors: Optional[Union[str,\
+  \ TensorType]] = None,\n        data_format: ChannelDimension = ChannelDimension.FIRST,\n\
+  \        input_data_format: Optional[Union[str, ChannelDimension]] = None,\n   \
+  \     **kwargs,\n    ):\n        \"\"\"\n        Preprocess an image or batch of\
+  \ images.\n\n        Args:\n            images (`ImageInput`):\n               \
+  \ Image to preprocess. Expects a single or batch of images with pixel values ranging\
+  \ from 0 to 255. If\n                passing in images with pixel values between\
+  \ 0 and 1, set `do_rescale=False`.\n            do_resize (`bool`, *optional*, defaults\
+  \ to `self.do_resize`):\n                Whether to resize the image.\n        \
+  \    size (`Dict[str, int]`, *optional*, defaults to `self.size`):\n           \
+  \     Controls the size of the image after `resize`. The longest edge of the image\
+  \ is resized to\n                `size[\"longest_edge\"]` whilst preserving the\
+  \ aspect ratio.\n            resample (`PILImageResampling`, *optional*, defaults\
+  \ to `self.resample`):\n                `PILImageResampling` filter to use when\
+  \ resizing the image e.g. `PILImageResampling.BILINEAR`.\n            do_rescale\
+  \ (`bool`, *optional*, defaults to `self.do_rescale`):\n                Whether\
+  \ to rescale the image pixel values by rescaling factor.\n            rescale_factor\
+  \ (`int` or `float`, *optional*, defaults to `self.rescale_factor`):\n         \
+  \       Rescale factor to apply to the image pixel values.\n            do_normalize\
+  \ (`bool`, *optional*, defaults to `self.do_normalize`):\n                Whether\
+  \ to normalize the image.\n            image_mean (`float` or `List[float]`, *optional*,\
+  \ defaults to `self.image_mean`):\n                Image mean to normalize the image\
+  \ by if `do_normalize` is set to `True`.\n            image_std (`float` or `List[float]`,\
+  \ *optional*, defaults to `self.image_std`):\n                Image standard deviation\
+  \ to normalize the image by if `do_normalize` is set to `True`.\n            do_pad\
+  \ (`bool`, *optional*, defaults to `self.do_pad`):\n                Whether to pad\
+  \ the image.\n            pad_size (`Dict[str, int]`, *optional*, defaults to `self.pad_size`):\n\
+  \                Controls the size of the padding applied to the image. The image\
+  \ is padded to `pad_size[\"height\"]` and\n                `pad_size[\"width\"]`\
+  \ if `do_pad` is set to `True`.\n            do_convert_rgb (`bool`, *optional*,\
+  \ defaults to `self.do_convert_rgb`):\n                Whether to convert the image\
+  \ to RGB.\n            return_tensors (`str` or `TensorType`, *optional*):\n   \
+  \             The type of tensors to return. Can be one of:\n                  \
+  \  - Unset: Return a list of `np.ndarray`.\n                    - `TensorType.TENSORFLOW`\
+  \ or `'tf'`: Return a batch of type `tf.Tensor`.\n                    - `TensorType.PYTORCH`\
+  \ or `'pt'`: Return a batch of type `torch.Tensor`.\n                    - `TensorType.NUMPY`\
+  \ or `'np'`: Return a batch of type `np.ndarray`.\n                    - `TensorType.JAX`\
+  \ or `'jax'`: Return a batch of type `jax.numpy.ndarray`.\n            data_format\
+  \ (`ChannelDimension` or `str`, *optional*, defaults to `ChannelDimension.FIRST`):\n\
+  \                The channel dimension format for the output image. Can be one of:\n\
+  \                - `\"channels_first\"` or `ChannelDimension.FIRST`: image in (num_channels,\
+  \ height, width) format.\n                - `\"channels_last\"` or `ChannelDimension.LAST`:\
+  \ image in (height, width, num_channels) format.\n                - Unset: Use the\
+  \ channel dimension format of the input image.\n            input_data_format (`ChannelDimension`\
+  \ or `str`, *optional*):\n                The channel dimension format for the input\
+  \ image. If unset, the channel dimension format is inferred\n                from\
+  \ the input image. Can be one of:\n                - `\"channels_first\"` or `ChannelDimension.FIRST`:\
+  \ image in (num_channels, height, width) format.\n                - `\"channels_last\"\
+  ` or `ChannelDimension.LAST`: image in (height, width, num_channels) format.\n \
+  \               - `\"none\"` or `ChannelDimension.NONE`: image in (height, width)\
+  \ format.\n        \"\"\"\n        do_resize = do_resize if do_resize is not None\
+  \ else self.do_resize\n        size = size if size is not None else self.size\n\
+  \        size = get_size_dict(max_size=size, default_to_square=False) if not isinstance(size,\
+  \ dict) else size\n        resample = resample if resample is not None else self.resample\n\
+  \        do_rescale = do_rescale if do_rescale is not None else self.do_rescale\n\
+  \        rescale_factor = rescale_factor if rescale_factor is not None else self.rescale_factor\n\
+  \        do_normalize = do_normalize if do_normalize is not None else self.do_normalize\n\
+  \        image_mean = image_mean if image_mean is not None else self.image_mean\n\
+  \        image_std = image_std if image_std is not None else self.image_std\n  \
+  \      do_pad = do_pad if do_pad is not None else self.do_pad\n        pad_size\
+  \ = pad_size if pad_size is not None else self.pad_size\n        pad_size = get_size_dict(pad_size,\
+  \ default_to_square=True)\n        do_convert_rgb = do_convert_rgb if do_convert_rgb\
+  \ is not None else self.do_convert_rgb\n\n        images = make_list_of_images(images)\n\
+  \n        if not valid_images(images):\n            raise ValueError(\n        \
+  \        \"Invalid image type. Must be of type PIL.Image.Image, numpy.ndarray, \"\
+  \n                \"torch.Tensor, tf.Tensor or jax.ndarray.\"\n            )\n\n\
+  \        if do_resize and (size is None or resample is None):\n            raise\
+  \ ValueError(\"Size and resample must be specified if do_resize is True.\")\n\n\
+  \        if do_rescale and rescale_factor is None:\n            raise ValueError(\"\
+  Rescale factor must be specified if do_rescale is True.\")\n\n        if do_normalize\
+  \ and (image_mean is None or image_std is None):\n            raise ValueError(\"\
+  Image mean and std must be specified if do_normalize is True.\")\n\n        if do_pad\
+  \ and pad_size is None:\n            raise ValueError(\"Pad size must be specified\
+  \ if do_pad is True.\")\n\n        # PIL RGBA images are converted to RGB\n    \
+  \    if do_convert_rgb:\n            images = [convert_to_rgb(image) for image in\
+  \ images]\n\n        # All transformations expect numpy arrays.\n        images\
+  \ = [to_numpy_array(image) for image in images]\n\n        if is_scaled_image(images[0])\
+  \ and do_rescale:\n            logger.warning_once(\n                \"It looks\
+  \ like you are trying to rescale already rescaled images. If the input\"\n     \
+  \           \" images have pixel values between 0 and 1, set `do_rescale=False`\
+  \ to avoid rescaling them again.\"\n            )\n\n        if input_data_format\
+  \ is None:\n            # We assume that all images have the same channel dimension\
+  \ format.\n            input_data_format = infer_channel_dimension_format(images[0])\n\
+  \n        original_sizes = [get_image_size(image, channel_dim=input_data_format)\
+  \ for image in images]\n\n        if do_resize:\n            images = [\n      \
+  \          self.resize(image=image, size=size, resample=resample, input_data_format=input_data_format)\n\
+  \                for image in images\n            ]\n\n        reshaped_input_sizes\
+  \ = [get_image_size(image, channel_dim=input_data_format) for image in images]\n\
+  \n        if do_rescale:\n            images = [\n                self.rescale(image=image,\
+  \ scale=rescale_factor, input_data_format=input_data_format)\n                for\
+  \ image in images\n            ]\n\n        if do_normalize:\n            images\
+  \ = [\n                self.normalize(image=image, mean=image_mean, std=image_std,\
+  \ input_data_format=input_data_format)\n                for image in images\n  \
+  \          ]\n\n        if do_pad:\n            images = [\n                self.pad_image(image=image,\
+  \ pad_size=pad_size, input_data_format=input_data_format) for image in images\n\
+  \            ]\n\n        images = [\n            to_channel_dimension_format(image,\
+  \ data_format, input_channel_dim=input_data_format) for image in images\n      \
+  \  ]\n        encoded_outputs = BatchFeature(\n            data={\n            \
+  \    \"pixel_values\": images,\n                \"original_sizes\": original_sizes,\n\
+  \                \"reshaped_input_sizes\": reshaped_input_sizes,\n            },\n\
+  \            tensor_type=return_tensors,\n        )\n        return encoded_outputs"
+replace: "    def preprocess(\n        self,\n        images: ImageInput,\n      \
+  \  segmentation_maps: Optional[ImageInput] = None,\n        do_resize: Optional[bool]\
+  \ = None,\n        size: Optional[Dict[str, int]] = None,\n        mask_size: Optional[Dict[str,\
+  \ int]] = None,\n        resample: Optional[\"PILImageResampling\"] = None,\n  \
+  \      do_rescale: Optional[bool] = None,\n        rescale_factor: Optional[Union[int,\
+  \ float]] = None,\n        do_normalize: Optional[bool] = None,\n        image_mean:\
+  \ Optional[Union[float, List[float]]] = None,\n        image_std: Optional[Union[float,\
+  \ List[float]]] = None,\n        do_pad: Optional[bool] = None,\n        pad_size:\
+  \ Optional[Dict[str, int]] = None,\n        mask_pad_size: Optional[Dict[str, int]]\
+  \ = None,\n        do_convert_rgb: bool = None,\n        return_tensors: Optional[Union[str,\
+  \ TensorType]] = None,\n        data_format: ChannelDimension = ChannelDimension.FIRST,\n\
+  \        input_data_format: Optional[Union[str, ChannelDimension]] = None,\n   \
+  \     **kwargs,\n    ):\n        \"\"\"\n        Preprocess an image or batch of\
+  \ images.\n\n        Args:\n            images (`ImageInput`):\n               \
+  \ Image to preprocess. Expects a single or batch of images with pixel values ranging\
+  \ from 0 to 255. If\n                passing in images with pixel values between\
+  \ 0 and 1, set `do_rescale=False`.\n            segmentation_maps (`ImageInput`,\
+  \ *optional*):\n                Segmentation map to preprocess.\n            do_resize\
+  \ (`bool`, *optional*, defaults to `self.do_resize`):\n                Whether to\
+  \ resize the image.\n            size (`Dict[str, int]`, *optional*, defaults to\
+  \ `self.size`):\n                Controls the size of the image after `resize`.\
+  \ The longest edge of the image is resized to\n                `size[\"longest_edge\"\
+  ]` whilst preserving the aspect ratio.\n            mask_size (`Dict[str, int]`,\
+  \ *optional*, defaults to `self.mask_size`):\n                Controls the size\
+  \ of the segmentation map after `resize`. The longest edge of the image is resized\
+  \ to\n                `size[\"longest_edge\"]` whilst preserving the aspect ratio.\n\
+  \            resample (`PILImageResampling`, *optional*, defaults to `self.resample`):\n\
+  \                `PILImageResampling` filter to use when resizing the image e.g.\
+  \ `PILImageResampling.BILINEAR`.\n            do_rescale (`bool`, *optional*, defaults\
+  \ to `self.do_rescale`):\n                Whether to rescale the image pixel values\
+  \ by rescaling factor.\n            rescale_factor (`int` or `float`, *optional*,\
+  \ defaults to `self.rescale_factor`):\n                Rescale factor to apply to\
+  \ the image pixel values.\n            do_normalize (`bool`, *optional*, defaults\
+  \ to `self.do_normalize`):\n                Whether to normalize the image.\n  \
+  \          image_mean (`float` or `List[float]`, *optional*, defaults to `self.image_mean`):\n\
+  \                Image mean to normalize the image by if `do_normalize` is set to\
+  \ `True`.\n            image_std (`float` or `List[float]`, *optional*, defaults\
+  \ to `self.image_std`):\n                Image standard deviation to normalize the\
+  \ image by if `do_normalize` is set to `True`.\n            do_pad (`bool`, *optional*,\
+  \ defaults to `self.do_pad`):\n                Whether to pad the image.\n     \
+  \       pad_size (`Dict[str, int]`, *optional*, defaults to `self.pad_size`):\n\
+  \                Controls the size of the padding applied to the image. The image\
+  \ is padded to `pad_size[\"height\"]` and\n                `pad_size[\"width\"]`\
+  \ if `do_pad` is set to `True`.\n            mask_pad_size (`Dict[str, int]`, *optional*,\
+  \ defaults to `self.mask_pad_size`):\n                Controls the size of the padding\
+  \ applied to the segmentation map. The segmentation map is padded to\n         \
+  \       `mask_pad_size[\"height\"]` and `mask_pad_size[\"width\"]` if `do_pad` is\
+  \ set to `True`.\n            do_convert_rgb (`bool`, *optional*, defaults to `self.do_convert_rgb`):\n\
+  \                Whether to convert the image to RGB.\n            return_tensors\
+  \ (`str` or `TensorType`, *optional*):\n                The type of tensors to return.\
+  \ Can be one of:\n                    - Unset: Return a list of `np.ndarray`.\n\
+  \                    - `TensorType.TENSORFLOW` or `'tf'`: Return a batch of type\
+  \ `tf.Tensor`.\n                    - `TensorType.PYTORCH` or `'pt'`: Return a batch\
+  \ of type `torch.Tensor`.\n                    - `TensorType.NUMPY` or `'np'`: Return\
+  \ a batch of type `np.ndarray`.\n                    - `TensorType.JAX` or `'jax'`:\
+  \ Return a batch of type `jax.numpy.ndarray`.\n            data_format (`ChannelDimension`\
+  \ or `str`, *optional*, defaults to `ChannelDimension.FIRST`):\n               \
+  \ The channel dimension format for the output image. Can be one of:\n          \
+  \      - `\"channels_first\"` or `ChannelDimension.FIRST`: image in (num_channels,\
+  \ height, width) format.\n                - `\"channels_last\"` or `ChannelDimension.LAST`:\
+  \ image in (height, width, num_channels) format.\n                - Unset: Use the\
+  \ channel dimension format of the input image.\n            input_data_format (`ChannelDimension`\
+  \ or `str`, *optional*):\n                The channel dimension format for the input\
+  \ image. If unset, the channel dimension format is inferred\n                from\
+  \ the input image. Can be one of:\n                - `\"channels_first\"` or `ChannelDimension.FIRST`:\
+  \ image in (num_channels, height, width) format.\n                - `\"channels_last\"\
+  ` or `ChannelDimension.LAST`: image in (height, width, num_channels) format.\n \
+  \               - `\"none\"` or `ChannelDimension.NONE`: image in (height, width)\
+  \ format.\n        \"\"\"\n        do_resize = do_resize if do_resize is not None\
+  \ else self.do_resize\n        size = size if size is not None else self.size\n\
+  \        size = get_size_dict(max_size=size, default_to_square=False) if not isinstance(size,\
+  \ dict) else size\n        mask_size = mask_size if mask_size is not None else self.mask_size\n\
+  \        mask_size = get_size_dict(max_size=mask_size, default_to_square=False)\
+  \ if not isinstance(mask_size, dict) else mask_size\n        resample = resample\
+  \ if resample is not None else self.resample\n        do_rescale = do_rescale if\
+  \ do_rescale is not None else self.do_rescale\n        rescale_factor = rescale_factor\
+  \ if rescale_factor is not None else self.rescale_factor\n        do_normalize =\
+  \ do_normalize if do_normalize is not None else self.do_normalize\n        image_mean\
+  \ = image_mean if image_mean is not None else self.image_mean\n        image_std\
+  \ = image_std if image_std is not None else self.image_std\n        do_pad = do_pad\
+  \ if do_pad is not None else self.do_pad\n        pad_size = pad_size if pad_size\
+  \ is not None else self.pad_size\n        pad_size = get_size_dict(pad_size, default_to_square=True)\n\
+  \        mask_pad_size = mask_pad_size if mask_pad_size is not None else self.mask_pad_size\n\
+  \        mask_pad_size = get_size_dict(mask_pad_size, default_to_square=True)\n\
+  \        do_convert_rgb = do_convert_rgb if do_convert_rgb is not None else self.do_convert_rgb\n\
+  \n        images = make_list_of_images(images)\n\n        if segmentation_maps is\
+  \ not None:\n            segmentation_maps = make_list_of_images(segmentation_maps,\
+  \ expected_ndims=2)\n\n        if not valid_images(images):\n            raise ValueError(\n\
+  \                \"Invalid image type. Must be of type PIL.Image.Image, numpy.ndarray,\
+  \ \"\n                \"torch.Tensor, tf.Tensor or jax.ndarray.\"\n            )\n\
+  \n        if segmentation_maps is not None and not valid_images(segmentation_maps):\n\
+  \            raise ValueError(\n                \"Invalid segmentation map type.\
+  \ Must be of type PIL.Image.Image, numpy.ndarray, \"\n                \"torch.Tensor,\
+  \ tf.Tensor or jax.ndarray.\"\n            )\n\n        if do_resize and (size is\
+  \ None or resample is None):\n            raise ValueError(\"Size and resample must\
+  \ be specified if do_resize is True.\")\n\n        if do_rescale and rescale_factor\
+  \ is None:\n            raise ValueError(\"Rescale factor must be specified if do_rescale\
+  \ is True.\")\n\n        if do_normalize and (image_mean is None or image_std is\
+  \ None):\n            raise ValueError(\"Image mean and std must be specified if\
+  \ do_normalize is True.\")\n\n        if do_pad and pad_size is None:\n        \
+  \    raise ValueError(\"Pad size must be specified if do_pad is True.\")\n\n   \
+  \     # PIL RGBA images are converted to RGB\n        if do_convert_rgb:\n     \
+  \       images = [convert_to_rgb(image) for image in images]\n\n        # All transformations\
+  \ expect numpy arrays.\n        images = [to_numpy_array(image) for image in images]\n\
+  \n        if is_scaled_image(images[0]) and do_rescale:\n            logger.warning_once(\n\
+  \                \"It looks like you are trying to rescale already rescaled images.\
+  \ If the input\"\n                \" images have pixel values between 0 and 1, set\
+  \ `do_rescale=False` to avoid rescaling them again.\"\n            )\n\n       \
+  \ if input_data_format is None:\n            # We assume that all images have the\
+  \ same channel dimension format.\n            input_data_format = infer_channel_dimension_format(images[0])\n\
+  \n        original_sizes = [get_image_size(image, channel_dim=input_data_format)\
+  \ for image in images]\n\n        if do_resize:\n            images = [\n      \
+  \          self.resize(image=image, size=size, resample=resample, input_data_format=input_data_format)\n\
+  \                for image in images\n            ]\n\n        reshaped_input_sizes\
+  \ = [get_image_size(image, channel_dim=input_data_format) for image in images]\n\
+  \n        if do_rescale:\n            images = [\n                self.rescale(image=image,\
+  \ scale=rescale_factor, input_data_format=input_data_format)\n                for\
+  \ image in images\n            ]\n\n        if do_normalize:\n            images\
+  \ = [\n                self.normalize(image=image, mean=image_mean, std=image_std,\
+  \ input_data_format=input_data_format)\n                for image in images\n  \
+  \          ]\n\n        if do_pad:\n            images = [\n                self.pad_image(image=image,\
+  \ pad_size=pad_size, input_data_format=input_data_format) for image in images\n\
+  \            ]\n\n        images = [\n            to_channel_dimension_format(image,\
+  \ data_format, input_channel_dim=input_data_format) for image in images\n      \
+  \  ]\n\n        data = {\n            \"pixel_values\": images,\n            \"\
+  original_sizes\": original_sizes,\n            \"reshaped_input_sizes\": reshaped_input_sizes,\n\
+  \        }\n\n        if segmentation_maps is not None:\n            segmentation_maps\
+  \ = [\n                self._preprocess_mask(\n                    segmentation_map=segmentation_map,\n\
+  \                    do_resize=do_resize,\n                    mask_size=mask_size,\n\
+  \                    do_pad=do_pad,\n                    mask_pad_size=mask_pad_size,\n\
+  \                )\n                for segmentation_map in segmentation_maps\n\
+  \            ]\n            data[\"labels\"] = segmentation_maps\n\n        encoded_outputs\
+  \ = BatchFeature(\n            data=data,\n            tensor_type=return_tensors,\n\
+  \        )\n        return encoded_outputs"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/models/sam/image_processing_sam.py:
+
+--- src/transformers/models/sam/image_processing_sam.py
++++ src/transformers/models/sam/image_processing_sam.py
+@@ -398,8 +398,10 @@
+     def preprocess(
+         self,
+         images: ImageInput,
++        segmentation_maps: Optional[ImageInput] = None,
+         do_resize: Optional[bool] = None,
+         size: Optional[Dict[str, int]] = None,
++        mask_size: Optional[Dict[str, int]] = None,
+         resample...
+```
+========================================================================================================================
+AGENT:
+Now let me verify the changes by running a simple test to ensure the code works correctly:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && pip install -e . -q 2>&1 | tail -5
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: 'cd /workspace && python -c "
+
+  import numpy as np
+
+  from transformers.models.sam.image_processing_sam import SamImageProcessor
+
+
+  # Create a simple test
+
+  processor = SamImageProcessor()
+
+
+  # Check that the new attributes exist
+
+  print(''mask_size:'', processor.mask_size)
+
+  print(''mask_pad_size:'', processor.mask_pad_size)
+
+
+  # Create a dummy image (768x1024 RGB)
+
+  image = np.random.randint(0, 255, (768, 1024, 3), dtype=np.uint8)
+
+
+  # Create a dummy mask (768x1024)
+
+  mask = np.random.randint(0, 2, (768, 1024), dtype=np.uint8)
+
+
+  # Test preprocessing with just images
+
+  result = processor(image)
+
+  print(''pixel_values shape:'', np.array(result[''pixel_values'']).shape)
+
+  print(''original_sizes:'', result[''original_sizes''])
+
+  print(''reshaped_input_sizes:'', result[''reshaped_input_sizes''])
+
+
+  # Test preprocessing with images and masks
+
+  result_with_mask = processor(image, segmentation_maps=mask)
+
+  print(''pixel_values shape:'', np.array(result_with_mask[''pixel_values'']).shape)
+
+  print(''labels shape:'', np.array(result_with_mask[''labels'']).shape)
+
+  print(''labels dtype:'', np.array(result_with_mask[''labels'']).dtype)
+
+
+  print(''\\nTest passed!'')
+
+  "
+
+  '
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+  File "/workspace/src/transformers/models/sam/image_processing_sam.py", line 25, in <module>
+    from ...image_utils import (
+ImportError: cannot import name 'PILImageResampling' from 'transformers.image_utils' (/workspace/src/transformers/image_utils.py)...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+The import error is likely due to missing dependencies. Let me install the required dependencies first.
+</thinking>
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && pip install torch pillow -q 2>&1 | tail -3
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: 'cd /workspace && python -c "
+
+  import numpy as np
+
+  from transformers.models.sam.image_processing_sam import SamImageProcessor
+
+
+  # Create a simple test
+
+  processor = SamImageProcessor()
+
+
+  # Check that the new attributes exist
+
+  print(''mask_size:'', processor.mask_size)
+
+  print(''mask_pad_size:'', processor.mask_pad_size)
+
+
+  # Create a dummy image (768x1024 RGB)
+
+  image = np.random.randint(0, 255, (768, 1024, 3), dtype=np.uint8)
+
+
+  # Create a dummy mask (768x1024)
+
+  mask = np.random.randint(0, 2, (768, 1024), dtype=np.uint8)
+
+
+  # Test preprocessing with just images
+
+  result = processor(image)
+
+  print(''pixel_values shape:'', np.array(result[''pixel_values'']).shape)
+
+  print(''original_sizes:'', result[''original_sizes''])
+
+  print(''reshaped_input_sizes:'', result[''reshaped_input_sizes''])
+
+
+  # Test preprocessing with images and masks
+
+  result_with_mask = processor(image, segmentation_maps=mask)
+
+  print(''pixel_values shape:'', np.array(result_with_mask[''pixel_values'']).shape)
+
+  print(''labels shape:'', np.array(result_with_mask[''labels'']).shape)
+
+  print(''labels dtype:'', np.array(result_with_mask[''labels'']).dtype)
+
+
+  print(''\\nTest passed!'')
+
+  "
+
+  '
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+mask_size: {'longest_edge': 256}
+mask_pad_size: {'height': 256, 'width': 256}
+pixel_values shape: (1, 3, 1024, 1024)
+original_sizes: [(768, 1024)]
+reshaped_input_sizes: [(768, 1024)]
+pixel_values shape: (1, 3, 1024, 1024)
+labels shape: (1, 256, 256)
+labels dtype: int64
+
+Test passed!...
+```
+========================================================================================================================
+AGENT:
+The basic test passes. Now let me run a more comprehensive test to verify the mask preprocessing works correctly:
+========================================================================================================================
+TOOL CALL (bash)
+command: 'cd /workspace && python -c "
+
+  import numpy as np
+
+  from transformers.models.sam.image_processing_sam import SamImageProcessor
+
+
+  # Create a simple test
+
+  processor = SamImageProcessor()
+
+
+  # Test 1: Check mask resizing with different aspect ratios
+
+  print(''Test 1: Mask resizing with different aspect ratios'')
+
+
+  # Create a 768x1024 image (landscape)
+
+  image1 = np.random.randint(0, 255, (768, 1024, 3), dtype=np.uint8)
+
+  mask1 = np.random.randint(0, 2, (768, 1024), dtype=np.uint8)
+
+
+  result1 = processor(image1, segmentation_maps=mask1)
+
+  print(f''  Input mask shape: (768, 1024)'')
+
+  print(f''  Output mask shape: {np.array(result1[\"labels\"]).shape}'')
+
+
+  # Create a 1024x768 image (portrait)
+
+  image2 = np.random.randint(0, 255, (1024, 768, 3), dtype=np.uint8)
+
+  mask2 = np.random.randint(0, 2, (1024, 768), dtype=np.uint8)
+
+
+  result2 = processor(image2, segmentation_maps=mask2)
+
+  print(f''  Input mask shape: (1024, 768)'')
+
+  print(f''  Output mask shape: {np.array(result2[\"labels\"]).shape}'')
+
+
+  # Create a 512x512 image (square)
+
+  image3 = np.random.randint(0, 255, (512, 512, 3), dtype=np.uint8)
+
+  mask3 = np.random.randint(0, 2, (512, 512), dtype=np.uint8)
+
+
+  result3 = processor(image3, segmentation_maps=mask3)
+
+  print(f''  Input mask shape: (512, 512)'')
+
+  print(f''  Output mask shape: {np.array(result3[\"labels\"]).shape}'')
+
+
+  # Test 2: Check that mask values are preserved (binary mask)
+
+  print(''\\nTest 2: Mask values preservation'')
+
+  mask_binary = np.zeros((768, 1024), dtype=np.uint8)
+
+  mask_binary[100:300, 200:400] = 1  # Create a rectangle
+
+
+  result_binary = processor(image1, segmentation_maps=mask_binary)
+
+  output_mask = np.array(result_binary[''labels''])[0]
+
+  print(f''  Unique values in output mask: {np.unique(output_mask)}'')
+
+  print(f''  Output mask dtype: {output_mask.dtype}'')
+
+
+  # Test 3: Check batch processing
+
+  print(''\\nTest 3: Batch processing'')
+
+  images = [image1, image2]
+
+  masks = [mask1, mask2]
+
+
+  result_batch = processor(images, segmentation_maps=masks)
+
+  print(f''  Number of images: {len(result_batch[\"pixel_values\"])}'')
+
+  print(f''  Number of masks: {len(result_batch[\"labels\"])}'')
+
+
+  # Test 4: Check that mask is not returned when not provided
+
+  print(''\\nTest 4: No mask when not provided'')
+
+  result_no_mask = processor(image1)
+
+  print(f''  \"labels\" in result: {\"labels\" in result_no_mask}'')
+
+
+  print(''\\nAll tests passed!'')
+
+  "
+
+  '
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Test 1: Mask resizing with different aspect ratios
+  Input mask shape: (768, 1024)
+  Output mask shape: (1, 256, 256)
+  Input mask shape: (1024, 768)
+  Output mask shape: (1, 256, 256)
+  Input mask shape: (512, 512)
+  Output mask shape: (1, 256, 256)
+
+Test 2: Mask values preservation
+  Unique values in output mask: [0 1]
+  Output mask dtype: int64
+
+Test 3: Batch processing
+  Number of images: 2
+  Number of masks: 2
+
+Test 4: No mask when not provided
+  "labels" in result: False
+
+All tests passed!...
+```
+========================================================================================================================
+AGENT:
+All tests pass. Now let me also run the existing tests for the SAM image processor to make sure I haven't broken anything:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python -m pytest tests/models/sam/test_processor_sam.py
+  -v --tb=short 2>&1 | head -50
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+/root/.pyenv/versions/3.11.12/bin/python: No module named pytest...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: pip install pytest -q && cd /workspace && python -m pytest tests/models/sam/test_processor_sam.py
+  -v --tb=short 2>&1 | head -100
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip
+ImportError while loading c...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: pip install pytest==7.4.0 -q && cd /workspace && python -m pytest tests/models/sam/test_processor_sam.py
+  -v --tb=short 2>&1 | head -100
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip
+===========================...
+```
+========================================================================================================================
+AGENT:
+The tests are being skipped, likely due to missing dependencies. Let me check if there are any image processing tests:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && find tests -name "*sam*" -type f
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+tests/utils/test_doc_samples.py
+tests/models/sam/test_modeling_tf_sam.py
+tests/models/sam/__pycache__/test_processor_sam.cpython-311-pytest-7.4.0.pyc
+tests/models/sam/test_processor_sam.py
+tests/models/sam/test_modeling_sam.py
+tests/fixtures/sample_text_no_unicode.txt
+tests/fixtures/sample_text.txt
+tests/fixtures/tests_samples/wmt16/sample.json
+tests/fixtures/tests_samples/conll/sample.json
+tests/fixtures/tests_samples/xsum/sample.json
+tests/fixtures/tests_samples/SQUAD/sample.json
+tests/fixture...
+```
+========================================================================================================================
+TOOL CALL (expand_folder)
+folder_path: tests/models/sam
+
+========================================================================================================================
+TOOL RETURN (expand_folder)
+```
+tests/:
+
+tests/models/:
+
+tests/models/sam/:
+__init__.py
+test_modeling_sam.py
+test_modeling_tf_sam.py
+test_processor_sam.py...
+```
+========================================================================================================================
+AGENT:
+Let me look at the test file to understand why tests are being skipped:
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- tests/models/sam/test_processor_sam.py
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened tests/models/sam/test_processor_sam.py:\n\n````python\n   0 # Copyright 2023 The HuggingFace Team. All rights reserved.\n...\n  13 import shutil\n...\n  19 from transformers.testing_utils import (\n...\n  26 from transformers.utils import is_tf_available, is_torch_available, is_vision_available\n...\n  30     from PIL import Image\n...\n  35     import torch\n...\n  38     import tensorflow as tf\n...\n  41 @require_vision\n  42 @require_torchvision\n  43 class SamProcessor...
+```
+========================================================================================================================
+AGENT:
+The tests require `torchvision`. Let me install it and run the tests:
+========================================================================================================================
+TOOL CALL (bash)
+command: pip install torchvision -q 2>&1 | tail -3
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python -m pytest tests/models/sam/test_processor_sam.py
+  -v --tb=short 2>&1 | head -100
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+============================= test session starts ==============================
+platform linux -- Python 3.11.12, pytest-7.4.0, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python
+cachedir: .pytest_cache
+rootdir: /workspace
+configfile: pyproject.toml
+collecting ... collected 8 items
+
+tests/models/sam/test_processor_sam.py::SamProcessorTest::test_image_processor PASSED [ 12%]
+tests/models/sam/test_processor_sam.py::SamProcessorTest::test_post_process_masks PASSED [ 25%]
+tests/models/sam/tes...
+```
+========================================================================================================================
+AGENT:
+All the PyTorch tests pass. The TensorFlow tests are skipped because TensorFlow is not installed, which is expected.
+
+Now let me also verify that the image processor can be saved and loaded correctly with the new parameters:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python -c \"\nimport tempfile\nimport os\nimport numpy\
+  \ as np\nfrom transformers.models.sam.image_processing_sam import SamImageProcessor\n\
+  \n# Create a processor with custom mask settings\nprocessor = SamImageProcessor(\n\
+  \    mask_size={'longest_edge': 128},\n    mask_pad_size={'height': 128, 'width':\
+  \ 128}\n)\n\nprint('Original processor:')\nprint('  mask_size:', processor.mask_size)\n\
+  print('  mask_pad_size:', processor.mask_pad_size)\n\n# Save and load\nwith tempfile.TemporaryDirectory()\
+  \ as tmpdir:\n    processor.save_pretrained(tmpdir)\n    \n    # Check the saved\
+  \ config\n    import json\n    with open(os.path.join(tmpdir, 'preprocessor_config.json'),\
+  \ 'r') as f:\n        config = json.load(f)\n    print('\\\\nSaved config:')\n \
+  \   print('  mask_size:', config.get('mask_size'))\n    print('  mask_pad_size:',\
+  \ config.get('mask_pad_size'))\n    \n    # Load the processor\n    loaded_processor\
+  \ = SamImageProcessor.from_pretrained(tmpdir)\n    print('\\\\nLoaded processor:')\n\
+  \    print('  mask_size:', loaded_processor.mask_size)\n    print('  mask_pad_size:',\
+  \ loaded_processor.mask_pad_size)\n\n# Test that the loaded processor works correctly\n\
+  image = np.random.randint(0, 255, (768, 1024, 3), dtype=np.uint8)\nmask = np.random.randint(0,\
+  \ 2, (768, 1024), dtype=np.uint8)\n\nresult = loaded_processor(image, segmentation_maps=mask)\n\
+  print('\\\\nOutput mask shape:', np.array(result['labels']).shape)\n\nprint('\\\\\
+  nSave/load test passed!')\n\"\n"
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Original processor:
+  mask_size: {'longest_edge': 128}
+  mask_pad_size: {'height': 128, 'width': 128}
+
+Saved config:
+  mask_size: {'longest_edge': 128}
+  mask_pad_size: {'height': 128, 'width': 128}
+
+Loaded processor:
+  mask_size: {'longest_edge': 128}
+  mask_pad_size: {'height': 128, 'width': 128}
+
+Output mask shape: (1, 128, 128)
+
+Save/load test passed!...
+```
+========================================================================================================================
+AGENT:
+Excellent! The save/load functionality works correctly with the new parameters. Now let me review the changes I made to ensure everything is correct:
+========================================================================================================================
+AGENT:
+I've implemented the mask preprocessing functionality for the SAM image processor. Now I'm reviewing the changes to ensure they are complete and correct.
+========================================================================================================================
+AGENT:
+STEP 3: REVIEW CHANGES
+
+<thinking>
+Let me review all the changes I made to ensure they are complete and correct. I'll open the modified file and verify the implementation.
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/models/sam/image_processing_sam.py
+patterns:
+- class SamImageProcessor
+- __init__
+- _preprocess_mask
+- __call__
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/transformers/models/sam/image_processing_sam.py:
+
+````python
+   0 # coding=utf-8
+...
+  15 import math
+  16 from copy import deepcopy
+...
+  20 import numpy as np
+  21 
+  22 from ...image_processing_utils import BaseImageProcessor, BatchFeature, get_size_dict
+  23 from ...image_transforms import convert_to_rgb, pad, resize, to_channel_dimension_format
+  24 from ...image_utils import (
+  25     IMAGENET_DEFAULT_MEAN,
+  26     IMAGENET_DEFAULT_STD,
+  27     C...
+```
+========================================================================================================================
+AGENT:
+The implementation looks correct. Let me run one final comprehensive test to make sure everything works as expected:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python -c \"\nimport numpy as np\nfrom PIL import Image\n\
+  from transformers.models.sam.image_processing_sam import SamImageProcessor\n\nprint('===\
+  \ Comprehensive Test for SAM Image Processor Mask Preprocessing ===')\nprint()\n\
+  \n# Test 1: Basic functionality\nprint('Test 1: Basic functionality')\nprocessor\
+  \ = SamImageProcessor()\nprint(f'  Default mask_size: {processor.mask_size}')\n\
+  print(f'  Default mask_pad_size: {processor.mask_pad_size}')\n\n# Test 2: Processing\
+  \ images with masks\nprint()\nprint('Test 2: Processing images with masks')\nimage\
+  \ = np.random.randint(0, 255, (768, 1024, 3), dtype=np.uint8)\nmask = np.random.randint(0,\
+  \ 2, (768, 1024), dtype=np.uint8)\n\nresult = processor(image, segmentation_maps=mask)\n\
+  print(f'  Input image shape: (768, 1024, 3)')\nprint(f'  Input mask shape: (768,\
+  \ 1024)')\nprint(f'  Output pixel_values shape: {np.array(result[\\\"pixel_values\\\
+  \"]).shape}')\nprint(f'  Output labels shape: {np.array(result[\\\"labels\\\"]).shape}')\n\
+  \n# Test 3: Processing with PIL images\nprint()\nprint('Test 3: Processing with\
+  \ PIL images')\npil_image = Image.fromarray(image)\npil_mask = Image.fromarray(mask)\n\
+  \nresult_pil = processor(pil_image, segmentation_maps=pil_mask)\nprint(f'  Output\
+  \ pixel_values shape: {np.array(result_pil[\\\"pixel_values\\\"]).shape}')\nprint(f'\
+  \  Output labels shape: {np.array(result_pil[\\\"labels\\\"]).shape}')\n\n# Test\
+  \ 4: Custom mask sizes\nprint()\nprint('Test 4: Custom mask sizes')\nprocessor_custom\
+  \ = SamImageProcessor(\n    mask_size={'longest_edge': 128},\n    mask_pad_size={'height':\
+  \ 128, 'width': 128}\n)\nresult_custom = processor_custom(image, segmentation_maps=mask)\n\
+  print(f'  Custom mask_size: {processor_custom.mask_size}')\nprint(f'  Custom mask_pad_size:\
+  \ {processor_custom.mask_pad_size}')\nprint(f'  Output labels shape: {np.array(result_custom[\\\
+  \"labels\\\"]).shape}')\n\n# Test 5: Batch processing\nprint()\nprint('Test 5: Batch\
+  \ processing')\nimages = [image, np.random.randint(0, 255, (512, 512, 3), dtype=np.uint8)]\n\
+  masks = [mask, np.random.randint(0, 2, (512, 512), dtype=np.uint8)]\n\nresult_batch\
+  \ = processor(images, segmentation_maps=masks)\nprint(f'  Number of images: {len(result_batch[\\\
+  \"pixel_values\\\"])}')\nprint(f'  Number of labels: {len(result_batch[\\\"labels\\\
+  \"])}')\nfor i, label in enumerate(result_batch['labels']):\n    print(f'  Label\
+  \ {i} shape: {np.array(label).shape}')\n\n# Test 6: Mask values are preserved\n\
+  print()\nprint('Test 6: Mask values are preserved')\nmask_with_values = np.zeros((768,\
+  \ 1024), dtype=np.uint8)\nmask_with_values[100:300, 200:400] = 1\nmask_with_values[400:600,\
+  \ 500:700] = 2\n\nresult_values = processor(image, segmentation_maps=mask_with_values)\n\
+  output_mask = np.array(result_values['labels'])[0]\nprint(f'  Input mask unique\
+  \ values: {np.unique(mask_with_values)}')\nprint(f'  Output mask unique values:\
+  \ {np.unique(output_mask)}')\n\n# Test 7: No mask when not provided\nprint()\nprint('Test\
+  \ 7: No mask when not provided')\nresult_no_mask = processor(image)\nprint(f'  \\\
+  \"labels\\\" in result: {\\\"labels\\\" in result_no_mask}')\n\n# Test 8: Return\
+  \ tensors\nprint()\nprint('Test 8: Return tensors')\nimport torch\nresult_pt = processor(image,\
+  \ segmentation_maps=mask, return_tensors='pt')\nprint(f'  pixel_values type: {type(result_pt[\\\
+  \"pixel_values\\\"])}')\nprint(f'  labels type: {type(result_pt[\\\"labels\\\"])}')\n\
+  print(f'  labels shape: {result_pt[\\\"labels\\\"].shape}')\n\nprint()\nprint('===\
+  \ All tests passed! ===')\n\"\n"
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+=== Comprehensive Test for SAM Image Processor Mask Preprocessing ===
+
+Test 1: Basic functionality
+  Default mask_size: {'longest_edge': 256}
+  Default mask_pad_size: {'height': 256, 'width': 256}
+
+Test 2: Processing images with masks
+  Input image shape: (768, 1024, 3)
+  Input mask shape: (768, 1024)
+  Output pixel_values shape: (1, 3, 1024, 1024)
+  Output labels shape: (1, 256, 256)
+
+Test 3: Processing with PIL images
+  Output pixel_values shape: (1, 3, 1024, 1024)
+  Output labels shape: (1, 2...
+```
+========================================================================================================================
+AGENT:
+All tests pass. Let me also run the existing tests one more time to make sure everything is working:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python -m pytest tests/models/sam/test_processor_sam.py
+  -v --tb=short 2>&1 | head -50
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+============================= test session starts ==============================
+platform linux -- Python 3.11.12, pytest-7.4.0, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python
+cachedir: .pytest_cache
+rootdir: /workspace
+configfile: pyproject.toml
+collecting ... collected 8 items
+
+tests/models/sam/test_processor_sam.py::SamProcessorTest::test_image_processor PASSED [ 12%]
+tests/models/sam/test_processor_sam.py::SamProcessorTest::test_post_process_masks PASSED [ 25%]
+tests/models/sam/tes...
+```
+========================================================================================================================
+AGENT:
+All existing tests pass. Let me now summarize the changes I made:
+========================================================================================================================
+AGENT:
+Successfully implemented mask preprocessing functionality for the SAM image processor. The changes include:
+
+1. **Added new parameters to `__init__`**:
+   - `mask_size` (default: `{"longest_edge": 256}`) - Controls the size of the segmentation map after resizing
+   - `mask_pad_size` (default: `{"height": 256, "width": 256}`) - Controls the size of the segmentation map after padding
+
+2. **Added new methods**:
+   - `_preprocess()` - A helper method that handles resize, rescale, normalize, and pad operations
+   - `_preprocess_image()` - Preprocesses a single image (refactored from existing code)
+   - `_preprocess_mask()` - Preprocesses a single segmentation mask with resize and padding using NEAREST interpolation
+
+3. **Modified `preprocess()` method**:
+   - Added `segmentation_maps` parameter to accept masks
+   - Added `mask_size` and `mask_pad_size` parameters
+   - Added mask preprocessing logic that resizes masks to 256x256 (matching SAM's output mask size)
+   - Returns preprocessed masks in the `labels` key of the output
+
+4. **Overrode `__call__()` method**:
+   - Allows passing `segmentation_maps` as a positional argument
+
+The implementation follows the same pattern as the Segformer image processor, making it easy for users to preprocess both images and masks for fine-tuning SAM. The masks are:
+- Resized to have the longest edge of 256 (maintaining aspect ratio)
+- Padded to 256x256 (matching SAM's output mask size)
+- Converted to int64 dtype
+- Returned in the `labels` key of the output
+
+This resolves the issue described in the problem statement where users had to manually resize and pad their masks to match SAM's 256x256 output mask size.

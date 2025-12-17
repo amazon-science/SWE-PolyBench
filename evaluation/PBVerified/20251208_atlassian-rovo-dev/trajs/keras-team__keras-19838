@@ -1,0 +1,936 @@
+########################################################################################################################
+PHASE 1
+########################################################################################################################
+========================================================================================================================
+AGENT:
+I will start by viewing the workspace to understand its structure and contents. This will help me identify key files and locations that may be relevant to the task.
+========================================================================================================================
+USER PROMPT:
+Resolve the following problem statement:
+
+<problem_statement>
+sparse_categorical_crossentropy with ignore_class fails for 4D inputs
+Using `ignore_class` with `keras.losses.sparse_categorical_crossentropy` and 4D inputs (Batch x Height x Width x Class) fails with a ValueError indicating wrong shapes.
+
+Minimal example to reproduce:
+```
+import numpy as np
+import tensorflow as tf
+
+y_true = np.zeros((1, 224, 224, 1))
+y_true[0, 0, 0, 0] = 255
+y_pred = np.ones((1, 224, 224, 21))
+tf.keras.losses.sparse_categorical_crossentropy(y_true, y_pred, ignore_class=255)
+```
+--> "ValueError: Arguments `target` and `output` must have the same shape up until the last dimension: target.shape=(1, 224, 224, 1), output.shape=(1, 224, 224, 224, 21)"
+
+This expand_dims seems to be the culprit:
+https://github.com/keras-team/keras/blob/2305fada8889e86463493bb4893b13ee8a8f0573/keras/src/losses/losses.py#L1719
+
+</problem_statement>
+
+Do not stop until you have made code changes that resolve the problem statement. Do not ask for clarifications.
+
+NEVER attempt to find the solution to the problem statement by searching future commits or branches in the repository.
+========================================================================================================================
+AGENT:
+Starting to analyze the problem statement. The issue is with `sparse_categorical_crossentropy` when using `ignore_class` with 4D inputs. I need to examine the losses.py file to understand the issue and fix it.
+========================================================================================================================
+AGENT:
+STEP 1: EXPLORE THE CODEBASE
+
+<thinking>
+The problem statement indicates that:
+1. `sparse_categorical_crossentropy` with `ignore_class` fails for 4D inputs
+2. The issue is with an `expand_dims` call at line 1719 in `keras/src/losses/losses.py`
+3. The error message shows that the target and output shapes don't match after some transformation
+
+Let me first open the losses.py file and examine the relevant code around line 1719 to understand the issue.
+</thinking>
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- keras/src/losses/losses.py
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened keras/src/losses/losses.py:\n\n````python\n   0 import warnings\n   1 \n   2 from keras.src import backend\n...\n  11 class LossFunctionWrapper(Loss):\n  12     def __init__(\n...\n  19     def call(self, y_true, y_pred):\n...\n  23     def get_config(self):\n...\n  29     @classmethod\n  30     def from_config(cls, config):\n...\n  36 @keras_export("keras.losses.MeanSquaredError")\n  37 class MeanSquaredError(LossFunctionWrapper):\n...\n  53     def __init__(\n...\n  58   ...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+I can see the file is collapsed. I need to expand the `sparse_categorical_crossentropy` function to see the code around line 1719 where the issue is. Let me expand that function.
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: keras/src/losses/losses.py
+patterns:
+- sparse_categorical_crossentropy
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in keras/src/losses/losses.py:
+
+````python
+   0 import warnings
+   1 
+   2 from keras.src import backend
+...
+  11 class LossFunctionWrapper(Loss):
+  12     def __init__(
+...
+  19     def call(self, y_true, y_pred):
+...
+  23     def get_config(self):
+...
+  29     @classmethod
+  30     def from_config(cls, config):
+...
+  36 @keras_export("keras.losses.MeanSquaredError")
+  37 class MeanSquaredError(LossFunctionWrapper):
+...
+  53     def __init__(
+...
+  58     def g...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Now I can see the `sparse_categorical_crossentropy` function. The issue is clear now. Let me analyze the problem:
+
+1. The input shapes are:
+   - `y_true`: (1, 224, 224, 1) - 4D tensor with shape (Batch, Height, Width, 1)
+   - `y_pred`: (1, 224, 224, 21) - 4D tensor with shape (Batch, Height, Width, Classes)
+
+2. At line 1715, `valid_mask` is computed as:
+   ```python
+   valid_mask = ops.not_equal(y_true, ops.cast(ignore_class, y_pred.dtype))
+   ```
+   This creates a mask with the same shape as `y_true`, which is (1, 224, 224, 1).
+
+3. At line 1717-1719, the code does:
+   ```python
+   y_pred = y_pred * ops.cast(
+       ops.expand_dims(valid_mask, -1), y_pred.dtype
+   )
+   ```
+   
+   The problem is that `valid_mask` has shape (1, 224, 224, 1), and then `expand_dims(valid_mask, -1)` adds another dimension, making it (1, 224, 224, 1, 1). 
+   
+   When this is multiplied with `y_pred` which has shape (1, 224, 224, 21), broadcasting happens and the result becomes (1, 224, 224, 224, 21) - which is wrong!
+
+4. The issue is that when `y_true` has a trailing dimension of 1 (like in segmentation tasks where labels are (B, H, W, 1)), the `expand_dims` is unnecessary and causes the shape mismatch.
+
+The fix should be to check if `y_true` already has the right shape for broadcasting with `y_pred` before doing `expand_dims`. Specifically:
+- If `y_true.shape[:-1] == y_pred.shape[:-1]` (i.e., y_true has a trailing dimension), we should squeeze that dimension before creating the mask
+- Or, we should only expand dims if the mask doesn't already have the right shape for broadcasting
+
+Let me look at what the expected shapes should be:
+- `y_true` for sparse categorical crossentropy should have shape `(batch_size, ...)` where the values are class indices
+- `y_pred` should have shape `(batch_size, ..., num_classes)`
+
+So for the example:
+- `y_true` should be (1, 224, 224) - class indices for each pixel
+- `y_pred` is (1, 224, 224, 21) - probabilities for each class at each pixel
+
+But the user is passing `y_true` with shape (1, 224, 224, 1), which has an extra trailing dimension. This is a common pattern in segmentation where labels are stored as (B, H, W, 1).
+
+The fix should handle this case by:
+1. Squeezing the last dimension of `y_true` if it has a trailing dimension of 1 and `y_true.shape[:-1] == y_pred.shape[:-1]`
+2. Or, more simply, not doing `expand_dims` if the mask already has the right shape
+
+Looking at the code more carefully:
+- `valid_mask` has shape (1, 224, 224, 1) - same as y_true
+- `y_pred` has shape (1, 224, 224, 21)
+- For the multiplication to work correctly, `valid_mask` should be broadcastable to (1, 224, 224, 21)
+- Currently, (1, 224, 224, 1) is already broadcastable to (1, 224, 224, 21)!
+- But the code does `expand_dims(valid_mask, -1)` which makes it (1, 224, 224, 1, 1), which is NOT broadcastable correctly
+
+The fix should be to check if `valid_mask` already has the right number of dimensions to broadcast with `y_pred`. If `valid_mask.ndim == y_pred.ndim`, we don't need to expand dims.
+
+Actually, let me think about this more carefully:
+- For the standard case where `y_true` has shape (batch_size, ...) and `y_pred` has shape (batch_size, ..., num_classes):
+  - `valid_mask` would have shape (batch_size, ...)
+  - `y_pred` has shape (batch_size, ..., num_classes)
+  - We need to expand `valid_mask` to (batch_size, ..., 1) to broadcast correctly with `y_pred`
+  
+- For the case where `y_true` has shape (batch_size, ..., 1) and `y_pred` has shape (batch_size, ..., num_classes):
+  - `valid_mask` would have shape (batch_size, ..., 1)
+  - `y_pred` has shape (batch_size, ..., num_classes)
+  - `valid_mask` is already broadcastable with `y_pred`, no need to expand
+
+So the fix is to only do `expand_dims` if `valid_mask.ndim < y_pred.ndim`.
+
+Let me also check the `ops.sparse_categorical_crossentropy` function to see if it handles the trailing dimension of 1 in `y_true`.
+</thinking>
+
+Let me also check the `ops.sparse_categorical_crossentropy` function to understand how it handles the input shapes:
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: def sparse_categorical_crossentropy
+path_glob: '**/ops/*.py'
+
+========================================================================================================================
+TOOL RETURN (grep)
+```
+keras/src/ops/nn.py:1523:def sparse_categorical_crossentropy(target, output, from_logits=False, axis=-1):...
+```
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: keras/src/ops/nn.py
+patterns:
+- def sparse_categorical_crossentropy
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in keras/src/ops/nn.py:
+
+````python
+   0 """Commonly-used neural network operations not included in NumPy."""
+   1 
+   2 import warnings
+   3 
+   4 from keras.src import backend
+...
+   9 from keras.src.backend.common.backend_utils import (
+...
+  12 from keras.src.ops import operation_utils
+...
+  17 class Relu(Operation):
+  18     def call(self, x):
+...
+  21     def compute_output_spec(self, x):
+...
+  25 @keras_export(["keras.ops.relu", "keras.ops.nn.relu"])
+  26...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Now I understand the issue better. Let me also check the `compute_output_spec` method of `SparseCategoricalCrossentropy` to see how it handles the shapes:
+
+Looking at line 1497, the `compute_output_spec` method is collapsed. Let me expand it to see the full implementation.
+
+But first, let me understand the issue more clearly:
+
+1. The `sparse_categorical_crossentropy` function in `losses.py` (lines 1682-1737) has an `ignore_class` parameter.
+2. When `ignore_class` is not None, it creates a `valid_mask` from `y_true` (line 1715).
+3. The problem is at line 1717-1719 where it does `ops.expand_dims(valid_mask, -1)`.
+
+The issue is:
+- `y_true` has shape (1, 224, 224, 1)
+- `valid_mask` has shape (1, 224, 224, 1) (same as y_true)
+- `y_pred` has shape (1, 224, 224, 21)
+- `expand_dims(valid_mask, -1)` makes it (1, 224, 224, 1, 1)
+- When multiplied with `y_pred` (1, 224, 224, 21), broadcasting creates (1, 224, 224, 224, 21) which is wrong!
+
+The fix should be to only expand dims if `valid_mask` has fewer dimensions than `y_pred`. If they have the same number of dimensions, we don't need to expand.
+
+Let me also check if there's a squeeze operation needed for `y_true` when it has a trailing dimension of 1. Looking at the `ops.sparse_categorical_crossentropy` function, it expects `target` to have shape matching `output` except for the last dimension. So if `y_true` is (1, 224, 224, 1) and `y_pred` is (1, 224, 224, 21), the function should handle this.
+
+Let me check the backend implementation to see if it handles this case.
+</thinking>
+
+Let me check the backend implementation of sparse_categorical_crossentropy to understand how it handles the shapes:
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: def sparse_categorical_crossentropy
+path_glob: '**/backend/**/*.py'
+
+========================================================================================================================
+TOOL RETURN (grep)
+```
+keras/src/backend/jax/nn.py:487:def sparse_categorical_crossentropy(target, output, from_logits=False, axis=-1):
+keras/src/backend/torch/nn.py:623:def sparse_categorical_crossentropy(target, output, from_logits=False, axis=-1):
+keras/src/backend/numpy/nn.py:509:def sparse_categorical_crossentropy(target, output, from_logits=False, axis=-1):
+keras/src/backend/tensorflow/nn.py:588:def sparse_categorical_crossentropy(target, output, from_logits=False, axis=-1):...
+```
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: keras/src/backend/tensorflow/nn.py
+patterns:
+- def sparse_categorical_crossentropy
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in keras/src/backend/tensorflow/nn.py:
+
+````python
+   0 import math
+...
+   5 from keras.src import backend
+   6 from keras.src.backend.common.backend_utils import (
+...
+   9 from keras.src.backend.tensorflow.core import cast
+...
+  13 def relu(x):
+...
+  17 def relu6(x):
+...
+  21 def sigmoid(x):
+...
+  28 def tanh(x):
+...
+  32 def softplus(x):
+...
+  36 def softsign(x):
+...
+  40 def silu(x):
+...
+  44 def log_sigmoid(x):
+...
+  48 def leaky_relu(x, negative_slope=0.2)...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Now I can see the issue more clearly. Looking at the TensorFlow backend implementation of `sparse_categorical_crossentropy` (lines 615-616):
+
+```python
+if len(target.shape) == len(output.shape) and target.shape[-1] == 1:
+    target = tf.squeeze(target, axis=-1)
+```
+
+The backend already handles the case where `target` has a trailing dimension of 1 by squeezing it. However, the issue is in the `losses.py` file where the `ignore_class` logic is applied BEFORE calling `ops.sparse_categorical_crossentropy`.
+
+The problem is:
+1. `y_true` has shape (1, 224, 224, 1)
+2. `valid_mask = ops.not_equal(y_true, ...)` creates a mask with shape (1, 224, 224, 1)
+3. `ops.expand_dims(valid_mask, -1)` creates a mask with shape (1, 224, 224, 1, 1)
+4. When multiplied with `y_pred` (1, 224, 224, 21), broadcasting creates (1, 224, 224, 224, 21)
+
+The fix should be to NOT expand dims when `valid_mask` already has the same number of dimensions as `y_pred`. The expand_dims is only needed when `valid_mask` has one fewer dimension than `y_pred`.
+
+Let me now create a fix for this issue. The fix should be:
+
+```python
+if len(valid_mask.shape) < len(y_pred.shape):
+    y_pred = y_pred * ops.cast(
+        ops.expand_dims(valid_mask, -1), y_pred.dtype
+    )
+else:
+    y_pred = y_pred * ops.cast(valid_mask, y_pred.dtype)
+```
+
+Or more simply, we can check if the mask needs to be expanded:
+
+```python
+mask_for_pred = valid_mask
+if len(valid_mask.shape) < len(y_pred.shape):
+    mask_for_pred = ops.expand_dims(valid_mask, -1)
+y_pred = y_pred * ops.cast(mask_for_pred, y_pred.dtype)
+```
+
+Let me implement this fix.
+</thinking>
+
+STEP 2: IMPLEMENT THE FIX
+
+Now I understand the issue. The problem is that when `y_true` has a trailing dimension of 1 (like in segmentation tasks), the `valid_mask` already has the same number of dimensions as `y_pred`, so `expand_dims` is not needed and causes the shape mismatch.
+
+Let me implement the fix:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: keras/src/losses/losses.py
+find: "    if ignore_class is not None:\n        res_shape = ops.shape(y_pred)[:-1]\n\
+  \        valid_mask = ops.not_equal(y_true, ops.cast(ignore_class, y_pred.dtype))\n\
+  \        y_true = y_true * ops.cast(valid_mask, y_true.dtype)\n        y_pred =\
+  \ y_pred * ops.cast(\n            ops.expand_dims(valid_mask, -1), y_pred.dtype\n\
+  \        )"
+replace: "    if ignore_class is not None:\n        res_shape = ops.shape(y_pred)[:-1]\n\
+  \        valid_mask = ops.not_equal(y_true, ops.cast(ignore_class, y_pred.dtype))\n\
+  \        y_true = y_true * ops.cast(valid_mask, y_true.dtype)\n        # Only expand\
+  \ dims if valid_mask has fewer dimensions than y_pred\n        # This handles the\
+  \ case where y_true has a trailing dimension of 1\n        # (e.g., segmentation\
+  \ masks with shape (B, H, W, 1))\n        if len(valid_mask.shape) < len(y_pred.shape):\n\
+  \            valid_mask = ops.expand_dims(valid_mask, -1)\n        y_pred = y_pred\
+  \ * ops.cast(valid_mask, y_pred.dtype)"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in keras/src/losses/losses.py:
+
+--- keras/src/losses/losses.py
++++ keras/src/losses/losses.py
+@@ -1715,9 +1715,12 @@
+         res_shape = ops.shape(y_pred)[:-1]
+         valid_mask = ops.not_equal(y_true, ops.cast(ignore_class, y_pred.dtype))
+         y_true = y_true * ops.cast(valid_mask, y_true.dtype)
+-        y_pred = y_pred * ops.cast(
+-            ops.expand_dims(valid_mask, -1), y_pred.dtype
+-        )
++        # Only expand dims if valid_mask has fewer dimension...
+```
+========================================================================================================================
+AGENT:
+STEP 3: VERIFY THE FIX
+
+<thinking>
+Now let me verify the fix by creating a test script that reproduces the issue from the problem statement and confirms that it's fixed.
+</thinking>
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && pip install -e . -q 2>&1 | tail -5
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python3 -c \"\nimport numpy as np\nimport os\nos.environ['KERAS_BACKEND']\
+  \ = 'tensorflow'\n\nimport keras\n\n# Test case from the problem statement\ny_true\
+  \ = np.zeros((1, 224, 224, 1))\ny_true[0, 0, 0, 0] = 255\ny_pred = np.ones((1, 224,\
+  \ 224, 21))\n\nprint('Testing sparse_categorical_crossentropy with ignore_class\
+  \ and 4D inputs...')\nprint(f'y_true shape: {y_true.shape}')\nprint(f'y_pred shape:\
+  \ {y_pred.shape}')\n\ntry:\n    result = keras.losses.sparse_categorical_crossentropy(y_true,\
+  \ y_pred, ignore_class=255)\n    print(f'Result shape: {result.shape}')\n    print('SUCCESS:\
+  \ No error occurred!')\nexcept Exception as e:\n    print(f'ERROR: {e}')\n\"\n"
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Traceback (most recent call last):
+  File "<string>", line 6, in <module>
+  File "/workspace/keras/__init__.py", line 10, in <module>
+    from keras.api import *  # noqa: F403
+    ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/keras/api/__init__.py", line 7, in <module>
+    from keras.api import _tf_keras
+  File "/workspace/keras/api/_tf_keras/__init__.py", line 1, in <module>
+    from keras.api._tf_keras import keras
+  File "/workspace/keras/api/_tf_keras/keras/__init__.py", line 7, in <module>
+   ...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: pip install tensorflow -q 2>&1 | tail -3
+timeout: 180
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python3 -c \"\nimport numpy as np\nimport os\nos.environ['KERAS_BACKEND']\
+  \ = 'tensorflow'\n\nimport keras\n\n# Test case from the problem statement\ny_true\
+  \ = np.zeros((1, 224, 224, 1))\ny_true[0, 0, 0, 0] = 255\ny_pred = np.ones((1, 224,\
+  \ 224, 21))\n\nprint('Testing sparse_categorical_crossentropy with ignore_class\
+  \ and 4D inputs...')\nprint(f'y_true shape: {y_true.shape}')\nprint(f'y_pred shape:\
+  \ {y_pred.shape}')\n\ntry:\n    result = keras.losses.sparse_categorical_crossentropy(y_true,\
+  \ y_pred, ignore_class=255)\n    print(f'Result shape: {result.shape}')\n    print('SUCCESS:\
+  \ No error occurred!')\nexcept Exception as e:\n    print(f'ERROR: {e}')\n\"\n"
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Testing sparse_categorical_crossentropy with ignore_class and 4D inputs...
+y_true shape: (1, 224, 224, 1)
+y_pred shape: (1, 224, 224, 21)
+Result shape: (1, 224, 224)
+SUCCESS: No error occurred!...
+```
+========================================================================================================================
+AGENT:
+The fix works for the 4D input case. Now let me also verify that the fix doesn't break the standard case where `y_true` doesn't have a trailing dimension:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python3 -c \"\nimport numpy as np\nimport os\nos.environ['KERAS_BACKEND']\
+  \ = 'tensorflow'\n\nimport keras\n\n# Test case 1: Standard case without trailing\
+  \ dimension (3D inputs)\nprint('Test 1: Standard case without trailing dimension\
+  \ (3D inputs)')\ny_true = np.zeros((1, 224, 224))\ny_true[0, 0, 0] = 255\ny_pred\
+  \ = np.ones((1, 224, 224, 21))\n\nprint(f'y_true shape: {y_true.shape}')\nprint(f'y_pred\
+  \ shape: {y_pred.shape}')\n\ntry:\n    result = keras.losses.sparse_categorical_crossentropy(y_true,\
+  \ y_pred, ignore_class=255)\n    print(f'Result shape: {result.shape}')\n    print('SUCCESS:\
+  \ No error occurred!')\nexcept Exception as e:\n    print(f'ERROR: {e}')\n\nprint()\n\
+  \n# Test case 2: 4D inputs with trailing dimension of 1 (from problem statement)\n\
+  print('Test 2: 4D inputs with trailing dimension of 1')\ny_true = np.zeros((1, 224,\
+  \ 224, 1))\ny_true[0, 0, 0, 0] = 255\ny_pred = np.ones((1, 224, 224, 21))\n\nprint(f'y_true\
+  \ shape: {y_true.shape}')\nprint(f'y_pred shape: {y_pred.shape}')\n\ntry:\n    result\
+  \ = keras.losses.sparse_categorical_crossentropy(y_true, y_pred, ignore_class=255)\n\
+  \    print(f'Result shape: {result.shape}')\n    print('SUCCESS: No error occurred!')\n\
+  except Exception as e:\n    print(f'ERROR: {e}')\n\nprint()\n\n# Test case 3: Simple\
+  \ 2D case\nprint('Test 3: Simple 2D case')\ny_true = np.array([1, 2, 255])\ny_pred\
+  \ = np.array([[0.05, 0.95, 0], [0.1, 0.8, 0.1], [0.1, 0.1, 0.8]])\n\nprint(f'y_true\
+  \ shape: {y_true.shape}')\nprint(f'y_pred shape: {y_pred.shape}')\n\ntry:\n    result\
+  \ = keras.losses.sparse_categorical_crossentropy(y_true, y_pred, ignore_class=255)\n\
+  \    print(f'Result shape: {result.shape}')\n    print(f'Result values: {result}')\n\
+  \    print('SUCCESS: No error occurred!')\nexcept Exception as e:\n    print(f'ERROR:\
+  \ {e}')\n\nprint()\n\n# Test case 4: Without ignore_class (should still work)\n\
+  print('Test 4: Without ignore_class')\ny_true = np.array([1, 2])\ny_pred = np.array([[0.05,\
+  \ 0.95, 0], [0.1, 0.8, 0.1]])\n\nprint(f'y_true shape: {y_true.shape}')\nprint(f'y_pred\
+  \ shape: {y_pred.shape}')\n\ntry:\n    result = keras.losses.sparse_categorical_crossentropy(y_true,\
+  \ y_pred)\n    print(f'Result shape: {result.shape}')\n    print(f'Result values:\
+  \ {result}')\n    print('SUCCESS: No error occurred!')\nexcept Exception as e:\n\
+  \    print(f'ERROR: {e}')\n\"\n"
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Test 1: Standard case without trailing dimension (3D inputs)
+y_true shape: (1, 224, 224)
+y_pred shape: (1, 224, 224, 21)
+Result shape: (1, 224, 224)
+SUCCESS: No error occurred!
+
+Test 2: 4D inputs with trailing dimension of 1
+y_true shape: (1, 224, 224, 1)
+y_pred shape: (1, 224, 224, 21)
+Result shape: (1, 224, 224)
+SUCCESS: No error occurred!
+
+Test 3: Simple 2D case
+y_true shape: (3,)
+y_pred shape: (3, 3)
+Result shape: (3,)
+Result values: [0.05129339 2.30258509 0.        ]
+SUCCESS: No error occur...
+```
+========================================================================================================================
+AGENT:
+All test cases pass. Let me also run the existing tests for the losses module to make sure I haven't broken anything:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python3 -m pytest keras/src/losses/losses_test.py -v -k
+  "sparse_categorical" --timeout=120 2>&1 | head -100
+timeout: 180
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+/root/.pyenv/versions/3.11.12/bin/python3: No module named pytest...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: pip install pytest pytest-timeout -q 2>&1 | tail -3
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python3 -m pytest keras/src/losses/losses_test.py -v -k
+  "sparse_categorical" --timeout=120 2>&1 | head -100
+timeout: 180
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+============================= test session starts ==============================
+platform linux -- Python 3.11.12, pytest-9.0.2, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python3
+cachedir: .pytest_cache
+rootdir: /workspace
+configfile: pyproject.toml
+plugins: timeout-2.4.0
+timeout: 120.0s
+timeout method: signal
+timeout func_only: False
+collecting ... collected 124 items / 124 deselected / 0 selected
+
+=========================== 124 deselected in 0.07s ============================...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python3 -m pytest keras/src/losses/losses_test.py -v -k
+  "Sparse" --timeout=120 2>&1 | head -100
+timeout: 180
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+============================= test session starts ==============================
+platform linux -- Python 3.11.12, pytest-9.0.2, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python3
+cachedir: .pytest_cache
+rootdir: /workspace
+configfile: pyproject.toml
+plugins: timeout-2.4.0
+timeout: 120.0s
+timeout method: signal
+timeout func_only: False
+collecting ... collected 124 items / 117 deselected / 7 selected
+
+keras/src/losses/losses_test.py::SparseCategoricalCrossentropyTest::test_all_correct_unwe...
+```
+========================================================================================================================
+AGENT:
+All tests pass. Let me also check the test file to see if there's a test for the `ignore_class` feature with 4D inputs:
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: test_ignore_class
+path_glob: '**/losses_test.py'
+
+========================================================================================================================
+TOOL RETURN (grep)
+```
+keras/src/losses/losses_test.py:1175:    def test_ignore_class(self):...
+```
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: keras/src/losses/losses_test.py
+patterns:
+- test_ignore_class
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in keras/src/losses/losses_test.py:
+
+````python
+   0 import numpy as np
+...
+   3 from keras.src import backend
+...
+   8 class MeanSquaredErrorTest(testing.TestCase):
+   9     def test_config(self):
+...
+  12     def test_base_function_reduction(self):
+...
+  19     def test_all_correct_unweighted(self):
+...
+  25     def test_unweighted(self):
+...
+  32     def test_scalar_weighted(self):
+...
+  39     def test_sample_weighted(self):
+...
+  47     def test_timestep_we...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+I can see that the existing `test_ignore_class` test uses 2D inputs. Let me add a new test case for 4D inputs to ensure the fix is properly tested. But first, let me verify the fix is complete by reviewing the changes I made.
+</thinking>
+
+STEP 4: REVIEW THE CHANGES
+
+Let me review the changes I made to ensure they are correct:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: keras/src/losses/losses.py
+line_ranges:
+- - 1710
+  - 1745
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in keras/src/losses/losses.py:
+
+````python
+   0 import warnings
+   1 
+   2 from keras.src import backend
+...
+  11 class LossFunctionWrapper(Loss):
+  12     def __init__(
+...
+  19     def call(self, y_true, y_pred):
+...
+  23     def get_config(self):
+...
+  29     @classmethod
+  30     def from_config(cls, config):
+...
+  36 @keras_export("keras.losses.MeanSquaredError")
+  37 class MeanSquaredError(LossFunctionWrapper):
+...
+  53     def __init__(
+...
+  58     def g...
+```
+========================================================================================================================
+AGENT:
+The fix looks correct. Let me also run a more comprehensive test to verify the fix works correctly in different scenarios:
+========================================================================================================================
+TOOL CALL (bash)
+command: 'cd /workspace && python3 -c "
+
+  import numpy as np
+
+  import os
+
+  os.environ[''KERAS_BACKEND''] = ''tensorflow''
+
+
+  import keras
+
+
+  print(''='' * 60)
+
+  print(''Testing sparse_categorical_crossentropy with ignore_class'')
+
+  print(''='' * 60)
+
+
+  # Test case 1: Original problem from issue - 4D inputs with trailing dim of 1
+
+  print(''\nTest 1: 4D inputs with trailing dimension of 1 (from issue)'')
+
+  y_true = np.zeros((1, 224, 224, 1))
+
+  y_true[0, 0, 0, 0] = 255
+
+  y_pred = np.ones((1, 224, 224, 21))
+
+
+  print(f''  y_true shape: {y_true.shape}'')
+
+  print(f''  y_pred shape: {y_pred.shape}'')
+
+
+  result = keras.losses.sparse_categorical_crossentropy(y_true, y_pred, ignore_class=255)
+
+  print(f''  Result shape: {result.shape}'')
+
+  assert result.shape == (1, 224, 224), f''Expected (1, 224, 224), got {result.shape}''
+
+  print(''  PASSED!'')
+
+
+  # Test case 2: Standard 3D inputs (no trailing dimension)
+
+  print(''\nTest 2: Standard 3D inputs (no trailing dimension)'')
+
+  y_true = np.zeros((1, 224, 224))
+
+  y_true[0, 0, 0] = 255
+
+  y_pred = np.ones((1, 224, 224, 21))
+
+
+  print(f''  y_true shape: {y_true.shape}'')
+
+  print(f''  y_pred shape: {y_pred.shape}'')
+
+
+  result = keras.losses.sparse_categorical_crossentropy(y_true, y_pred, ignore_class=255)
+
+  print(f''  Result shape: {result.shape}'')
+
+  assert result.shape == (1, 224, 224), f''Expected (1, 224, 224), got {result.shape}''
+
+  print(''  PASSED!'')
+
+
+  # Test case 3: Simple 1D case
+
+  print(''\nTest 3: Simple 1D case'')
+
+  y_true = np.array([1, 2, 255])
+
+  y_pred = np.array([[0.05, 0.95, 0], [0.1, 0.8, 0.1], [0.1, 0.1, 0.8]])
+
+
+  print(f''  y_true shape: {y_true.shape}'')
+
+  print(f''  y_pred shape: {y_pred.shape}'')
+
+
+  result = keras.losses.sparse_categorical_crossentropy(y_true, y_pred, ignore_class=255)
+
+  print(f''  Result shape: {result.shape}'')
+
+  print(f''  Result values: {result.numpy()}'')
+
+  assert result.shape == (3,), f''Expected (3,), got {result.shape}''
+
+  # The last element should be 0 because it''s ignored
+
+  assert np.isclose(result.numpy()[2], 0.0), f''Expected 0.0 for ignored class, got
+  {result.numpy()[2]}''
+
+  print(''  PASSED!'')
+
+
+  # Test case 4: 2D case with trailing dimension
+
+  print(''\nTest 4: 2D case with trailing dimension'')
+
+  y_true = np.array([[1], [2], [255]])
+
+  y_pred = np.array([[0.05, 0.95, 0], [0.1, 0.8, 0.1], [0.1, 0.1, 0.8]])
+
+
+  print(f''  y_true shape: {y_true.shape}'')
+
+  print(f''  y_pred shape: {y_pred.shape}'')
+
+
+  result = keras.losses.sparse_categorical_crossentropy(y_true, y_pred, ignore_class=255)
+
+  print(f''  Result shape: {result.shape}'')
+
+  print(f''  Result values: {result.numpy()}'')
+
+  assert result.shape == (3,), f''Expected (3,), got {result.shape}''
+
+  # The last element should be 0 because it''s ignored
+
+  assert np.isclose(result.numpy()[2], 0.0), f''Expected 0.0 for ignored class, got
+  {result.numpy()[2]}''
+
+  print(''  PASSED!'')
+
+
+  # Test case 5: Using the class-based API
+
+  print(''\nTest 5: Using SparseCategoricalCrossentropy class with 4D inputs'')
+
+  y_true = np.zeros((2, 32, 32, 1))
+
+  y_true[0, 0, 0, 0] = 255
+
+  y_true[1, 0, 0, 0] = 255
+
+  y_pred = np.ones((2, 32, 32, 10))
+
+
+  print(f''  y_true shape: {y_true.shape}'')
+
+  print(f''  y_pred shape: {y_pred.shape}'')
+
+
+  loss_fn = keras.losses.SparseCategoricalCrossentropy(ignore_class=255, reduction=''none'')
+
+  result = loss_fn(y_true, y_pred)
+
+  print(f''  Result shape: {result.shape}'')
+
+  assert result.shape == (2, 32, 32), f''Expected (2, 32, 32), got {result.shape}''
+
+  print(''  PASSED!'')
+
+
+  print(''\n'' + ''='' * 60)
+
+  print(''All tests passed!'')
+
+  print(''='' * 60)
+
+  "
+
+  '
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+============================================================
+Testing sparse_categorical_crossentropy with ignore_class
+============================================================
+
+Test 1: 4D inputs with trailing dimension of 1 (from issue)
+  y_true shape: (1, 224, 224, 1)
+  y_pred shape: (1, 224, 224, 21)
+  Result shape: (1, 224, 224)
+  PASSED!
+
+Test 2: Standard 3D inputs (no trailing dimension)
+  y_true shape: (1, 224, 224)
+  y_pred shape: (1, 224, 224, 21)
+  Result shape: (1, 224, 224)
+  PASS...
+```
+========================================================================================================================
+AGENT:
+All tests pass. Let me also run the full test suite for the losses module to make sure I haven't broken anything:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python3 -m pytest keras/src/losses/losses_test.py -v --timeout=120
+  2>&1 | tail -30
+timeout: 180
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+keras/src/losses/losses_test.py::SparseCategoricalCrossentropyTest::test_no_reduction PASSED [ 78%]
+keras/src/losses/losses_test.py::SparseCategoricalCrossentropyTest::test_sample_weighted PASSED [ 79%]
+keras/src/losses/losses_test.py::SparseCategoricalCrossentropyTest::test_scalar_weighted PASSED [ 79%]
+keras/src/losses/losses_test.py::SparseCategoricalCrossentropyTest::test_unweighted PASSED [ 80%]
+keras/src/losses/losses_test.py::BinaryFocalCrossentropyTest::test_all_correct_unweighted PASSED...
+```
+========================================================================================================================
+AGENT:
+All 124 tests pass. Let me also verify the exact reproduction case from the problem statement works:
+========================================================================================================================
+TOOL CALL (bash)
+command: 'cd /workspace && python3 -c "
+
+  import numpy as np
+
+  import tensorflow as tf
+
+
+  # Exact reproduction from the problem statement
+
+  y_true = np.zeros((1, 224, 224, 1))
+
+  y_true[0, 0, 0, 0] = 255
+
+  y_pred = np.ones((1, 224, 224, 21))
+
+  result = tf.keras.losses.sparse_categorical_crossentropy(y_true, y_pred, ignore_class=255)
+
+  print(f''Result shape: {result.shape}'')
+
+  print(''SUCCESS: The issue is fixed!'')
+
+  "
+
+  '
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Result shape: (1, 224, 224)
+SUCCESS: The issue is fixed!...
+```
+========================================================================================================================
+AGENT:
+The fix works correctly. Let me now mark the task as complete.
+========================================================================================================================
+AGENT:
+Successfully fixed the issue with `sparse_categorical_crossentropy` failing for 4D inputs when using `ignore_class`.
+
+**Problem:**
+When using `ignore_class` with `keras.losses.sparse_categorical_crossentropy` and 4D inputs (e.g., segmentation masks with shape `(Batch, Height, Width, 1)`), the function failed with a `ValueError` indicating wrong shapes.
+
+**Root Cause:**
+The issue was in `keras/src/losses/losses.py` at line 1717-1719. The code unconditionally called `ops.expand_dims(valid_mask, -1)` to make the mask broadcastable with `y_pred`. However, when `y_true` already has a trailing dimension of 1 (like `(1, 224, 224, 1)`), the `valid_mask` already has the same number of dimensions as `y_pred`, so `expand_dims` was adding an extra dimension, causing a shape mismatch during broadcasting.
+
+**Fix:**
+Added a conditional check to only expand dimensions when `valid_mask` has fewer dimensions than `y_pred`:
+
+```python
+if len(valid_mask.shape) < len(y_pred.shape):
+    valid_mask = ops.expand_dims(valid_mask, -1)
+y_pred = y_pred * ops.cast(valid_mask, y_pred.dtype)
+```
+
+**Verification:**
+- The exact reproduction case from the problem statement now works correctly
+- All 124 existing tests in `losses_test.py` pass
+- Additional test cases for various input shapes (1D, 2D, 3D, 4D with and without trailing dimensions) all pass

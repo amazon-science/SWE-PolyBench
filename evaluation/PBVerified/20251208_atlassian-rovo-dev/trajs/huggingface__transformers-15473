@@ -1,0 +1,1074 @@
+########################################################################################################################
+PHASE 1
+########################################################################################################################
+========================================================================================================================
+AGENT:
+I will start by viewing the workspace to understand its structure and contents. This will help me identify key files and locations that may be relevant to the task.
+========================================================================================================================
+USER PROMPT:
+Resolve the following problem statement:
+
+<problem_statement>
+Preprocess/transform logits before caching them for computing metrics.
+# 🚀 Feature request
+
+I think it'd be nice to have a simple way to preprocess the logits before caching them for computing metrics.
+
+## Motivation
+
+When the `Trainer` `compute_metrics` are set, during evaluation the logits are accumulated (some in GPU memory, for `args.eval_accumulation_steps` steps; all in RAM). For some models, it will almost certainly lead to out of memory problems.
+
+For instance, for a language model, this means storing in RAM a tensor of size [eval ds size, sequence length, vocab size].
+
+In many cases, what is needed to compute metrics is just some reduction of the logits. For example: `logits.argmax(dim=-1)`.
+
+I know I can subclass `Trainer` for this and redefine `evaluation_loop`, just wanted to know if you'd consider a more generic solution that prevents everyone that needs the feature from duplicating the rest of the code of `evaluation_loop`. I've seen more people running into the same issue. For instance:
+
+https://github.com/huggingface/transformers/issues/8476
+https://discuss.huggingface.co/t/cuda-out-of-memory-when-using-trainer-with-compute-metrics/2941
+https://discuss.huggingface.co/t/cuda-out-of-memory-during-evaluation-but-training-is-fine/1783/4
+
+## Your contribution
+
+I was thinking about something like adding a `preprocess_logits_for_metrics` parameter to `TrainingArguments` of type Callable
+
+If you don't set the parameter, the default is None and everything would work as always. If you set it, the logits are passed to `args.preprocess_logits_for_metrics` and its output is what's cached.
+
+The main modification would be this in `Trainer.evaluation_loop`:
+
+```
+# Update containers on host
+...
+ if logits is not None:
+    logits = self._pad_across_processes(logits)
+    logits = self._nested_gather(logits)
+    if self.args.preprocess_logits_for_metrics is not None:
+        logits = self.args.preprocess_logits_for_metrics(logits)
+    preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
+```
+
+Do you think it's worth it? If you do, I can submit a PR.
+
+I tag @sgugger because I think he's worked quite a lot with the training loop, but I'm open to receive feedback from anyone.
+
+
+
+</problem_statement>
+
+Do not stop until you have made code changes that resolve the problem statement. Do not ask for clarifications.
+
+NEVER attempt to find the solution to the problem statement by searching future commits or branches in the repository.
+========================================================================================================================
+AGENT:
+Starting to analyze the problem statement. The request is to add a `preprocess_logits_for_metrics` parameter to the Trainer that allows preprocessing/transforming logits before caching them for computing metrics. This would help prevent out-of-memory issues when storing large logits tensors during evaluation.
+========================================================================================================================
+AGENT:
+STEP 1: EXPLORE WORKSPACE - Understand the Trainer class and evaluation loop
+
+<thinking>
+Based on the problem statement, I need to:
+1. Add a `preprocess_logits_for_metrics` parameter to the Trainer class
+2. Modify the `evaluation_loop` method to use this parameter to preprocess logits before caching them
+
+Let me first explore the Trainer class to understand its structure and find the relevant code sections.
+</thinking>
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- src/transformers/trainer.py
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened src/transformers/trainer.py:\n\n````python\n   0 # coding=utf-8\n...\n  18 import collections\n...\n  29 from collections.abc import Mapping\n...\n  37 from .integrations import (  # isort: split\n...\n  50 import numpy as np\n  51 import torch\n  52 from packaging import version\n...\n  65 from .file_utils import (\n...\n  76 from .modelcard import TrainingSummary\n...\n  81 from .trainer_callback import (\n...\n  90 from .trainer_pt_utils import (\n...\n 110 from .trainer...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+I can see the Trainer class structure. Now I need to:
+1. Look at the `__init__` method to understand how to add the `preprocess_logits_for_metrics` parameter
+2. Look at the `evaluation_loop` method to understand where to apply the preprocessing
+
+Let me expand these specific code chunks.
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/trainer.py
+patterns:
+- def __init__
+- def evaluation_loop
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/transformers/trainer.py:
+
+````python
+   0 # coding=utf-8
+...
+  18 import collections
+...
+  29 from collections.abc import Mapping
+...
+  37 from .integrations import (  # isort: split
+...
+  50 import numpy as np
+  51 import torch
+  52 from packaging import version
+...
+  65 from .file_utils import (
+...
+  76 from .modelcard import TrainingSummary
+...
+  81 from .trainer_callback import (
+...
+  90 from .trainer_pt_utils import (
+...
+ 110 from .trainer_utils i...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Now I understand the code structure. Looking at the problem statement and the code:
+
+1. The `Trainer.__init__` method takes a `compute_metrics` parameter (line 283)
+2. The `evaluation_loop` method (lines 2322-2492) is where logits are accumulated and stored
+
+According to the problem statement, the user wants to add a `preprocess_logits_for_metrics` parameter. Looking at the suggestion in the problem statement:
+- It should be a Callable that takes logits and returns preprocessed logits
+- It should be applied after gathering the logits but before caching them
+
+Looking at the code in `evaluation_loop` (lines 2414-2417):
+```python
+if logits is not None:
+    logits = self._pad_across_processes(logits)
+    logits = self._nested_gather(logits)
+    preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
+```
+
+The problem statement suggests adding the preprocessing after `_nested_gather` and before caching to `preds_host`.
+
+However, looking more carefully at the problem statement, it suggests adding this as a parameter to `TrainingArguments`. But I think it makes more sense to add it as a parameter to `Trainer.__init__` (similar to `compute_metrics`) because:
+1. It's a callable, which is better suited for `Trainer` parameters
+2. It's more consistent with how `compute_metrics` is handled
+
+Let me also check if there's a `prediction_loop` method that needs similar changes.
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/trainer.py
+patterns:
+- def prediction_loop
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/transformers/trainer.py:
+
+````python
+   0 # coding=utf-8
+...
+  18 import collections
+...
+  29 from collections.abc import Mapping
+...
+  37 from .integrations import (  # isort: split
+...
+  50 import numpy as np
+  51 import torch
+  52 from packaging import version
+...
+  65 from .file_utils import (
+...
+  76 from .modelcard import TrainingSummary
+...
+  81 from .trainer_callback import (
+...
+  90 from .trainer_pt_utils import (
+...
+ 110 from .trainer_utils i...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Now I have a complete understanding of the code. I can see there are two methods that need to be modified:
+1. `evaluation_loop` (lines 2322-2492) - the main evaluation loop
+2. `prediction_loop` (lines 2836-2962) - a legacy prediction loop
+
+Looking at the problem statement more carefully, the suggestion is to preprocess logits after gathering but before caching. Looking at the code:
+
+In `evaluation_loop` (lines 2414-2417):
+```python
+if logits is not None:
+    logits = self._pad_across_processes(logits)
+    logits = self._nested_gather(logits)
+    preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
+```
+
+The preprocessing should happen after `_nested_gather` and before caching to `preds_host`.
+
+In `prediction_loop` (lines 2916-2917):
+```python
+if logits is not None:
+    preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
+```
+
+Now, let me plan the changes:
+
+1. Add `preprocess_logits_for_metrics` parameter to `Trainer.__init__` (similar to `compute_metrics`)
+2. Store it as `self.preprocess_logits_for_metrics`
+3. In `evaluation_loop`, apply the preprocessing after gathering logits
+4. In `prediction_loop`, apply the preprocessing after getting logits
+
+Looking at the problem statement again, it mentions that the function should take logits and return preprocessed logits. But looking at the code more carefully, I notice that the function might also need access to labels for some use cases. Let me check if the problem statement mentions this...
+
+The problem statement says:
+> I was thinking about something like adding a `preprocess_logits_for_metrics` parameter to `TrainingArguments` of type Callable
+
+But I think it makes more sense to add it to `Trainer.__init__` since it's a callable. Let me also check if there's a docstring for the Trainer class to understand the expected format.
+
+Let me look at the Trainer class docstring.
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/trainer.py
+line_ranges:
+- - 196
+  - 275
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/transformers/trainer.py:
+
+````python
+   0 # coding=utf-8
+...
+  18 import collections
+...
+  29 from collections.abc import Mapping
+...
+  37 from .integrations import (  # isort: split
+...
+  50 import numpy as np
+  51 import torch
+  52 from packaging import version
+...
+  65 from .file_utils import (
+...
+  76 from .modelcard import TrainingSummary
+...
+  81 from .trainer_callback import (
+...
+  90 from .trainer_pt_utils import (
+...
+ 110 from .trainer_utils i...
+```
+========================================================================================================================
+AGENT:
+STEP 2: IMPLEMENT THE CHANGES
+
+<thinking>
+Now I have a complete understanding of the code. I need to make the following changes:
+
+1. **Add `preprocess_logits_for_metrics` parameter to `Trainer.__init__`**:
+   - Add it as an optional parameter after `compute_metrics`
+   - Store it as `self.preprocess_logits_for_metrics`
+   - Update the docstring to document this new parameter
+
+2. **Modify `evaluation_loop`** to apply the preprocessing:
+   - After gathering logits (line 2416), apply the preprocessing if it's set
+   - The preprocessing function should take logits and labels as arguments (labels might be useful for some preprocessing)
+
+3. **Modify `prediction_loop`** to apply the preprocessing:
+   - After getting logits (line 2916-2917), apply the preprocessing if it's set
+
+Looking at the problem statement more carefully, it mentions:
+> `logits = self.args.preprocess_logits_for_metrics(logits)`
+
+But I think it makes more sense to pass both logits and labels to the function, since some preprocessing might need labels. Let me check the signature suggested in the problem statement...
+
+The problem statement says:
+> I was thinking about something like adding a `preprocess_logits_for_metrics` parameter to `TrainingArguments` of type Callable
+
+But I'll add it to `Trainer.__init__` instead, which is more appropriate for a callable. The function signature should be:
+- `preprocess_logits_for_metrics(logits, labels)` - takes logits and labels, returns preprocessed logits
+
+This is more flexible and allows users to use labels if needed for preprocessing.
+
+Let me now implement the changes:
+
+1. First, I'll modify the `__init__` method to add the new parameter
+2. Then, I'll modify the `evaluation_loop` method to use the preprocessing
+3. Finally, I'll modify the `prediction_loop` method to use the preprocessing
+</thinking>
+========================================================================================================================
+AGENT:
+Now implementing the changes to add `preprocess_logits_for_metrics` parameter to Trainer. I will:
+1. Add the parameter to `Trainer.__init__`
+2. Update the docstring
+3. Modify `evaluation_loop` to apply preprocessing
+4. Modify `prediction_loop` to apply preprocessing
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/trainer.py
+find: "        compute_metrics (`Callable[[EvalPrediction], Dict]`, *optional*):\n\
+  \            The function that will be used to compute metrics at evaluation. Must\
+  \ take a [`EvalPrediction`] and return\n            a dictionary string to metric\
+  \ values.\n        callbacks (List of [`TrainerCallback`], *optional*):"
+replace: "        compute_metrics (`Callable[[EvalPrediction], Dict]`, *optional*):\n\
+  \            The function that will be used to compute metrics at evaluation. Must\
+  \ take a [`EvalPrediction`] and return\n            a dictionary string to metric\
+  \ values.\n        preprocess_logits_for_metrics (`Callable[[torch.Tensor, torch.Tensor],\
+  \ torch.Tensor]`, *optional*):\n            A function that preprocess the logits\
+  \ right before caching them at each evaluation step. Must take two\n           \
+  \ tensors, the logits and the labels, and return the logits once processed as desired.\
+  \ The modifications\n            made by this function will be reflected in the\
+  \ predictions received by `compute_metrics`.\n\n            Note that the labels\
+  \ (second parameter) will be `None` if the dataset does not have them.\n       \
+  \ callbacks (List of [`TrainerCallback`], *optional*):"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/trainer.py:
+
+--- src/transformers/trainer.py
++++ src/transformers/trainer.py
+@@ -243,6 +243,12 @@
+         compute_metrics (`Callable[[EvalPrediction], Dict]`, *optional*):
+             The function that will be used to compute metrics at evaluation. Must take a [`EvalPrediction`] and return
+             a dictionary string to metric values.
++        preprocess_logits_for_metrics (`Callable[[torch.Tensor, torch.Tensor], torch.Tensor]`, *optional*):
+...
+```
+========================================================================================================================
+AGENT:
+Now let me update the `__init__` method signature to add the new parameter:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/trainer.py
+find: "    def __init__(\n        self,\n        model: Union[PreTrainedModel, nn.Module]\
+  \ = None,\n        args: TrainingArguments = None,\n        data_collator: Optional[DataCollator]\
+  \ = None,\n        train_dataset: Optional[Dataset] = None,\n        eval_dataset:\
+  \ Optional[Dataset] = None,\n        tokenizer: Optional[PreTrainedTokenizerBase]\
+  \ = None,\n        model_init: Callable[[], PreTrainedModel] = None,\n        compute_metrics:\
+  \ Optional[Callable[[EvalPrediction], Dict]] = None,\n        callbacks: Optional[List[TrainerCallback]]\
+  \ = None,\n        optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR]\
+  \ = (None, None),\n    ):"
+replace: "    def __init__(\n        self,\n        model: Union[PreTrainedModel,\
+  \ nn.Module] = None,\n        args: TrainingArguments = None,\n        data_collator:\
+  \ Optional[DataCollator] = None,\n        train_dataset: Optional[Dataset] = None,\n\
+  \        eval_dataset: Optional[Dataset] = None,\n        tokenizer: Optional[PreTrainedTokenizerBase]\
+  \ = None,\n        model_init: Callable[[], PreTrainedModel] = None,\n        compute_metrics:\
+  \ Optional[Callable[[EvalPrediction], Dict]] = None,\n        preprocess_logits_for_metrics:\
+  \ Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = None,\n        callbacks:\
+  \ Optional[List[TrainerCallback]] = None,\n        optimizers: Tuple[torch.optim.Optimizer,\
+  \ torch.optim.lr_scheduler.LambdaLR] = (None, None),\n    ):"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/trainer.py:
+
+--- src/transformers/trainer.py
++++ src/transformers/trainer.py
+@@ -288,6 +288,7 @@
+         tokenizer: Optional[PreTrainedTokenizerBase] = None,
+         model_init: Callable[[], PreTrainedModel] = None,
+         compute_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
++        preprocess_logits_for_metrics: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = None,
+         callbacks: Optional[List[TrainerCallback]] = Non...
+```
+========================================================================================================================
+AGENT:
+Now let me add the assignment of `self.preprocess_logits_for_metrics` in the `__init__` method. I'll add it right after `self.compute_metrics = compute_metrics`:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/trainer.py
+find: "        self.compute_metrics = compute_metrics\n        self.optimizer, self.lr_scheduler\
+  \ = optimizers"
+replace: "        self.compute_metrics = compute_metrics\n        self.preprocess_logits_for_metrics\
+  \ = preprocess_logits_for_metrics\n        self.optimizer, self.lr_scheduler = optimizers"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/trainer.py:
+
+--- src/transformers/trainer.py
++++ src/transformers/trainer.py
+@@ -392,6 +392,7 @@
+         self.model = model
+ 
+         self.compute_metrics = compute_metrics
++        self.preprocess_logits_for_metrics = preprocess_logits_for_metrics
+         self.optimizer, self.lr_scheduler = optimizers
+         if model_init is not None and (self.optimizer is not None or self.lr_scheduler is not None):
+             raise RuntimeError(
+...
+```
+========================================================================================================================
+AGENT:
+Now let me modify the `evaluation_loop` method to apply the preprocessing. I need to add the preprocessing after gathering logits but before caching them to `preds_host`:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/trainer.py
+find: "            if logits is not None:\n                logits = self._pad_across_processes(logits)\n\
+  \                logits = self._nested_gather(logits)\n                preds_host\
+  \ = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)\n\
+  \            if labels is not None:"
+replace: "            if logits is not None:\n                logits = self._pad_across_processes(logits)\n\
+  \                logits = self._nested_gather(logits)\n                if self.preprocess_logits_for_metrics\
+  \ is not None:\n                    logits = self.preprocess_logits_for_metrics(logits,\
+  \ labels)\n                preds_host = logits if preds_host is None else nested_concat(preds_host,\
+  \ logits, padding_index=-100)\n            if labels is not None:"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/trainer.py:
+
+--- src/transformers/trainer.py
++++ src/transformers/trainer.py
+@@ -2423,6 +2423,8 @@
+             if logits is not None:
+                 logits = self._pad_across_processes(logits)
+                 logits = self._nested_gather(logits)
++                if self.preprocess_logits_for_metrics is not None:
++                    logits = self.preprocess_logits_for_metrics(logits, labels)
+                 preds_host = logits if preds_host is ...
+```
+========================================================================================================================
+AGENT:
+Now let me modify the `prediction_loop` method to apply the preprocessing as well. I need to find the corresponding code in `prediction_loop`:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/trainer.py
+find: "            if logits is not None:\n                preds_host = logits if\
+  \ preds_host is None else nested_concat(preds_host, logits, padding_index=-100)\n\
+  \            if labels is not None:\n                labels_host = labels if labels_host\
+  \ is None else nested_concat(labels_host, labels, padding_index=-100)\n        \
+  \    self.control = self.callback_handler.on_prediction_step(args, self.state, self.control)\n\
+  \n            # Gather all tensors and put them back on the CPU if we have done\
+  \ enough accumulation steps.\n            if args.eval_accumulation_steps is not\
+  \ None and (step + 1) % args.eval_accumulation_steps == 0:\n                eval_losses_gatherer.add_arrays(self._gather_and_numpify(losses_host,\
+  \ \"eval_losses\"))"
+replace: "            if logits is not None:\n                if self.preprocess_logits_for_metrics\
+  \ is not None:\n                    logits = self.preprocess_logits_for_metrics(logits,\
+  \ labels)\n                preds_host = logits if preds_host is None else nested_concat(preds_host,\
+  \ logits, padding_index=-100)\n            if labels is not None:\n            \
+  \    labels_host = labels if labels_host is None else nested_concat(labels_host,\
+  \ labels, padding_index=-100)\n            self.control = self.callback_handler.on_prediction_step(args,\
+  \ self.state, self.control)\n\n            # Gather all tensors and put them back\
+  \ on the CPU if we have done enough accumulation steps.\n            if args.eval_accumulation_steps\
+  \ is not None and (step + 1) % args.eval_accumulation_steps == 0:\n            \
+  \    eval_losses_gatherer.add_arrays(self._gather_and_numpify(losses_host, \"eval_losses\"\
+  ))"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/trainer.py:
+
+--- src/transformers/trainer.py
++++ src/transformers/trainer.py
+@@ -2925,6 +2925,8 @@
+                 losses = loss.repeat(batch_size)
+                 losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
+             if logits is not None:
++                if self.preprocess_logits_for_metrics is not None:
++                    logits = self.preprocess_logits_for_metrics(logits, labels)
+             ...
+```
+========================================================================================================================
+AGENT:
+STEP 3: REVIEW CHANGES
+
+<thinking>
+Now let me review the changes I made to ensure they are correct:
+
+1. Added documentation for `preprocess_logits_for_metrics` in the docstring
+2. Added `preprocess_logits_for_metrics` parameter to `__init__` method signature
+3. Added `self.preprocess_logits_for_metrics = preprocess_logits_for_metrics` in `__init__`
+4. Modified `evaluation_loop` to apply preprocessing after gathering logits
+5. Modified `prediction_loop` to apply preprocessing after getting logits
+
+Let me verify the changes by expanding the relevant code sections.
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/trainer.py
+line_ranges:
+- - 240
+  - 260
+- - 280
+  - 300
+- - 388
+  - 400
+- - 2418
+  - 2435
+- - 2920
+  - 2940
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/transformers/trainer.py:
+
+````python
+   0 # coding=utf-8
+...
+  18 import collections
+...
+  29 from collections.abc import Mapping
+...
+  37 from .integrations import (  # isort: split
+...
+  50 import numpy as np
+  51 import torch
+  52 from packaging import version
+...
+  65 from .file_utils import (
+...
+  76 from .modelcard import TrainingSummary
+...
+  81 from .trainer_callback import (
+...
+  90 from .trainer_pt_utils import (
+...
+ 110 from .trainer_utils i...
+```
+========================================================================================================================
+AGENT:
+The changes look correct. Let me verify by creating a simple test script to ensure the implementation works as expected.
+
+STEP 4: VERIFY CHANGES
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && pip install -e . -q 2>&1 | tail -5
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (create_file)
+file_path: test_preprocess_logits.py
+initial_content: "\"\"\"\nTest script to verify the preprocess_logits_for_metrics\
+  \ feature.\n\"\"\"\nimport torch\nfrom torch.utils.data import Dataset\nfrom transformers\
+  \ import Trainer, TrainingArguments\nfrom transformers.trainer_utils import EvalPrediction\n\
+  \n\nclass DummyDataset(Dataset):\n    \"\"\"A simple dummy dataset for testing.\"\
+  \"\"\n    def __init__(self, size=10):\n        self.size = size\n    \n    def\
+  \ __len__(self):\n        return self.size\n    \n    def __getitem__(self, idx):\n\
+  \        return {\n            \"input_ids\": torch.tensor([idx] * 10),\n      \
+  \      \"labels\": torch.tensor([idx % 2] * 10),\n        }\n\n\nclass DummyModel(torch.nn.Module):\n\
+  \    \"\"\"A simple dummy model for testing.\"\"\"\n    def __init__(self):\n  \
+  \      super().__init__()\n        self.linear = torch.nn.Linear(10, 5)  # 5 classes\n\
+  \    \n    def forward(self, input_ids, labels=None):\n        # Simple forward\
+  \ pass\n        x = input_ids.float()\n        logits = self.linear(x)\n       \
+  \ \n        loss = None\n        if labels is not None:\n            loss = torch.nn.functional.cross_entropy(logits.view(-1,\
+  \ 5), labels.view(-1))\n        \n        return {\"loss\": loss, \"logits\": logits}\n\
+  \n\ndef preprocess_logits_for_metrics(logits, labels):\n    \"\"\"\n    Preprocess\
+  \ logits by taking argmax to reduce memory usage.\n    This is a common use case\
+  \ for language models.\n    \"\"\"\n    print(f\"preprocess_logits_for_metrics called\
+  \ with logits shape: {logits.shape}\")\n    if labels is not None:\n        print(f\"\
+  \  labels shape: {labels.shape}\")\n    else:\n        print(\"  labels: None\"\
+  )\n    \n    # Return argmax predictions instead of full logits\n    return logits.argmax(dim=-1)\n\
+  \n\ndef compute_metrics(eval_pred: EvalPrediction):\n    \"\"\"Compute simple accuracy\
+  \ metric.\"\"\"\n    predictions = eval_pred.predictions\n    labels = eval_pred.label_ids\n\
+  \    \n    print(f\"compute_metrics called with predictions shape: {predictions.shape}\"\
+  )\n    print(f\"  labels shape: {labels.shape}\")\n    \n    # Predictions should\
+  \ already be argmax'd if preprocess_logits_for_metrics was used\n    accuracy =\
+  \ (predictions == labels).mean()\n    return {\"accuracy\": accuracy}\n\n\ndef test_preprocess_logits_for_metrics():\n\
+  \    \"\"\"Test that preprocess_logits_for_metrics is called during evaluation.\"\
+  \"\"\n    print(\"=\" * 60)\n    print(\"Testing preprocess_logits_for_metrics feature\"\
+  )\n    print(\"=\" * 60)\n    \n    # Create dummy model and dataset\n    model\
+  \ = DummyModel()\n    train_dataset = DummyDataset(size=10)\n    eval_dataset =\
+  \ DummyDataset(size=5)\n    \n    # Create training arguments\n    training_args\
+  \ = TrainingArguments(\n        output_dir=\"./test_output\",\n        do_train=False,\n\
+  \        do_eval=True,\n        per_device_eval_batch_size=2,\n        no_cuda=True,\n\
+  \        report_to=\"none\",\n    )\n    \n    # Create trainer with preprocess_logits_for_metrics\n\
+  \    trainer = Trainer(\n        model=model,\n        args=training_args,\n   \
+  \     train_dataset=train_dataset,\n        eval_dataset=eval_dataset,\n       \
+  \ compute_metrics=compute_metrics,\n        preprocess_logits_for_metrics=preprocess_logits_for_metrics,\n\
+  \    )\n    \n    # Verify that preprocess_logits_for_metrics is set\n    assert\
+  \ trainer.preprocess_logits_for_metrics is not None, \\\n        \"preprocess_logits_for_metrics\
+  \ should be set\"\n    \n    print(\"\\nRunning evaluation...\")\n    metrics =\
+  \ trainer.evaluate()\n    \n    print(\"\\nEvaluation metrics:\", metrics)\n   \
+  \ print(\"\\nTest passed!\")\n    \n    # Clean up\n    import shutil\n    shutil.rmtree(\"\
+  ./test_output\", ignore_errors=True)\n\n\ndef test_without_preprocess():\n    \"\
+  \"\"Test that evaluation works without preprocess_logits_for_metrics.\"\"\"\n  \
+  \  print(\"\\n\" + \"=\" * 60)\n    print(\"Testing without preprocess_logits_for_metrics\"\
+  )\n    print(\"=\" * 60)\n    \n    # Create dummy model and dataset\n    model\
+  \ = DummyModel()\n    eval_dataset = DummyDataset(size=5)\n    \n    # Create training\
+  \ arguments\n    training_args = TrainingArguments(\n        output_dir=\"./test_output2\"\
+  ,\n        do_train=False,\n        do_eval=True,\n        per_device_eval_batch_size=2,\n\
+  \        no_cuda=True,\n        report_to=\"none\",\n    )\n    \n    # Create trainer\
+  \ without preprocess_logits_for_metrics\n    trainer = Trainer(\n        model=model,\n\
+  \        args=training_args,\n        eval_dataset=eval_dataset,\n    )\n    \n\
+  \    # Verify that preprocess_logits_for_metrics is None\n    assert trainer.preprocess_logits_for_metrics\
+  \ is None, \\\n        \"preprocess_logits_for_metrics should be None by default\"\
+  \n    \n    print(\"\\nRunning evaluation...\")\n    metrics = trainer.evaluate()\n\
+  \    \n    print(\"\\nEvaluation metrics:\", metrics)\n    print(\"\\nTest passed!\"\
+  )\n    \n    # Clean up\n    import shutil\n    shutil.rmtree(\"./test_output2\"\
+  , ignore_errors=True)\n\n\nif __name__ == \"__main__\":\n    test_preprocess_logits_for_metrics()\n\
+  \    test_without_preprocess()\n    print(\"\\n\" + \"=\" * 60)\n    print(\"All\
+  \ tests passed!\")\n    print(\"=\" * 60)\n"
+
+========================================================================================================================
+TOOL RETURN (create_file)
+```
+Successfully created test_preprocess_logits.py....
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python test_preprocess_logits.py 2>&1
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Traceback (most recent call last):
+  File "/workspace/test_preprocess_logits.py", line 4, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: pip install torch --quiet 2>&1 | tail -5
+timeout: 180
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python test_preprocess_logits.py 2>&1
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+***** Running Evaluation *****
+  Num examples = 5
+  Batch size = 2
+/root/.pyenv/versions/3.11.12/lib/python3.11/site-packages/torch/utils/data/dataloader.py:668: UserWarning: 'pin_memory' argument is set as true but no accelerator is found, then device pinned memory won't be used.
+  warnings.warn(warn_msg)
+============================================================
+Testing preprocess_logits_for_metrics feature
+============================================================
+
+Running evaluation...
+T...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+The test script has an issue with the dummy model. Let me fix it to make the test work properly.
+</thinking>
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: test_preprocess_logits.py
+find: "class DummyModel(torch.nn.Module):\n    \"\"\"A simple dummy model for testing.\"\
+  \"\"\n    def __init__(self):\n        super().__init__()\n        self.linear =\
+  \ torch.nn.Linear(10, 5)  # 5 classes\n    \n    def forward(self, input_ids, labels=None):\n\
+  \        # Simple forward pass\n        x = input_ids.float()\n        logits =\
+  \ self.linear(x)\n        \n        loss = None\n        if labels is not None:\n\
+  \            loss = torch.nn.functional.cross_entropy(logits.view(-1, 5), labels.view(-1))\n\
+  \        \n        return {\"loss\": loss, \"logits\": logits}"
+replace: "class DummyModel(torch.nn.Module):\n    \"\"\"A simple dummy model for testing.\"\
+  \"\"\n    def __init__(self):\n        super().__init__()\n        self.embedding\
+  \ = torch.nn.Embedding(100, 16)\n        self.linear = torch.nn.Linear(16, 5)  #\
+  \ 5 classes\n    \n    def forward(self, input_ids, labels=None):\n        # Simple\
+  \ forward pass\n        x = self.embedding(input_ids)  # [batch, seq_len, 16]\n\
+  \        logits = self.linear(x)  # [batch, seq_len, 5]\n        \n        loss\
+  \ = None\n        if labels is not None:\n            # Flatten for cross entropy\n\
+  \            loss = torch.nn.functional.cross_entropy(\n                logits.view(-1,\
+  \ 5), \n                labels.view(-1)\n            )\n        \n        return\
+  \ {\"loss\": loss, \"logits\": logits}"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in test_preprocess_logits.py:
+
+--- test_preprocess_logits.py
++++ test_preprocess_logits.py
+@@ -26,16 +26,21 @@
+     """A simple dummy model for testing."""
+     def __init__(self):
+         super().__init__()
+-        self.linear = torch.nn.Linear(10, 5)  # 5 classes
++        self.embedding = torch.nn.Embedding(100, 16)
++        self.linear = torch.nn.Linear(16, 5)  # 5 classes
+     
+     def forward(self, input_ids, labels=None):
+         # Simple forward pass
+-      ...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python test_preprocess_logits.py 2>&1
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+***** Running Evaluation *****
+  Num examples = 5
+  Batch size = 2
+/root/.pyenv/versions/3.11.12/lib/python3.11/site-packages/torch/utils/data/dataloader.py:668: UserWarning: 'pin_memory' argument is set as true but no accelerator is found, then device pinned memory won't be used.
+  warnings.warn(warn_msg)
+============================================================
+Testing preprocess_logits_for_metrics feature
+============================================================
+
+Running evaluation...
+p...
+```
+========================================================================================================================
+AGENT:
+The test passes successfully. The output shows:
+
+1. `preprocess_logits_for_metrics` is called with the correct logits shape `[batch, seq_len, 5]` and labels shape `[batch, seq_len]`
+2. After preprocessing (argmax), the predictions received by `compute_metrics` have shape `(5, 10)` which is the reduced shape (no longer has the 5 classes dimension)
+3. The test without `preprocess_logits_for_metrics` also works correctly
+
+Let me clean up the test file and run the existing tests to make sure I haven't broken anything:
+========================================================================================================================
+TOOL CALL (bash)
+command: rm test_preprocess_logits.py
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+...
+```
+========================================================================================================================
+AGENT:
+Now let me check if there are any existing tests for the Trainer class that I should run to verify my changes don't break anything:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python -c "from transformers import Trainer; print('Import
+  successful')" 2>&1
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Import successful...
+```
+========================================================================================================================
+AGENT:
+Let me also check if there's a Seq2SeqTrainer that might need similar changes:
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- src/transformers/trainer_seq2seq.py
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened src/transformers/trainer_seq2seq.py:\n\n````python\n   0 # Copyright 2020 The HuggingFace Team. All rights reserved.\n...\n  14 from typing import Any, Dict, List, Optional, Tuple, Union\n  15 \n  16 import torch\n  17 from torch import nn\n...\n  26 logger = logging.get_logger(__name__)\n...\n  29 class Seq2SeqTrainer(Trainer):\n  30     def evaluate(\n...\n  71     def predict(\n...\n 120     def prediction_step(\n...\n 180         with torch.no_grad():\n 181             ...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+The `Seq2SeqTrainer` extends `Trainer` and overrides `evaluate`, `predict`, and `prediction_step` methods. Since it inherits from `Trainer`, it will automatically get the `preprocess_logits_for_metrics` parameter in `__init__`. However, I should check if the `Seq2SeqTrainer` has its own evaluation loop that might need to be modified.
+
+Let me expand the `Seq2SeqTrainer` class to see if it has its own evaluation loop.
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/trainer_seq2seq.py
+line_ranges:
+- - 0
+  - -1
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/transformers/trainer_seq2seq.py:
+
+````python
+   0 # Copyright 2020 The HuggingFace Team. All rights reserved.
+   1 #
+   2 # Licensed under the Apache License, Version 2.0 (the "License");
+   3 # you may not use this file except in compliance with the License.
+   4 # You may obtain a copy of the License at
+   5 #
+   6 #     http://www.apache.org/licenses/LICENSE-2.0
+   7 #
+   8 # Unless required by applicable law or agreed to in writing, software
+   9 # di...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+The `Seq2SeqTrainer` class:
+1. Inherits from `Trainer`, so it will automatically get the `preprocess_logits_for_metrics` parameter
+2. Overrides `evaluate` and `predict` but calls `super().evaluate()` and `super().predict()`, so the parent's evaluation loop will be used
+3. Overrides `prediction_step` but the preprocessing happens in `evaluation_loop`, not in `prediction_step`
+
+So the `Seq2SeqTrainer` should work correctly with the new feature without any additional changes.
+
+Now let me also check if there are any tests related to the Trainer that I should run to verify my changes:
+</thinking>
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && pip install datasets pytest --quiet 2>&1 | tail -3
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python -c \"\nfrom transformers import Trainer, TrainingArguments\n\
+  import inspect\n\n# Check that preprocess_logits_for_metrics is in the Trainer.__init__\
+  \ signature\nsig = inspect.signature(Trainer.__init__)\nparams = list(sig.parameters.keys())\n\
+  print('Trainer.__init__ parameters:')\nfor p in params:\n    print(f'  - {p}')\n\
+  \n# Check that preprocess_logits_for_metrics is a valid parameter\nassert 'preprocess_logits_for_metrics'\
+  \ in params, 'preprocess_logits_for_metrics not found in Trainer.__init__'\nprint()\n\
+  print('SUCCESS: preprocess_logits_for_metrics is in Trainer.__init__ signature')\n\
+  \""
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Trainer.__init__ parameters:
+  - self
+  - model
+  - args
+  - data_collator
+  - train_dataset
+  - eval_dataset
+  - tokenizer
+  - model_init
+  - compute_metrics
+  - preprocess_logits_for_metrics
+  - callbacks
+  - optimizers
+
+SUCCESS: preprocess_logits_for_metrics is in Trainer.__init__ signature...
+```
+========================================================================================================================
+AGENT:
+Let me also verify that the docstring is correctly updated by checking the help:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python -c \"\nfrom transformers import Trainer\nimport\
+  \ re\n\n# Get the docstring\ndoc = Trainer.__doc__\n\n# Check that preprocess_logits_for_metrics\
+  \ is documented\nif 'preprocess_logits_for_metrics' in doc:\n    print('SUCCESS:\
+  \ preprocess_logits_for_metrics is documented in Trainer docstring')\n    # Extract\
+  \ the relevant part\n    lines = doc.split('\\n')\n    in_section = False\n    for\
+  \ i, line in enumerate(lines):\n        if 'preprocess_logits_for_metrics' in line:\n\
+  \            in_section = True\n        if in_section:\n            print(line)\n\
+  \            if line.strip() and not line.strip().startswith('preprocess') and not\
+  \ line.strip().startswith('A function') and not line.strip().startswith('tensors')\
+  \ and not line.strip().startswith('made by') and not line.strip().startswith('Note'):\n\
+  \                if 'callbacks' in line.lower():\n                    break\nelse:\n\
+  \    print('FAILED: preprocess_logits_for_metrics is NOT documented in Trainer docstring')\n\
+  \""
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+SUCCESS: preprocess_logits_for_metrics is documented in Trainer docstring
+        preprocess_logits_for_metrics (`Callable[[torch.Tensor, torch.Tensor], torch.Tensor]`, *optional*):
+            A function that preprocess the logits right before caching them at each evaluation step. Must take two
+            tensors, the logits and the labels, and return the logits once processed as desired. The modifications
+            made by this function will be reflected in the predictions received by `comp...
+```
+========================================================================================================================
+AGENT:
+Excellent! The documentation is correctly updated. Let me run a quick test to make sure the existing trainer tests still pass:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python -c \"\n# Quick sanity check that Trainer works with\
+  \ and without preprocess_logits_for_metrics\nimport torch\nfrom torch.utils.data\
+  \ import Dataset\nfrom transformers import Trainer, TrainingArguments\n\nclass DummyDataset(Dataset):\n\
+  \    def __init__(self, size=10):\n        self.size = size\n    \n    def __len__(self):\n\
+  \        return self.size\n    \n    def __getitem__(self, idx):\n        return\
+  \ {'input_ids': torch.tensor([idx] * 10), 'labels': torch.tensor([idx % 5] * 10)}\n\
+  \nclass DummyModel(torch.nn.Module):\n    def __init__(self):\n        super().__init__()\n\
+  \        self.embedding = torch.nn.Embedding(100, 16)\n        self.linear = torch.nn.Linear(16,\
+  \ 5)\n    \n    def forward(self, input_ids, labels=None):\n        x = self.embedding(input_ids)\n\
+  \        logits = self.linear(x)\n        loss = None\n        if labels is not\
+  \ None:\n            loss = torch.nn.functional.cross_entropy(logits.view(-1, 5),\
+  \ labels.view(-1))\n        return {'loss': loss, 'logits': logits}\n\n# Test 1:\
+  \ Without preprocess_logits_for_metrics\nprint('Test 1: Trainer without preprocess_logits_for_metrics')\n\
+  model = DummyModel()\nargs = TrainingArguments(output_dir='./test_out', do_eval=True,\
+  \ per_device_eval_batch_size=2, no_cuda=True, report_to='none')\ntrainer = Trainer(model=model,\
+  \ args=args, eval_dataset=DummyDataset(5))\nassert trainer.preprocess_logits_for_metrics\
+  \ is None\nmetrics = trainer.evaluate()\nprint(f'  Metrics: {metrics}')\nprint('\
+  \  PASSED')\n\n# Test 2: With preprocess_logits_for_metrics\nprint('Test 2: Trainer\
+  \ with preprocess_logits_for_metrics')\ndef preprocess(logits, labels):\n    return\
+  \ logits.argmax(dim=-1)\n\nmodel = DummyModel()\ntrainer = Trainer(model=model,\
+  \ args=args, eval_dataset=DummyDataset(5), preprocess_logits_for_metrics=preprocess)\n\
+  assert trainer.preprocess_logits_for_metrics is not None\nmetrics = trainer.evaluate()\n\
+  print(f'  Metrics: {metrics}')\nprint('  PASSED')\n\n# Cleanup\nimport shutil\n\
+  shutil.rmtree('./test_out', ignore_errors=True)\n\nprint()\nprint('All sanity checks\
+  \ passed!')\n\" 2>&1"
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+***** Running Evaluation *****
+  Num examples = 5
+  Batch size = 2
+/root/.pyenv/versions/3.11.12/lib/python3.11/site-packages/torch/utils/data/dataloader.py:668: UserWarning: 'pin_memory' argument is set as true but no accelerator is found, then device pinned memory won't be used.
+  warnings.warn(warn_msg)
+Test 1: Trainer without preprocess_logits_for_metrics
+
+  0%|          | 0/3 [00:00<?, ?it/s]
+100%|██████████| 3/3 [00:00<00:00, 667.88it/s]
+***** Running Evaluation *****
+  Num examples = 5
+  ...
+```
+========================================================================================================================
+AGENT:
+All tests pass. Let me also verify that the changes work correctly with the `compute_metrics` function to ensure the preprocessed logits are correctly passed:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python -c \"\nimport torch\nfrom torch.utils.data import\
+  \ Dataset\nfrom transformers import Trainer, TrainingArguments\nfrom transformers.trainer_utils\
+  \ import EvalPrediction\n\nclass DummyDataset(Dataset):\n    def __init__(self,\
+  \ size=10):\n        self.size = size\n    \n    def __len__(self):\n        return\
+  \ self.size\n    \n    def __getitem__(self, idx):\n        return {'input_ids':\
+  \ torch.tensor([idx] * 10), 'labels': torch.tensor([idx % 5] * 10)}\n\nclass DummyModel(torch.nn.Module):\n\
+  \    def __init__(self):\n        super().__init__()\n        self.embedding = torch.nn.Embedding(100,\
+  \ 16)\n        self.linear = torch.nn.Linear(16, 5)\n    \n    def forward(self,\
+  \ input_ids, labels=None):\n        x = self.embedding(input_ids)\n        logits\
+  \ = self.linear(x)\n        loss = None\n        if labels is not None:\n      \
+  \      loss = torch.nn.functional.cross_entropy(logits.view(-1, 5), labels.view(-1))\n\
+  \        return {'loss': loss, 'logits': logits}\n\n# Track shapes\nshapes_without_preprocess\
+  \ = {}\nshapes_with_preprocess = {}\n\ndef compute_metrics_without(eval_pred: EvalPrediction):\n\
+  \    shapes_without_preprocess['predictions'] = eval_pred.predictions.shape\n  \
+  \  shapes_without_preprocess['labels'] = eval_pred.label_ids.shape\n    return {'accuracy':\
+  \ 0.5}\n\ndef compute_metrics_with(eval_pred: EvalPrediction):\n    shapes_with_preprocess['predictions']\
+  \ = eval_pred.predictions.shape\n    shapes_with_preprocess['labels'] = eval_pred.label_ids.shape\n\
+  \    return {'accuracy': 0.5}\n\ndef preprocess(logits, labels):\n    # Reduce from\
+  \ [batch, seq, vocab] to [batch, seq]\n    return logits.argmax(dim=-1)\n\n# Test\
+  \ without preprocess\nprint('Test: Shape comparison')\nmodel = DummyModel()\nargs\
+  \ = TrainingArguments(output_dir='./test_out', do_eval=True, per_device_eval_batch_size=2,\
+  \ no_cuda=True, report_to='none')\n\ntrainer = Trainer(model=model, args=args, eval_dataset=DummyDataset(5),\
+  \ compute_metrics=compute_metrics_without)\ntrainer.evaluate()\n\n# Test with preprocess\n\
+  model = DummyModel()\ntrainer = Trainer(model=model, args=args, eval_dataset=DummyDataset(5),\
+  \ compute_metrics=compute_metrics_with, preprocess_logits_for_metrics=preprocess)\n\
+  trainer.evaluate()\n\nprint(f'Without preprocess - predictions shape: {shapes_without_preprocess[\\\
+  \"predictions\\\"]}')\nprint(f'With preprocess - predictions shape: {shapes_with_preprocess[\\\
+  \"predictions\\\"]}')\n\n# Verify the shapes are different (preprocess reduces the\
+  \ last dimension)\nassert len(shapes_without_preprocess['predictions']) == 3, 'Without\
+  \ preprocess should have 3 dimensions'\nassert len(shapes_with_preprocess['predictions'])\
+  \ == 2, 'With preprocess should have 2 dimensions (argmax reduces last dim)'\n\n\
+  print()\nprint('Shape verification PASSED!')\nprint('  - Without preprocess: logits\
+  \ have shape (samples, seq_len, vocab_size)')\nprint('  - With preprocess: predictions\
+  \ have shape (samples, seq_len) after argmax')\n\n# Cleanup\nimport shutil\nshutil.rmtree('./test_out',\
+  \ ignore_errors=True)\n\" 2>&1"
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+***** Running Evaluation *****
+  Num examples = 5
+  Batch size = 2
+/root/.pyenv/versions/3.11.12/lib/python3.11/site-packages/torch/utils/data/dataloader.py:668: UserWarning: 'pin_memory' argument is set as true but no accelerator is found, then device pinned memory won't be used.
+  warnings.warn(warn_msg)
+Test: Shape comparison
+
+  0%|          | 0/3 [00:00<?, ?it/s]
+100%|██████████| 3/3 [00:00<00:00, 43.34it/s]
+***** Running Evaluation *****
+  Num examples = 5
+  Batch size = 2
+
+  0%|          |...
+```
+========================================================================================================================
+AGENT:
+The implementation is working correctly. The test shows that:
+- Without `preprocess_logits_for_metrics`: predictions have shape `(5, 10, 5)` - full logits with vocab dimension
+- With `preprocess_logits_for_metrics`: predictions have shape `(5, 10)` - reduced after argmax
+
+This is exactly what the feature request asked for - the ability to preprocess logits before caching them to reduce memory usage.
+
+STEP 5: FINAL REVIEW
+
+Let me do a final review of all the changes made:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && git diff src/transformers/trainer.py
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+diff --git a/src/transformers/trainer.py b/src/transformers/trainer.py
+index 6a68f7d6f4..dfee34e4c0 100755
+--- a/src/transformers/trainer.py
++++ b/src/transformers/trainer.py
+@@ -243,6 +243,12 @@ class Trainer:
+         compute_metrics (`Callable[[EvalPrediction], Dict]`, *optional*):
+             The function that will be used to compute metrics at evaluation. Must take a [`EvalPrediction`] and return
+             a dictionary string to metric values.
++        preprocess_logits_for_metrics (`Ca...
+```
+========================================================================================================================
+AGENT:
+The changes look correct. Let me summarize what was implemented:
+
+## Summary of Changes
+
+### 1. Added `preprocess_logits_for_metrics` parameter to `Trainer.__init__`
+- Added as an optional parameter after `compute_metrics`
+- Type: `Callable[[torch.Tensor, torch.Tensor], torch.Tensor]`
+- Default: `None`
+
+### 2. Updated the docstring
+- Added documentation explaining the purpose and usage of the parameter
+- Noted that the function takes logits and labels as arguments and returns preprocessed logits
+- Mentioned that labels can be `None` if the dataset doesn't have them
+
+### 3. Stored the parameter as an instance attribute
+- Added `self.preprocess_logits_for_metrics = preprocess_logits_for_metrics`
+
+### 4. Modified `evaluation_loop` method
+- Added preprocessing after gathering logits but before caching them to `preds_host`
+- The preprocessing is only applied if `self.preprocess_logits_for_metrics is not None`
+
+### 5. Modified `prediction_loop` method (legacy)
+- Added the same preprocessing logic for consistency
+
+The implementation allows users to reduce memory usage during evaluation by preprocessing logits (e.g., using `argmax`) before they are cached. This is particularly useful for language models where storing full logits tensors of shape `[eval_ds_size, sequence_length, vocab_size]` can cause out-of-memory issues.
+========================================================================================================================
+AGENT:
+Successfully implemented the `preprocess_logits_for_metrics` feature for the Trainer class. The changes include:
+
+1. Added `preprocess_logits_for_metrics` parameter to `Trainer.__init__` - a callable that takes logits and labels and returns preprocessed logits
+2. Updated the docstring with documentation for the new parameter
+3. Stored the parameter as `self.preprocess_logits_for_metrics`
+4. Modified `evaluation_loop` to apply preprocessing after gathering logits but before caching them
+5. Modified `prediction_loop` (legacy) with the same preprocessing logic
+
+This feature allows users to reduce memory usage during evaluation by preprocessing logits (e.g., using `logits.argmax(dim=-1)`) before they are cached, which is particularly useful for language models where storing full logits tensors can cause out-of-memory issues.
+
+The implementation was verified with tests showing:
+- Without preprocess: predictions have shape (samples, seq_len, vocab_size)
+- With preprocess (argmax): predictions have shape (samples, seq_len) - reduced memory footprint
