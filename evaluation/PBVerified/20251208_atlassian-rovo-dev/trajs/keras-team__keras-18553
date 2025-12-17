@@ -52,23 +52,20 @@ Do not stop until you have made code changes that resolve the problem statement.
 NEVER attempt to find the solution to the problem statement by searching future commits or branches in the repository.
 ========================================================================================================================
 AGENT:
-Starting to analyze the problem with depthwise_conv ops padding 'same' not working correctly on the torch backend. The issue shows that with torch backend, the output shape is different from tensorflow and jax backends when using 'SAME' padding.
+Starting to analyze the problem with depthwise_conv ops padding 'same' not working correctly on torch backend. The issue shows that torch backend produces different output shape (1, 613, 692, 3) compared to tensorflow and jax backends (1, 613, 696, 3).
 ========================================================================================================================
 AGENT:
 STEP 1: EXPLORE THE CODEBASE
 
 <thinking>
-The problem is that `ops.depthwise_conv` with `padding='SAME'` produces different output shapes on the torch backend compared to tensorflow and jax backends. 
+The problem is with the `depthwise_conv` operation in the torch backend. The padding 'same' is not working correctly, resulting in a different output shape compared to tensorflow and jax backends.
 
-Let me first understand the issue:
-- Input shape: (1, 613, 696, 3)
-- Kernel shape: (1, 5, 3, 1) - this is (height, width, in_channels, depth_multiplier)
-- With TF and JAX: output shape is (1, 613, 696, 3) - same as input (as expected with 'SAME' padding)
-- With Torch: output shape is (1, 613, 692, 3) - width is reduced by 4
+Let me first look at:
+1. The main `ops` module to understand how `depthwise_conv` is defined
+2. The torch backend implementation of `depthwise_conv`
+3. Compare with jax and tensorflow implementations to understand the difference
 
-The kernel width is 5, so with 'SAME' padding, we need to add padding of 2 on each side (or 4 total) to maintain the same output size. It seems like torch is not applying the correct padding.
-
-Let me look at the torch backend implementation of depthwise_conv to understand the issue.
+Let me start by searching for `depthwise_conv` in the codebase.
 </thinking>
 ========================================================================================================================
 TOOL CALL (grep)
@@ -79,15 +76,15 @@ TOOL RETURN (grep)
 ```
 keras/legacy/backend.py:755:def depthwise_conv2d(
 keras/ops/nn.py:896:def depthwise_conv(
-keras/backend/jax/nn.py:281:def depthwise_conv(
 keras/backend/numpy/nn.py:290:def depthwise_conv(
-keras/backend/tensorflow/nn.py:253:def depthwise_conv(
-keras/backend/torch/nn.py:393:def depthwise_conv(...
+keras/backend/jax/nn.py:281:def depthwise_conv(
+keras/backend/torch/nn.py:393:def depthwise_conv(
+keras/backend/tensorflow/nn.py:253:def depthwise_conv(...
 ```
 ========================================================================================================================
 AGENT:
 <thinking>
-I found the relevant files. Let me look at the torch backend implementation of `depthwise_conv` and compare it with the jax and tensorflow implementations to understand the difference.
+I found the relevant files. Let me open the torch backend implementation and compare it with the jax and tensorflow implementations to understand what's different.
 </thinking>
 ========================================================================================================================
 TOOL CALL (open_files)
@@ -105,7 +102,7 @@ TOOL RETURN (open_files)
 ========================================================================================================================
 AGENT:
 <thinking>
-Let me expand the relevant code chunks to see the full implementation of `depthwise_conv` in each backend and the `conv` function in torch backend since `depthwise_conv` in torch calls `conv`.
+Now let me expand the relevant code chunks to see the full implementation of `depthwise_conv` in each backend and the `conv` function in torch backend since `depthwise_conv` in torch calls `conv`.
 </thinking>
 ========================================================================================================================
 TOOL CALL (inspect_code)
@@ -138,763 +135,240 @@ Successfully expanded code chunks in keras/backend/torch/nn.py:
 ========================================================================================================================
 AGENT:
 <thinking>
-Now I can see the issue. Let me analyze the code:
-
-1. In `depthwise_conv` (lines 392-404), the kernel is reshaped and then `conv` is called.
-2. In `conv` (lines 321-389), when `padding == "same"`, the function calls `_apply_same_padding` with `kernel.shape[2:]` as the kernel size.
-
-The problem is in the order of operations:
-1. In `depthwise_conv`, the kernel is reshaped from `(1, 5, 3, 1)` to `(1, 5, 1, 3)` (shape[:-2] + (1, shape[-2] * shape[-1]))
-2. Then `conv` is called with this reshaped kernel
-3. In `conv`, the kernel is transposed using `_transpose_conv_kernel` which changes it from `(1, 5, 1, 3)` to `(3, 1, 1, 5)` (for 2D: `(3, 2, 0, 1)` permutation)
-4. Then `_apply_same_padding` is called with `kernel.shape[2:]` which is `(1, 5)` - the spatial dimensions
-
-But wait, the issue is that `_apply_same_padding` is called AFTER the kernel is transposed, so it should be using the correct spatial dimensions. Let me trace through more carefully:
-
-Input shape: `(1, 613, 696, 3)` - channels_last format
-Kernel shape: `(1, 5, 3, 1)` - (height, width, in_channels, depth_multiplier)
-
-In `depthwise_conv`:
-- kernel is reshaped to `(1, 5, 1, 3)` - (height, width, 1, in_channels * depth_multiplier)
-
-In `conv`:
-- data_format is "channels_last" (default)
-- inputs are transposed to channels_first: `(1, 3, 613, 696)`
-- kernel is transposed: `(1, 5, 1, 3)` -> `(3, 1, 1, 5)` (using permutation `(3, 2, 0, 1)`)
-- `_apply_same_padding` is called with `kernel.shape[2:]` = `(1, 5)` as kernel_size
-
-So the kernel size being used is `(1, 5)` which is correct (height=1, width=5).
-
-Now let's look at `_apply_same_padding`:
-- spatial_shape = inputs.shape[2:] = `(613, 696)`
-- For i=0: padding for height with kernel_size=1, stride=1 -> should be 0
-- For i=1: padding for width with kernel_size=5, stride=1 -> should be 4 total (2 on each side)
-
-Wait, I see the issue now! Look at line 145:
-```python
-padding = padding_size + padding
-```
-
-This is prepending the padding, so the padding tuple is built in reverse order. PyTorch's `tnn.pad` expects padding in reverse order (last dimension first), so this should be correct.
-
-Let me trace through `_compute_padding_length`:
-- For height (i=0): input_length=613, kernel_length=1, stride=1
-  - (613 - 1) % 1 == 0, so total_padding = 1 * (1 - 1) = 0
-  - left_padding = 0, right_padding = 0
-  - padding_size = (0, 0)
-  
-- For width (i=1): input_length=696, kernel_length=5, stride=1
-  - (696 - 1) % 1 == 0, so total_padding = 1 * (5 - 1) = 4
-  - left_padding = 2, right_padding = 2
-  - padding_size = (2, 2)
-
-So padding should be `(2, 2, 0, 0)` (width_left, width_right, height_left, height_right) for PyTorch.
-
-Wait, let me re-read the loop:
-```python
-for i in range(num_spatial_dims):
-    ...
-    padding = padding_size + padding
-```
-
-For i=0 (height): padding = (0, 0) + () = (0, 0)
-For i=1 (width): padding = (2, 2) + (0, 0) = (2, 2, 0, 0)
-
-This looks correct for PyTorch's pad function which expects (left_last, right_last, left_second_last, right_second_last, ...).
-
-Hmm, let me look more carefully at the issue. The problem might be in how the kernel is being handled in `depthwise_conv`.
-
-Actually, wait! I think I see the issue now. Let me look at the JAX implementation again:
-</thinking>
-========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: keras/backend/jax/nn.py
-patterns:
-- depthwise_conv
-- conv
-
-========================================================================================================================
-TOOL RETURN (inspect_code)
-```
-Successfully expanded code chunks in keras/backend/jax/nn.py:
-
-````python
-   0 import jax
-   1 import jax.numpy as jnp
-   2 import numpy as np
-   3 from jax import lax
-   4 from jax import nn as jnn
-   5 
-   6 from keras.backend import standardize_data_format
-   7 from keras.backend import standardize_dtype
-   8 from keras.backend.common.backend_utils import (
-   9     compute_conv_transpose_padding_args_for_jax,
-  10 )
-  11 from keras.backend.config import epsilon
-  12 from keras.backend.jax.co...
-```
-========================================================================================================================
-AGENT:
-<thinking>
-Now I can see the key difference between JAX and Torch implementations:
-
-**JAX `depthwise_conv`:**
-- Sets `feature_group_count = inputs.shape[-1]` (number of input channels)
-- Reshapes kernel and passes `padding` directly to `jax.lax.conv_general_dilated`
-- JAX's `conv_general_dilated` handles "same" padding natively
-
-**Torch `depthwise_conv`:**
-- Reshapes kernel and calls `conv()` 
-- The `conv()` function handles "same" padding manually via `_apply_same_padding`
-
-The issue is that in the Torch implementation, `depthwise_conv` calls `conv()`, but the kernel shape is different from a regular convolution kernel. Let me trace through more carefully:
-
-For depthwise_conv with:
-- Input: `(1, 613, 696, 3)` - (batch, height, width, channels)
-- Kernel: `(1, 5, 3, 1)` - (kernel_height, kernel_width, in_channels, depth_multiplier)
-
-In `depthwise_conv`:
-1. Kernel is reshaped: `(1, 5, 3, 1)` -> `(1, 5, 1, 3)` (kernel.shape[:-2] + (1, kernel.shape[-2] * kernel.shape[-1]))
-
-In `conv`:
-2. Inputs are transposed to channels_first: `(1, 613, 696, 3)` -> `(1, 3, 613, 696)`
-3. Kernel is transposed using `_transpose_conv_kernel`: 
-   - For 2D: permutation is `(3, 2, 0, 1)`
-   - `(1, 5, 1, 3)` -> `(3, 1, 1, 5)` - (out_channels, in_channels, height, width)
-4. `_apply_same_padding` is called with `kernel.shape[2:]` = `(1, 5)`
-
-Wait, the kernel spatial dimensions after transpose are `(1, 5)` which is (height=1, width=5). This is correct!
-
-Let me look at `_apply_same_padding` more carefully:
+Now I can see the issue. Let me analyze the `depthwise_conv` function in the torch backend:
 
 ```python
-def _apply_same_padding(
-    inputs, kernel_size, strides, operation_type, dilation_rate=1
+def depthwise_conv(
+    inputs,
+    kernel,
+    strides=1,
+    padding="valid",
+    data_format=None,
+    dilation_rate=1,
 ):
-    spatial_shape = inputs.shape[2:]  # (613, 696) after transpose
-    num_spatial_dims = len(spatial_shape)  # 2
-    padding = ()
-
-    for i in range(num_spatial_dims):  # i = 0, 1
-        if operation_type == "pooling":
-            ...
-        else:
-            dilation_rate = standardize_tuple(
-                dilation_rate, num_spatial_dims, "dilation_rate"
-            )
-            padding_size = _compute_padding_length(
-                spatial_shape[i], kernel_size[i], strides[i], dilation_rate[i]
-            )
-            mode = "constant"
-        padding = padding_size + padding
-
-    return tnn.pad(inputs, padding, mode=mode)
+    kernel = convert_to_tensor(kernel)
+    kernel = torch.reshape(
+        kernel, kernel.shape[:-2] + (1, kernel.shape[-2] * kernel.shape[-1])
+    )
+    return conv(inputs, kernel, strides, padding, data_format, dilation_rate)
 ```
 
-For i=0: spatial_shape[0]=613, kernel_size[0]=1, strides[0]=1
-For i=1: spatial_shape[1]=696, kernel_size[1]=5, strides[1]=1
+The issue is that the kernel is being reshaped BEFORE being passed to `conv`, but the kernel shape is in the Keras format (spatial_dims, in_channels, depth_multiplier). After the reshape, the kernel becomes (spatial_dims, 1, in_channels * depth_multiplier).
 
-Wait! I see a potential issue. Let me look at the `strides` parameter:
+In the `conv` function, when `padding == "same"`, it calls `_apply_same_padding`:
 
-In `conv`:
-```python
-strides = standardize_tuple(strides, num_spatial_dims, "strides")
-```
-
-But `num_spatial_dims` is computed from `inputs.ndim - 2` which is 2 for 2D convolution. So if `strides=1`, it becomes `(1, 1)`.
-
-But wait, in `_apply_same_padding`, the `strides` parameter is used directly. Let me check if it's being passed correctly...
-
-Actually, looking at the code again:
 ```python
 if padding == "same":
     inputs = _apply_same_padding(
         inputs,
-        kernel.shape[2:],
+        kernel.shape[2:],  # This is the spatial dimensions of the kernel
         strides,
         operation_type="conv",
         dilation_rate=dilation_rate,
     )
 ```
 
-So `strides` is passed as a tuple `(1, 1)` and `kernel.shape[2:]` is `(1, 5)`.
+The problem is that `kernel.shape[2:]` is used to get the spatial dimensions, but at this point the kernel is still in Keras format (spatial_dims, in_channels, out_channels), not in torch format (out_channels, in_channels, spatial_dims).
 
-Let me trace through `_compute_padding_length` for each dimension:
+Let me trace through the code:
+1. For a 2D depthwise conv with kernel shape `(1, 5, 3, 1)` (height=1, width=5, in_channels=3, depth_multiplier=1)
+2. After reshape in `depthwise_conv`: `(1, 5, 1, 3)` (height=1, width=5, 1, 3)
+3. In `conv`, `kernel.shape[2:]` would be `(1, 3)` - which is wrong! It should be the spatial dimensions `(1, 5)`.
 
-For i=0 (height): input_length=613, kernel_length=1, stride=1, dilation_rate=1
-- (613 - 1) % 1 == 0, so total_padding = 1 * (1 - 1) = 0
-- left=0, right=0
-
-For i=1 (width): input_length=696, kernel_length=5, stride=1, dilation_rate=1
-- (696 - 1) % 1 == 0, so total_padding = 1 * (5 - 1) = 4
-- left=2, right=2
-
-So padding should be `(2, 2, 0, 0)` for PyTorch's pad function.
-
-After padding, the input should be `(1, 3, 613, 700)` (696 + 4 = 700).
-
-Then the convolution with kernel size (1, 5) and stride (1, 1) should produce:
-- Height: (613 - 1) / 1 + 1 = 613
-- Width: (700 - 5) / 1 + 1 = 696
-
-This should give the correct output shape!
-
-Let me write a test script to verify what's happening:
-</thinking>
-
-Let me create a test script to reproduce the issue and understand what's happening:
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && pip install -e . -q 2>&1 | tail -5
-timeout: 120
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
-
-[notice] A new release of pip is available: 25.2 -> 25.3
-[notice] To update, run: pip install --upgrade pip...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && pip install torch jax jaxlib tensorflow -q 2>&1 | tail -5
-timeout: 180
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
-
-[notice] A new release of pip is available: 25.2 -> 25.3
-[notice] To update, run: pip install --upgrade pip...
-```
-========================================================================================================================
-TOOL CALL (create_file)
-file_path: test_depthwise_conv.py
-initial_content: "import numpy as np\nimport os \n\n# Test with torch backend\nos.environ[\"\
-  KERAS_BACKEND\"] = \"torch\"\n\nimport keras\nfrom keras import ops\n\ninput_data\
-  \ = np.ones((1, 613, 696, 3), dtype=np.float32)\nkernel = np.ones((1, 5, 3, 1),\
-  \ dtype=np.float32)\n\nprint(f\"Input shape: {input_data.shape}\")\nprint(f\"Kernel\
-  \ shape: {kernel.shape}\")\n\nout = ops.depthwise_conv(\n    input_data, kernel,\
-  \ strides=1, padding='same'\n) \nprint(f\"Torch output shape: {out.shape}\")\nprint(f\"\
-  Expected output shape: (1, 613, 696, 3)\")\n"
-
-========================================================================================================================
-TOOL RETURN (create_file)
-```
-Successfully created test_depthwise_conv.py....
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && python test_depthwise_conv.py 2>&1
-timeout: 60
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Using PyTorch backend.
-Input shape: (1, 613, 696, 3)
-Kernel shape: (1, 5, 3, 1)
-Torch output shape: torch.Size([1, 613, 696, 3])
-Expected output shape: (1, 613, 696, 3)...
-```
-========================================================================================================================
-AGENT:
-<thinking>
-Interesting! The test passes with the current code. Let me try the exact example from the issue to see if I can reproduce the problem. The issue mentions `keras_core` which was the old name for Keras 3. Let me check if there's something specific about the issue.
-
-Let me try with different input sizes to see if I can reproduce the issue:
-</thinking>
-========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: test_depthwise_conv.py
-find: "import numpy as np\nimport os \n\n# Test with torch backend\nos.environ[\"\
-  KERAS_BACKEND\"] = \"torch\"\n\nimport keras\nfrom keras import ops\n\ninput_data\
-  \ = np.ones((1, 613, 696, 3), dtype=np.float32)\nkernel = np.ones((1, 5, 3, 1),\
-  \ dtype=np.float32)\n\nprint(f\"Input shape: {input_data.shape}\")\nprint(f\"Kernel\
-  \ shape: {kernel.shape}\")\n\nout = ops.depthwise_conv(\n    input_data, kernel,\
-  \ strides=1, padding='same'\n) \nprint(f\"Torch output shape: {out.shape}\")\nprint(f\"\
-  Expected output shape: (1, 613, 696, 3)\")"
-replace: "import numpy as np\nimport os \n\n# Test with torch backend\nos.environ[\"\
-  KERAS_BACKEND\"] = \"torch\"\n\nimport keras\nfrom keras import ops\n\n# Test various\
-  \ input sizes\ntest_cases = [\n    ((1, 613, 696, 3), (1, 5, 3, 1)),\n    ((1, 10,\
-  \ 10, 3), (3, 3, 3, 1)),\n    ((1, 7, 7, 3), (3, 3, 3, 1)),\n    ((1, 5, 5, 3),\
-  \ (3, 3, 3, 1)),\n    ((1, 100, 100, 3), (5, 5, 3, 1)),\n    ((1, 101, 101, 3),\
-  \ (5, 5, 3, 1)),\n]\n\nfor input_shape, kernel_shape in test_cases:\n    input_data\
-  \ = np.ones(input_shape, dtype=np.float32)\n    kernel = np.ones(kernel_shape, dtype=np.float32)\n\
-  \    \n    out = ops.depthwise_conv(\n        input_data, kernel, strides=1, padding='same'\n\
-  \    )\n    \n    expected_shape = input_shape\n    actual_shape = tuple(out.shape)\n\
-  \    status = \"\u2713\" if actual_shape == expected_shape else \"\u2717\"\n   \
-  \ print(f\"{status} Input: {input_shape}, Kernel: {kernel_shape}\")\n    print(f\"\
-  \   Expected: {expected_shape}, Got: {actual_shape}\")\n    if actual_shape != expected_shape:\n\
-  \        print(f\"   MISMATCH!\")\n"
-
-========================================================================================================================
-TOOL RETURN (find_and_replace_code)
-```
-Successfully replaced code in test_depthwise_conv.py:
-
---- test_depthwise_conv.py
-+++ test_depthwise_conv.py
-@@ -7,14 +7,29 @@
- import keras
- from keras import ops
- 
--input_data = np.ones((1, 613, 696, 3), dtype=np.float32)
--kernel = np.ones((1, 5, 3, 1), dtype=np.float32)
-+# Test various input sizes
-+test_cases = [
-+    ((1, 613, 696, 3), (1, 5, 3, 1)),
-+    ((1, 10, 10, 3), (3, 3, 3, 1)),
-+    ((1, 7, 7, 3), (3, 3, 3, 1)),
-+    ((1, 5, 5, 3), (3, 3, 3, 1)),
-+    ((1, 100, 100, 3), (5, 5, 3, 1)...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && python test_depthwise_conv.py 2>&1
-timeout: 60
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Using PyTorch backend.
-✓ Input: (1, 613, 696, 3), Kernel: (1, 5, 3, 1)
-   Expected: (1, 613, 696, 3), Got: (1, 613, 696, 3)
-✓ Input: (1, 10, 10, 3), Kernel: (3, 3, 3, 1)
-   Expected: (1, 10, 10, 3), Got: (1, 10, 10, 3)
-✓ Input: (1, 7, 7, 3), Kernel: (3, 3, 3, 1)
-   Expected: (1, 7, 7, 3), Got: (1, 7, 7, 3)
-✓ Input: (1, 5, 5, 3), Kernel: (3, 3, 3, 1)
-   Expected: (1, 5, 5, 3), Got: (1, 5, 5, 3)
-✓ Input: (1, 100, 100, 3), Kernel: (5, 5, 3, 1)
-   Expected: (1, 100, 100, 3), Got: (1, 100, 100, 3)
-✓ ...
-```
-========================================================================================================================
-AGENT:
-<thinking>
-Interesting, all tests pass! Let me check if the issue might be related to strides or dilation_rate. Let me also compare the output with JAX and TensorFlow to make sure the results are consistent:
-</thinking>
-========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: test_depthwise_conv.py
-find: "import numpy as np\nimport os \n\n# Test with torch backend\nos.environ[\"\
-  KERAS_BACKEND\"] = \"torch\"\n\nimport keras\nfrom keras import ops\n\n# Test various\
-  \ input sizes\ntest_cases = [\n    ((1, 613, 696, 3), (1, 5, 3, 1)),\n    ((1, 10,\
-  \ 10, 3), (3, 3, 3, 1)),\n    ((1, 7, 7, 3), (3, 3, 3, 1)),\n    ((1, 5, 5, 3),\
-  \ (3, 3, 3, 1)),\n    ((1, 100, 100, 3), (5, 5, 3, 1)),\n    ((1, 101, 101, 3),\
-  \ (5, 5, 3, 1)),\n]\n\nfor input_shape, kernel_shape in test_cases:\n    input_data\
-  \ = np.ones(input_shape, dtype=np.float32)\n    kernel = np.ones(kernel_shape, dtype=np.float32)\n\
-  \    \n    out = ops.depthwise_conv(\n        input_data, kernel, strides=1, padding='same'\n\
-  \    )\n    \n    expected_shape = input_shape\n    actual_shape = tuple(out.shape)\n\
-  \    status = \"\u2713\" if actual_shape == expected_shape else \"\u2717\"\n   \
-  \ print(f\"{status} Input: {input_shape}, Kernel: {kernel_shape}\")\n    print(f\"\
-  \   Expected: {expected_shape}, Got: {actual_shape}\")\n    if actual_shape != expected_shape:\n\
-  \        print(f\"   MISMATCH!\")"
-replace: "import numpy as np\nimport subprocess\nimport sys\n\n# Test various input\
-  \ sizes and strides\ntest_cases = [\n    ((1, 613, 696, 3), (1, 5, 3, 1), 1),\n\
-  \    ((1, 613, 696, 3), (1, 5, 3, 1), 2),\n    ((1, 10, 10, 3), (3, 3, 3, 1), 1),\n\
-  \    ((1, 10, 10, 3), (3, 3, 3, 1), 2),\n    ((1, 7, 7, 3), (3, 3, 3, 1), 1),\n\
-  \    ((1, 7, 7, 3), (3, 3, 3, 1), 2),\n    ((1, 100, 100, 3), (5, 5, 3, 1), 1),\n\
-  \    ((1, 100, 100, 3), (5, 5, 3, 1), 2),\n]\n\ndef run_test(backend, input_shape,\
-  \ kernel_shape, strides):\n    code = f'''\nimport numpy as np\nimport os\nos.environ[\"\
-  KERAS_BACKEND\"] = \"{backend}\"\nimport keras\nfrom keras import ops\n\ninput_data\
-  \ = np.ones({input_shape}, dtype=np.float32)\nkernel = np.ones({kernel_shape}, dtype=np.float32)\n\
-  \nout = ops.depthwise_conv(\n    input_data, kernel, strides={strides}, padding='same'\n\
-  )\nprint(tuple(out.shape))\n'''\n    result = subprocess.run([sys.executable, '-c',\
-  \ code], capture_output=True, text=True)\n    if result.returncode != 0:\n     \
-  \   return None, result.stderr\n    return eval(result.stdout.strip()), None\n\n\
-  print(\"Comparing depthwise_conv with padding='same' across backends:\")\nprint(\"\
-  =\" * 80)\n\nfor input_shape, kernel_shape, strides in test_cases:\n    print(f\"\
-  \\nInput: {input_shape}, Kernel: {kernel_shape}, Strides: {strides}\")\n    \n \
-  \   results = {}\n    for backend in ['tensorflow', 'jax', 'torch']:\n        shape,\
-  \ error = run_test(backend, input_shape, kernel_shape, strides)\n        if error:\n\
-  \            results[backend] = f\"ERROR: {error[:50]}\"\n        else:\n      \
-  \      results[backend] = shape\n    \n    # Check if all results match\n    shapes\
-  \ = [v for v in results.values() if isinstance(v, tuple)]\n    all_match = len(set(shapes))\
-  \ <= 1\n    \n    for backend, result in results.items():\n        status = \"\u2713\
-  \" if all_match else (\"\u2717\" if result != shapes[0] else \"\u2713\")\n     \
-  \   print(f\"  {status} {backend}: {result}\")"
-
-========================================================================================================================
-TOOL RETURN (find_and_replace_code)
-```
-Successfully replaced code in test_depthwise_conv.py:
-
---- test_depthwise_conv.py
-+++ test_depthwise_conv.py
-@@ -1,35 +1,59 @@
- import numpy as np
--import os 
-+import subprocess
-+import sys
- 
--# Test with torch backend
--os.environ["KERAS_BACKEND"] = "torch"
-+# Test various input sizes and strides
-+test_cases = [
-+    ((1, 613, 696, 3), (1, 5, 3, 1), 1),
-+    ((1, 613, 696, 3), (1, 5, 3, 1), 2),
-+    ((1, 10, 10, 3), (3, 3, 3, 1), 1),
-+    ((1, 10, 10, 3), (3, 3, 3, 1), 2),
-+    ((1, 7, 7, 3), (3...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && python test_depthwise_conv.py 2>&1
-timeout: 120
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Comparing depthwise_conv with padding='same' across backends:
-================================================================================
-
-Input: (1, 613, 696, 3), Kernel: (1, 5, 3, 1), Strides: 1
-Traceback (most recent call last):
-  File "/workspace/test_depthwise_conv.py", line 46, in <module>
-    shape, error = run_test(backend, input_shape, kernel_shape, strides)
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/workspace/test_depthwise_conv.py", line 36,...
-```
-========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: test_depthwise_conv.py
-find: "def run_test(backend, input_shape, kernel_shape, strides):\n    code = f'''\n\
-  import numpy as np\nimport os\nos.environ[\"KERAS_BACKEND\"] = \"{backend}\"\nimport\
-  \ keras\nfrom keras import ops\n\ninput_data = np.ones({input_shape}, dtype=np.float32)\n\
-  kernel = np.ones({kernel_shape}, dtype=np.float32)\n\nout = ops.depthwise_conv(\n\
-  \    input_data, kernel, strides={strides}, padding='same'\n)\nprint(tuple(out.shape))\n\
-  '''\n    result = subprocess.run([sys.executable, '-c', code], capture_output=True,\
-  \ text=True)\n    if result.returncode != 0:\n        return None, result.stderr\n\
-  \    return eval(result.stdout.strip()), None"
-replace: "def run_test(backend, input_shape, kernel_shape, strides):\n    code = f'''\n\
-  import numpy as np\nimport os\nimport sys\nos.environ[\"KERAS_BACKEND\"] = \"{backend}\"\
-  \n# Suppress keras output\nimport logging\nlogging.getLogger().setLevel(logging.ERROR)\n\
-  import keras\nfrom keras import ops\n\ninput_data = np.ones({input_shape}, dtype=np.float32)\n\
-  kernel = np.ones({kernel_shape}, dtype=np.float32)\n\nout = ops.depthwise_conv(\n\
-  \    input_data, kernel, strides={strides}, padding='same'\n)\nprint(\"RESULT:\"\
-  \ + str(tuple(out.shape)))\n'''\n    result = subprocess.run([sys.executable, '-c',\
-  \ code], capture_output=True, text=True)\n    if result.returncode != 0:\n     \
-  \   return None, result.stderr\n    # Find the RESULT line\n    for line in result.stdout.split('\\\
-  n'):\n        if line.startswith('RESULT:'):\n            return eval(line[7:]),\
-  \ None\n    return None, f\"No result found in output: {result.stdout}\""
-
-========================================================================================================================
-TOOL RETURN (find_and_replace_code)
-```
-Successfully replaced code in test_depthwise_conv.py:
-
---- test_depthwise_conv.py
-+++ test_depthwise_conv.py
-@@ -18,7 +18,11 @@
-     code = f'''
- import numpy as np
- import os
-+import sys
- os.environ["KERAS_BACKEND"] = "{backend}"
-+# Suppress keras output
-+import logging
-+logging.getLogger().setLevel(logging.ERROR)
- import keras
- from keras import ops
- 
-@@ -28,12 +32,16 @@
- out = ops.depthwise_conv(
-     input_data, kernel, strides={strides}, padding='same'
- )
--print(tuple(out.shape))
-+print("RE...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && python test_depthwise_conv.py 2>&1
-timeout: 180
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Comparing depthwise_conv with padding='same' across backends:
-================================================================================
-
-Input: (1, 613, 696, 3), Kernel: (1, 5, 3, 1), Strides: 1
-  ✓ tensorflow: (1, 613, 696, 3)
-  ✓ jax: (1, 613, 696, 3)
-  ✓ torch: (1, 613, 696, 3)
-
-Input: (1, 613, 696, 3), Kernel: (1, 5, 3, 1), Strides: 2
-  ✓ tensorflow: (1, 307, 348, 3)
-  ✓ jax: (1, 307, 348, 3)
-  ✓ torch: (1, 307, 348, 3)
-
-Input: (1, 10, 10, 3), Kernel: (3, 3, 3, 1), Strides: 1
-  ✓ tens...
-```
-========================================================================================================================
-AGENT:
-<thinking>
-All tests pass! The issue seems to have been fixed already. Let me check the git history to see if there were any recent changes to the depthwise_conv implementation:
-</thinking>
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && git log --oneline -20 -- keras/backend/torch/nn.py 2>&1
-timeout: 30
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-b9be76a13 Convert Keras Core to Keras 3....
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && git log --oneline -5 2>&1
-timeout: 30
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-c8a5a8969 Update writing_a_custom_training_loop_in_jax.py (#18546)
-9284cb998 Apply `backend.result_type` to `absolute`, `argmax`, `argmin`, `argsort`, `ceil`, `clip` and `dot` (#18548)
-1427f1472 Fix issues with tensordot on torch backend (#18547)
-5ff811dc7 Adds GPU CI for TensorFlow (#18549)
-38bfa3cb7 Add a shim so tf.estimators and downstream packages import (#18540)...
-```
-========================================================================================================================
-AGENT:
-<thinking>
-Let me look at the issue more carefully. The problem statement mentions `keras_core` which was the old name. Let me check if there's something specific about the issue that I'm missing. Let me also look at the existing tests for depthwise_conv to understand the expected behavior better:
-</thinking>
-========================================================================================================================
-TOOL CALL (grep)
-content_pattern: depthwise_conv.*same
-
-========================================================================================================================
-TOOL RETURN (grep)
-```
-test_depthwise_conv.py:46:print("Comparing depthwise_conv with padding='same' across backends:")
-keras/ops/nn_test.py:178:            knn.depthwise_conv(inputs_1d, kernel, (1,), padding="same").shape,
-keras/ops/nn_test.py:194:            knn.depthwise_conv(inputs_2d, kernel, (1, 2), padding="same").shape,
-keras/ops/nn_test.py:463:            knn.depthwise_conv(inputs_1d, kernel, (1,), padding="same").shape,
-keras/ops/nn_test.py:479:            knn.depthwise_conv(inputs_2d, kernel, (1, 2), paddin...
-```
-========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: keras/ops/nn_test.py
-line_ranges:
-- - 930
-  - 960
-
-========================================================================================================================
-TOOL RETURN (inspect_code)
-```
-Successfully expanded code chunks in keras/ops/nn_test.py:
-
-````python
-   0 import numpy as np
-...
-   3 from absl.testing import parameterized
-...
-  11 class NNOpsDynamicShapeTest(testing.TestCase, parameterized.TestCase):
-  12     def test_relu(self):
-...
-  16     def test_relu6(self):
-...
-  20     def test_sigmoid(self):
-...
-  24     def test_softplus(self):
-...
-  28     def test_softsign(self):
-...
-  32     def test_silu(self):
-...
-  36     def test_log_sigmoid(self):
-...
-  40     def test_le...
-```
-========================================================================================================================
-AGENT:
-<thinking>
-The tests look comprehensive. Let me run the existing tests for depthwise_conv to make sure everything is working:
-</thinking>
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && KERAS_BACKEND=torch python -m pytest keras/ops/nn_test.py::NNOpsCorrectnessTest::test_depthwise_conv_2d
-  -xvs 2>&1
-timeout: 120
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-/root/.pyenv/versions/3.11.12/bin/python: No module named pytest...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: pip install pytest -q 2>&1 | tail -3
-timeout: 30
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-
-[notice] A new release of pip is available: 25.2 -> 25.3
-[notice] To update, run: pip install --upgrade pip...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && KERAS_BACKEND=torch python -m pytest keras/ops/nn_test.py::NNOpsCorrectnessTest::test_depthwise_conv_2d
-  -xvs 2>&1
-timeout: 120
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Using PyTorch backend.
-============================= test session starts ==============================
-platform linux -- Python 3.11.12, pytest-9.0.2, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python
-cachedir: .pytest_cache
-rootdir: /workspace
-configfile: pyproject.toml
-collecting ... collected 1 item
-
-keras/ops/nn_test.py::NNOpsCorrectnessTest::test_depthwise_conv_2d PASSED
-
-============================== 1 passed in 1.78s ===============================...
-```
-========================================================================================================================
-AGENT:
-<thinking>
-The test passes. Let me check if there's an issue with 1D depthwise convolution or with specific dilation rates. Let me also look at the issue more carefully - the issue mentions that the output shape is `(1, 613, 692, 3)` instead of `(1, 613, 696, 3)`. The width is reduced by 4, which is exactly the kernel width minus 1 (5-1=4). This suggests that the padding is not being applied at all.
-
-Let me check if there's a case sensitivity issue with the padding parameter:
-</thinking>
-========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: test_depthwise_conv.py
-find: "import numpy as np\nimport subprocess\nimport sys\n\n# Test various input sizes\
-  \ and strides\ntest_cases = [\n    ((1, 613, 696, 3), (1, 5, 3, 1), 1),\n    ((1,\
-  \ 613, 696, 3), (1, 5, 3, 1), 2),\n    ((1, 10, 10, 3), (3, 3, 3, 1), 1),\n    ((1,\
-  \ 10, 10, 3), (3, 3, 3, 1), 2),\n    ((1, 7, 7, 3), (3, 3, 3, 1), 1),\n    ((1,\
-  \ 7, 7, 3), (3, 3, 3, 1), 2),\n    ((1, 100, 100, 3), (5, 5, 3, 1), 1),\n    ((1,\
-  \ 100, 100, 3), (5, 5, 3, 1), 2),\n]\n\ndef run_test(backend, input_shape, kernel_shape,\
-  \ strides):\n    code = f'''\nimport numpy as np\nimport os\nimport sys\nos.environ[\"\
-  KERAS_BACKEND\"] = \"{backend}\"\n# Suppress keras output\nimport logging\nlogging.getLogger().setLevel(logging.ERROR)\n\
-  import keras\nfrom keras import ops\n\ninput_data = np.ones({input_shape}, dtype=np.float32)\n\
-  kernel = np.ones({kernel_shape}, dtype=np.float32)\n\nout = ops.depthwise_conv(\n\
-  \    input_data, kernel, strides={strides}, padding='same'\n)\nprint(\"RESULT:\"\
-  \ + str(tuple(out.shape)))\n'''\n    result = subprocess.run([sys.executable, '-c',\
-  \ code], capture_output=True, text=True)\n    if result.returncode != 0:\n     \
-  \   return None, result.stderr\n    # Find the RESULT line\n    for line in result.stdout.split('\\\
-  n'):\n        if line.startswith('RESULT:'):\n            return eval(line[7:]),\
-  \ None\n    return None, f\"No result found in output: {result.stdout}\"\n\nprint(\"\
-  Comparing depthwise_conv with padding='same' across backends:\")\nprint(\"=\" *\
-  \ 80)\n\nfor input_shape, kernel_shape, strides in test_cases:\n    print(f\"\\\
-  nInput: {input_shape}, Kernel: {kernel_shape}, Strides: {strides}\")\n    \n   \
-  \ results = {}\n    for backend in ['tensorflow', 'jax', 'torch']:\n        shape,\
-  \ error = run_test(backend, input_shape, kernel_shape, strides)\n        if error:\n\
-  \            results[backend] = f\"ERROR: {error[:50]}\"\n        else:\n      \
-  \      results[backend] = shape\n    \n    # Check if all results match\n    shapes\
-  \ = [v for v in results.values() if isinstance(v, tuple)]\n    all_match = len(set(shapes))\
-  \ <= 1\n    \n    for backend, result in results.items():\n        status = \"\u2713\
-  \" if all_match else (\"\u2717\" if result != shapes[0] else \"\u2713\")\n     \
-  \   print(f\"  {status} {backend}: {result}\")"
-replace: "import numpy as np\nimport os\n\n# Test with torch backend directly\nos.environ[\"\
-  KERAS_BACKEND\"] = \"torch\"\n\nimport keras\nfrom keras import ops\n\n# Test with\
-  \ uppercase SAME (as in the issue)\ninput_data = np.ones((1, 613, 696, 3), dtype=np.float32)\n\
-  kernel = np.ones((1, 5, 3, 1), dtype=np.float32)\n\nprint(\"Testing with padding='SAME'\
-  \ (uppercase):\")\nout = ops.depthwise_conv(\n    input_data, kernel, strides=1,\
-  \ padding='SAME'\n)\nprint(f\"  Input shape: {input_data.shape}\")\nprint(f\"  Kernel\
-  \ shape: {kernel.shape}\")\nprint(f\"  Output shape: {tuple(out.shape)}\")\nprint(f\"\
-  \  Expected: (1, 613, 696, 3)\")\n\nprint(\"\\nTesting with padding='same' (lowercase):\"\
-  )\nout = ops.depthwise_conv(\n    input_data, kernel, strides=1, padding='same'\n\
-  )\nprint(f\"  Output shape: {tuple(out.shape)}\")\nprint(f\"  Expected: (1, 613,\
-  \ 696, 3)\")"
-
-========================================================================================================================
-TOOL RETURN (find_and_replace_code)
-```
-Successfully replaced code in test_depthwise_conv.py:
-
---- test_depthwise_conv.py
-+++ test_depthwise_conv.py
-@@ -1,67 +1,29 @@
--import numpy as np
--import subprocess
--import sys
--
--# Test various input sizes and strides
--test_cases = [
--    ((1, 613, 696, 3), (1, 5, 3, 1), 1),
--    ((1, 613, 696, 3), (1, 5, 3, 1), 2),
--    ((1, 10, 10, 3), (3, 3, 3, 1), 1),
--    ((1, 10, 10, 3), (3, 3, 3, 1), 2),
--    ((1, 7, 7, 3), (3, 3, 3, 1), 1),
--    ((1, 7, 7, 3), (3, 3, 3, 1), 2),
--    ((1, 100, 100, 3), ...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && python test_depthwise_conv.py 2>&1
-timeout: 60
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Using PyTorch backend.
-Testing with padding='SAME' (uppercase):
-  Input shape: (1, 613, 696, 3)
-  Kernel shape: (1, 5, 3, 1)
-  Output shape: (1, 613, 692, 3)
-  Expected: (1, 613, 696, 3)
-
-Testing with padding='same' (lowercase):
-  Output shape: (1, 613, 696, 3)
-  Expected: (1, 613, 696, 3)...
-```
-========================================================================================================================
-AGENT:
-<thinking>
-I found the issue! When using uppercase `'SAME'` padding, the torch backend doesn't handle it correctly. The issue is that the padding comparison in the torch backend is case-sensitive, while TensorFlow and JAX handle both cases.
-
-Let me look at how the padding is handled in the torch backend:
-</thinking>
-========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: keras/backend/torch/nn.py
-patterns:
-- conv
-
-========================================================================================================================
-TOOL RETURN (inspect_code)
-```
-Successfully expanded code chunks in keras/backend/torch/nn.py:
-
-````python
-   0 import numpy as np
-   1 import torch
-   2 import torch.nn.functional as tnn
-   3 
-   4 from keras.backend import standardize_data_format
-   5 from keras.backend import standardize_dtype
-   6 from keras.backend.common.backend_utils import (
-   7     compute_conv_transpose_padding_args_for_torch,
-   8 )
-   9 from keras.backend.config import epsilon
-  10 from keras.backend.torch.core import cast
-  11 from keras.backend...
-```
-========================================================================================================================
-AGENT:
-<thinking>
-Now I can see the issue clearly. In the `conv` function at line 339, the padding check is:
+The kernel is transposed AFTER the padding is applied:
 ```python
-if padding == "same":
+# Transpose kernel from keras format to torch format.
+kernel = _transpose_conv_kernel(kernel)
 ```
 
-This is case-sensitive, so `"SAME"` (uppercase) won't match and the padding won't be applied. The same issue exists in `max_pool` (line 213) and `average_pool` (line 266).
+So the issue is that `_apply_same_padding` is using `kernel.shape[2:]` which is the last two dimensions of the Keras-format kernel, not the spatial dimensions.
 
-Let me check how JAX and TensorFlow handle this:
+Let me look at the `_transpose_conv_kernel` function:
+```python
+def _transpose_conv_kernel(kernel):
+    # Torch requires conv kernel of format
+    # `(out_channels, in_channels, spatial_dims)`, we need to transpose.
+    num_spatial_dims = len(kernel.shape) - 2
+    if num_spatial_dims == 1:
+        kernel = torch.permute(kernel, (2, 1, 0))  # (W, in, out) -> (out, in, W)
+    elif num_spatial_dims == 2:
+        kernel = torch.permute(kernel, (3, 2, 0, 1))  # (H, W, in, out) -> (out, in, H, W)
+    elif num_spatial_dims == 3:
+        kernel = torch.permute(kernel, (4, 3, 0, 1, 2))  # (D, H, W, in, out) -> (out, in, D, H, W)
+    return kernel
+```
+
+So for a 2D conv kernel:
+- Keras format: (H, W, in_channels, out_channels)
+- Torch format: (out_channels, in_channels, H, W)
+
+The spatial dimensions in Keras format are `kernel.shape[:-2]` (the first dimensions), not `kernel.shape[2:]` (the last dimensions).
+
+Let me verify this by looking at the `_apply_same_padding` function:
+```python
+def _apply_same_padding(
+    inputs, kernel_size, strides, operation_type, dilation_rate=1
+):
+    spatial_shape = inputs.shape[2:]  # This is correct for torch format (batch, channels, spatial)
+    ...
+```
+
+So the inputs are already transposed to torch format (channels_first), but the kernel is still in Keras format when `_apply_same_padding` is called.
+
+The fix should be to get the spatial dimensions from the kernel correctly. For a Keras-format kernel, the spatial dimensions are `kernel.shape[:-2]`, not `kernel.shape[2:]`.
+
+Let me look at the `conv` function again:
+```python
+def conv(
+    inputs,
+    kernel,
+    strides=1,
+    padding="valid",
+    data_format=None,
+    dilation_rate=1,
+):
+    inputs = convert_to_tensor(inputs)
+    kernel = convert_to_tensor(kernel)
+    num_spatial_dims = inputs.ndim - 2
+    strides = standardize_tuple(strides, num_spatial_dims, "strides")
+
+    data_format = standardize_data_format(data_format)
+    if data_format == "channels_last":
+        inputs = _transpose_spatial_inputs(inputs)
+    # Transpose kernel from keras format to torch format.
+    kernel = _transpose_conv_kernel(kernel)
+    if padding == "same":
+        inputs = _apply_same_padding(
+            inputs,
+            kernel.shape[2:],  # <-- This is correct AFTER transpose
+            strides,
+            operation_type="conv",
+            dilation_rate=dilation_rate,
+        )
+```
+
+Wait, I see the issue now. The kernel is transposed BEFORE `_apply_same_padding` is called. So `kernel.shape[2:]` should be correct after the transpose.
+
+Let me re-read the code more carefully...
+
+Actually, looking at the code again:
+```python
+    if data_format == "channels_last":
+        inputs = _transpose_spatial_inputs(inputs)
+    # Transpose kernel from keras format to torch format.
+    kernel = _transpose_conv_kernel(kernel)
+    if padding == "same":
+        inputs = _apply_same_padding(
+            inputs,
+            kernel.shape[2:],
+            strides,
+            operation_type="conv",
+            dilation_rate=dilation_rate,
+        )
+```
+
+The kernel IS transposed before `_apply_same_padding` is called. So `kernel.shape[2:]` should give the spatial dimensions correctly.
+
+Let me trace through the example again:
+- Input: `(1, 613, 696, 3)` - (batch, height, width, channels) in channels_last format
+- Kernel: `(1, 5, 3, 1)` - (height, width, in_channels, depth_multiplier) in Keras format
+
+In `depthwise_conv`:
+1. Kernel is reshaped: `(1, 5, 3, 1)` -> `(1, 5, 1, 3)` (spatial_dims + (1, in_channels * depth_multiplier))
+
+In `conv`:
+2. Inputs are transposed: `(1, 613, 696, 3)` -> `(1, 3, 613, 696)` (batch, channels, height, width)
+3. Kernel is transposed: `(1, 5, 1, 3)` -> `(3, 1, 1, 5)` (out_channels, in_channels, height, width)
+4. `kernel.shape[2:]` = `(1, 5)` - This is the spatial dimensions (height=1, width=5)
+
+Now in `_apply_same_padding`:
+- `spatial_shape = inputs.shape[2:]` = `(613, 696)` (height, width)
+- `kernel_size = (1, 5)` (height, width)
+
+The padding calculation:
+```python
+for i in range(num_spatial_dims):
+    ...
+    padding_size = _compute_padding_length(
+        spatial_shape[i], kernel_size[i], strides[i], dilation_rate[i]
+    )
+    ...
+    padding = padding_size + padding  # <-- This is the issue!
+```
+
+The padding is being prepended, not appended! This means the padding order is reversed.
+
+For `i=0` (height): `padding = (0, 0) + () = (0, 0)`
+For `i=1` (width): `padding = (2, 2) + (0, 0) = (2, 2, 0, 0)`
+
+But `tnn.pad` expects padding in reverse order: `(left_width, right_width, left_height, right_height)`.
+
+Wait, let me check the PyTorch documentation for `tnn.pad`:
+> The padding size by which to pad some dimensions of input are described starting from the last dimension and moving forward.
+
+So for a 4D tensor (N, C, H, W), the padding should be `(left_W, right_W, left_H, right_H)`.
+
+The current code does:
+```python
+for i in range(num_spatial_dims):  # i = 0 (H), then i = 1 (W)
+    padding_size = _compute_padding_length(...)
+    padding = padding_size + padding  # prepend
+```
+
+For i=0 (H): `padding = (left_H, right_H)`
+For i=1 (W): `padding = (left_W, right_W) + (left_H, right_H) = (left_W, right_W, left_H, right_H)`
+
+This looks correct! The padding is being built in the correct order for `tnn.pad`.
+
+Let me look at the `_compute_padding_length` function more carefully:
+
+```python
+def _compute_padding_length(
+    input_length, kernel_length, stride, dilation_rate=1
+):
+    """Compute padding length along one dimension."""
+    if (input_length - 1) % stride == 0:
+        total_padding_length = dilation_rate * (kernel_length - 1)
+    else:
+        total_padding_length = (
+            dilation_rate * (kernel_length - 1) - (input_length - 1) % stride
+        )
+    left_padding = int(np.floor(total_padding_length / 2))
+    right_padding = int(np.ceil(total_padding_length / 2))
+    return (left_padding, right_padding)
+```
+
+Let me trace through the example:
+- Input shape: (1, 3, 613, 696) after transpose
+- Kernel shape: (3, 1, 1, 5) after transpose
+- Spatial shape: (613, 696)
+- Kernel size: (1, 5)
+- Strides: (1, 1)
+- Dilation rate: 1
+
+For height (i=0):
+- input_length = 613
+- kernel_length = 1
+- stride = 1
+- dilation_rate = 1
+- (613 - 1) % 1 == 0, so total_padding_length = 1 * (1 - 1) = 0
+- left_padding = 0, right_padding = 0
+- padding_size = (0, 0)
+
+For width (i=1):
+- input_length = 696
+- kernel_length = 5
+- stride = 1
+- dilation_rate = 1
+- (696 - 1) % 1 == 0, so total_padding_length = 1 * (5 - 1) = 4
+- left_padding = 2, right_padding = 2
+- padding_size = (2, 2)
+
+So the final padding should be (2, 2, 0, 0) for (left_W, right_W, left_H, right_H).
+
+This looks correct! The output width should be 696 (same as input).
+
+Let me check if there's something else going on. Let me look at the tensorflow implementation to compare:
 </thinking>
 ========================================================================================================================
 TOOL CALL (inspect_code)
@@ -935,38 +409,150 @@ Successfully expanded code chunks in keras/backend/tensorflow/nn.py:
 ========================================================================================================================
 AGENT:
 <thinking>
-I can see that in the TensorFlow backend, at line 270:
-```python
-padding = padding.upper()
+I see! The TensorFlow implementation uses `tf.nn.depthwise_conv2d` directly with the kernel in its original format, and passes the padding string directly to TensorFlow which handles the "SAME" padding internally.
+
+The torch implementation, on the other hand, reshapes the kernel and calls the generic `conv` function, which then applies manual padding.
+
+Let me write a test script to reproduce the issue and understand it better.
+</thinking>
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && pip install -e . -q 2>&1 | tail -5
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && pip install torch -q 2>&1 | tail -3
+
+========================================================================================================================
+TOOL RETURN (bash)
 ```
 
-This converts the padding to uppercase before passing it to TensorFlow's `tf.nn.depthwise_conv2d`. TensorFlow's API expects uppercase padding values ("SAME" or "VALID").
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && KERAS_BACKEND=torch python3 -c \"\nimport numpy as np\n\
+  import keras\nfrom keras import ops\n\ninput = np.ones((1, 613, 696, 3))\nkernel\
+  \ = np.ones((1, 5, 3, 1))\n\nout = ops.depthwise_conv(\n    input, kernel, strides=1,\
+  \ padding='same'\n)\nprint('Torch output shape:', out.shape)\n\""
 
-In JAX, the `jax.lax.conv_general_dilated` function also accepts both uppercase and lowercase padding values (it handles them internally).
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Using PyTorch backend.
+Torch output shape: torch.Size([1, 613, 696, 3])...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Interesting! The output shape is now correct `(1, 613, 696, 3)`. Let me check if the issue has already been fixed or if there's something specific about the test case that was failing. Let me try with the exact values from the issue.
+</thinking>
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && KERAS_BACKEND=torch python3 -c \"\nimport numpy as np\n\
+  import keras\nfrom keras import ops\n\n# Test case from the issue\ninput = np.ones((1,\
+  \ 613, 696, 3))\nkernel = np.ones((1, 5, 3, 1))\n\nout = ops.depthwise_conv(\n \
+  \   input, kernel, strides=1, padding='SAME'\n)\nprint('Torch output shape with\
+  \ SAME:', out.shape)\n\n# Also test with lowercase 'same'\nout2 = ops.depthwise_conv(\n\
+  \    input, kernel, strides=1, padding='same'\n)\nprint('Torch output shape with\
+  \ same:', out2.shape)\n\""
 
-The issue is that the Torch backend compares `padding == "same"` (lowercase), so when the user passes `"SAME"` (uppercase), the condition is false and no padding is applied.
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Using PyTorch backend.
+Torch output shape with SAME: torch.Size([1, 613, 692, 3])
+Torch output shape with same: torch.Size([1, 613, 696, 3])...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+I found the issue! The problem is with the case sensitivity of the padding parameter:
+- `padding='same'` (lowercase) works correctly and produces shape `(1, 613, 696, 3)`
+- `padding='SAME'` (uppercase) does NOT work correctly and produces shape `(1, 613, 692, 3)`
 
-The fix should be to normalize the padding value to lowercase in the Torch backend functions. Let me check all the places where padding is compared in the Torch backend:
+Let me look at how the padding parameter is handled in the torch backend's `conv` function:
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: keras/backend/torch/nn.py
+line_ranges:
+- - 321
+  - 405
 
-1. `max_pool` - line 213: `if padding == "same":`
-2. `average_pool` - line 266: `if padding == "same":`
-3. `conv` - line 339: `if padding == "same":`
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in keras/backend/torch/nn.py:
 
-I need to add `padding = padding.lower()` at the beginning of each of these functions to normalize the padding value.
+````python
+   0 import numpy as np
+   1 import torch
+   2 import torch.nn.functional as tnn
+   3 
+   4 from keras.backend import standardize_data_format
+   5 from keras.backend import standardize_dtype
+   6 from keras.backend.common.backend_utils import (
+   7     compute_conv_transpose_padding_args_for_torch,
+   8 )
+   9 from keras.backend.config import epsilon
+  10 from keras.backend.torch.core import cast
+  11 from keras.backend...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Now I can clearly see the issue. In the `conv` function at line 339:
 
-Let me make the fix:
+```python
+if padding == "same":
+```
+
+This is a case-sensitive comparison. When `padding="SAME"` (uppercase), this condition is `False`, so no padding is applied, and the convolution is performed with no padding (which is equivalent to "valid" padding).
+
+The fix is simple: we need to normalize the padding string to lowercase before comparing. Let me check how other backends handle this:
+
+1. TensorFlow backend: `padding = padding.upper()` - converts to uppercase and passes to TF
+2. JAX backend: passes padding directly to JAX's `conv_general_dilated` which accepts both cases
+
+The torch backend should normalize the padding to lowercase (since it compares with lowercase "same").
+
+Let me also check if there are other places in the torch backend where this issue might occur (like `max_pool`, `average_pool`, etc.).
+
+Looking at the code:
+- `max_pool` at line 213: `if padding == "same":` - same issue
+- `average_pool` at line 266: `if padding == "same":` - same issue
+- `conv` at line 339: `if padding == "same":` - same issue
+
+The fix should normalize the padding parameter to lowercase at the beginning of each function.
+
+Let me implement the fix:
 </thinking>
 ========================================================================================================================
 AGENT:
-Found the root cause: The torch backend's conv, max_pool, and average_pool functions compare padding with lowercase "same", but don't normalize the input. When users pass uppercase "SAME" (as TensorFlow/JAX accept), the padding is not applied. Need to add padding normalization to lowercase in these functions.
+Found the issue: The torch backend's conv, max_pool, and average_pool functions compare padding with lowercase "same" but don't normalize the input padding parameter. When padding="SAME" (uppercase) is passed, the comparison fails and no padding is applied. The fix is to normalize the padding parameter to lowercase.
 ========================================================================================================================
 AGENT:
-STEP 2: FIX THE ISSUE
+STEP 2: IMPLEMENT THE FIX
 
 <thinking>
-I need to modify the torch backend to normalize the padding value to lowercase. I'll add `padding = padding.lower()` at the beginning of the `conv`, `max_pool`, and `average_pool` functions.
+I need to fix the case sensitivity issue in the torch backend. The fix should normalize the padding parameter to lowercase in the following functions:
+1. `max_pool`
+2. `average_pool`
+3. `conv`
 
-Let me make the changes:
+The `depthwise_conv` function calls `conv`, so it will be fixed automatically.
+
+Let me implement the fix by adding `padding = padding.lower()` at the beginning of each function (after validating that padding is a string).
 </thinking>
 ========================================================================================================================
 TOOL CALL (find_and_replace_code)
@@ -1058,624 +644,7 @@ Successfully replaced code in keras/backend/torch/nn.py:
 ```
 ========================================================================================================================
 AGENT:
-Now let me verify the fix by running the test again:
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && python test_depthwise_conv.py 2>&1
-timeout: 60
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Using PyTorch backend.
-Testing with padding='SAME' (uppercase):
-  Input shape: (1, 613, 696, 3)
-  Kernel shape: (1, 5, 3, 1)
-  Output shape: (1, 613, 696, 3)
-  Expected: (1, 613, 696, 3)
-
-Testing with padding='same' (lowercase):
-  Output shape: (1, 613, 696, 3)
-  Expected: (1, 613, 696, 3)...
-```
-========================================================================================================================
-AGENT:
-The fix works. Now let me run more comprehensive tests to make sure I haven't broken anything:
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && KERAS_BACKEND=torch python -m pytest keras/ops/nn_test.py::NNOpsCorrectnessTest::test_depthwise_conv_2d
-  -xvs 2>&1
-timeout: 120
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Using PyTorch backend.
-============================= test session starts ==============================
-platform linux -- Python 3.11.12, pytest-9.0.2, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python
-cachedir: .pytest_cache
-rootdir: /workspace
-configfile: pyproject.toml
-collecting ... collected 1 item
-
-keras/ops/nn_test.py::NNOpsCorrectnessTest::test_depthwise_conv_2d PASSED
-
-============================== 1 passed in 1.31s ===============================...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && KERAS_BACKEND=torch python -m pytest keras/ops/nn_test.py::NNOpsCorrectnessTest
-  -xvs 2>&1 | head -100
-timeout: 300
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Using PyTorch backend.
-============================= test session starts ==============================
-platform linux -- Python 3.11.12, pytest-9.0.2, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python
-cachedir: .pytest_cache
-rootdir: /workspace
-configfile: pyproject.toml
-collecting ... collected 41 items
-
-keras/ops/nn_test.py::NNOpsCorrectnessTest::test_average_pool_same_padding SKIPPED
-keras/ops/nn_test.py::NNOpsCorrectnessTest::test_average_pool_valid_padding PASSED
-keras/ops/nn_test.p...
-```
-========================================================================================================================
-AGENT:
-All tests pass. Let me also run the tests for the dynamic and static shape tests:
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && KERAS_BACKEND=torch python -m pytest keras/ops/nn_test.py::NNOpsDynamicShapeTest::test_depthwise_conv
-  keras/ops/nn_test.py::NNOpsStaticShapeTest::test_depthwise_conv -xvs 2>&1
-timeout: 120
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Using PyTorch backend.
-============================= test session starts ==============================
-platform linux -- Python 3.11.12, pytest-9.0.2, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python
-cachedir: .pytest_cache
-rootdir: /workspace
-configfile: pyproject.toml
-collecting ... collected 2 items
-
-keras/ops/nn_test.py::NNOpsDynamicShapeTest::test_depthwise_conv PASSED
-keras/ops/nn_test.py::NNOpsStaticShapeTest::test_depthwise_conv PASSED
-
-============================== 2 passed in...
-```
-========================================================================================================================
-AGENT:
-Let me also test with JAX and TensorFlow backends to make sure the fix is consistent across all backends:
-========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: test_depthwise_conv.py
-find: "import numpy as np\nimport os\n\n# Test with torch backend directly\nos.environ[\"\
-  KERAS_BACKEND\"] = \"torch\"\n\nimport keras\nfrom keras import ops\n\n# Test with\
-  \ uppercase SAME (as in the issue)\ninput_data = np.ones((1, 613, 696, 3), dtype=np.float32)\n\
-  kernel = np.ones((1, 5, 3, 1), dtype=np.float32)\n\nprint(\"Testing with padding='SAME'\
-  \ (uppercase):\")\nout = ops.depthwise_conv(\n    input_data, kernel, strides=1,\
-  \ padding='SAME'\n)\nprint(f\"  Input shape: {input_data.shape}\")\nprint(f\"  Kernel\
-  \ shape: {kernel.shape}\")\nprint(f\"  Output shape: {tuple(out.shape)}\")\nprint(f\"\
-  \  Expected: (1, 613, 696, 3)\")\n\nprint(\"\\nTesting with padding='same' (lowercase):\"\
-  )\nout = ops.depthwise_conv(\n    input_data, kernel, strides=1, padding='same'\n\
-  )\nprint(f\"  Output shape: {tuple(out.shape)}\")\nprint(f\"  Expected: (1, 613,\
-  \ 696, 3)\")"
-replace: "import numpy as np\nimport subprocess\nimport sys\n\n# Test various input\
-  \ sizes and strides with both uppercase and lowercase padding\ntest_cases = [\n\
-  \    ((1, 613, 696, 3), (1, 5, 3, 1), 1, 'SAME'),\n    ((1, 613, 696, 3), (1, 5,\
-  \ 3, 1), 1, 'same'),\n    ((1, 10, 10, 3), (3, 3, 3, 1), 2, 'SAME'),\n    ((1, 10,\
-  \ 10, 3), (3, 3, 3, 1), 2, 'same'),\n]\n\ndef run_test(backend, input_shape, kernel_shape,\
-  \ strides, padding):\n    code = f'''\nimport numpy as np\nimport os\nimport sys\n\
-  os.environ[\"KERAS_BACKEND\"] = \"{backend}\"\n# Suppress keras output\nimport logging\n\
-  logging.getLogger().setLevel(logging.ERROR)\nimport keras\nfrom keras import ops\n\
-  \ninput_data = np.ones({input_shape}, dtype=np.float32)\nkernel = np.ones({kernel_shape},\
-  \ dtype=np.float32)\n\nout = ops.depthwise_conv(\n    input_data, kernel, strides={strides},\
-  \ padding='{padding}'\n)\nprint(\"RESULT:\" + str(tuple(out.shape)))\n'''\n    result\
-  \ = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True)\n\
-  \    if result.returncode != 0:\n        return None, result.stderr\n    # Find\
-  \ the RESULT line\n    for line in result.stdout.split('\\n'):\n        if line.startswith('RESULT:'):\n\
-  \            return eval(line[7:]), None\n    return None, f\"No result found in\
-  \ output: {result.stdout}\"\n\nprint(\"Comparing depthwise_conv with padding across\
-  \ backends:\")\nprint(\"=\" * 80)\n\nfor input_shape, kernel_shape, strides, padding\
-  \ in test_cases:\n    print(f\"\\nInput: {input_shape}, Kernel: {kernel_shape},\
-  \ Strides: {strides}, Padding: '{padding}'\")\n    \n    results = {}\n    for backend\
-  \ in ['tensorflow', 'jax', 'torch']:\n        shape, error = run_test(backend, input_shape,\
-  \ kernel_shape, strides, padding)\n        if error:\n            results[backend]\
-  \ = f\"ERROR: {error[:100]}\"\n        else:\n            results[backend] = shape\n\
-  \    \n    # Check if all results match\n    shapes = [v for v in results.values()\
-  \ if isinstance(v, tuple)]\n    all_match = len(set(shapes)) <= 1\n    \n    for\
-  \ backend, result in results.items():\n        status = \"\u2713\" if all_match\
-  \ else (\"\u2717\" if result != shapes[0] else \"\u2713\")\n        print(f\"  {status}\
-  \ {backend}: {result}\")\n    \n    if not all_match:\n        print(\"  *** MISMATCH\
-  \ DETECTED ***\")"
-
-========================================================================================================================
-TOOL RETURN (find_and_replace_code)
-```
-Successfully replaced code in test_depthwise_conv.py:
-
---- test_depthwise_conv.py
-+++ test_depthwise_conv.py
-@@ -1,29 +1,66 @@
-+import numpy as np
-+import subprocess
-+import sys
-+
-+# Test various input sizes and strides with both uppercase and lowercase padding
-+test_cases = [
-+    ((1, 613, 696, 3), (1, 5, 3, 1), 1, 'SAME'),
-+    ((1, 613, 696, 3), (1, 5, 3, 1), 1, 'same'),
-+    ((1, 10, 10, 3), (3, 3, 3, 1), 2, 'SAME'),
-+    ((1, 10, 10, 3), (3, 3, 3, 1), 2, 'same'),
-+]
-+
-+def run_test(backend...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && python test_depthwise_conv.py 2>&1
-timeout: 180
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Comparing depthwise_conv with padding across backends:
-================================================================================
-
-Input: (1, 613, 696, 3), Kernel: (1, 5, 3, 1), Strides: 1, Padding: 'SAME'
-  ✓ tensorflow: (1, 613, 696, 3)
-  ✓ jax: (1, 613, 696, 3)
-  ✓ torch: (1, 613, 696, 3)
-
-Input: (1, 613, 696, 3), Kernel: (1, 5, 3, 1), Strides: 1, Padding: 'same'
-  ✓ tensorflow: (1, 613, 696, 3)
-  ✓ jax: (1, 613, 696, 3)
-  ✓ torch: (1, 613, 696, 3)
-
-Input: (1, 10, 10, 3), Kernel: (3, 3,...
-```
-========================================================================================================================
-AGENT:
-All backends now produce consistent results for both uppercase and lowercase padding values. Let me also test the pooling operations to make sure they work correctly with both cases:
-========================================================================================================================
-TOOL CALL (find_and_replace_code)
-file_path: test_depthwise_conv.py
-find: "import numpy as np\nimport subprocess\nimport sys\n\n# Test various input sizes\
-  \ and strides with both uppercase and lowercase padding\ntest_cases = [\n    ((1,\
-  \ 613, 696, 3), (1, 5, 3, 1), 1, 'SAME'),\n    ((1, 613, 696, 3), (1, 5, 3, 1),\
-  \ 1, 'same'),\n    ((1, 10, 10, 3), (3, 3, 3, 1), 2, 'SAME'),\n    ((1, 10, 10,\
-  \ 3), (3, 3, 3, 1), 2, 'same'),\n]\n\ndef run_test(backend, input_shape, kernel_shape,\
-  \ strides, padding):\n    code = f'''\nimport numpy as np\nimport os\nimport sys\n\
-  os.environ[\"KERAS_BACKEND\"] = \"{backend}\"\n# Suppress keras output\nimport logging\n\
-  logging.getLogger().setLevel(logging.ERROR)\nimport keras\nfrom keras import ops\n\
-  \ninput_data = np.ones({input_shape}, dtype=np.float32)\nkernel = np.ones({kernel_shape},\
-  \ dtype=np.float32)\n\nout = ops.depthwise_conv(\n    input_data, kernel, strides={strides},\
-  \ padding='{padding}'\n)\nprint(\"RESULT:\" + str(tuple(out.shape)))\n'''\n    result\
-  \ = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True)\n\
-  \    if result.returncode != 0:\n        return None, result.stderr\n    # Find\
-  \ the RESULT line\n    for line in result.stdout.split('\\n'):\n        if line.startswith('RESULT:'):\n\
-  \            return eval(line[7:]), None\n    return None, f\"No result found in\
-  \ output: {result.stdout}\"\n\nprint(\"Comparing depthwise_conv with padding across\
-  \ backends:\")\nprint(\"=\" * 80)\n\nfor input_shape, kernel_shape, strides, padding\
-  \ in test_cases:\n    print(f\"\\nInput: {input_shape}, Kernel: {kernel_shape},\
-  \ Strides: {strides}, Padding: '{padding}'\")\n    \n    results = {}\n    for backend\
-  \ in ['tensorflow', 'jax', 'torch']:\n        shape, error = run_test(backend, input_shape,\
-  \ kernel_shape, strides, padding)\n        if error:\n            results[backend]\
-  \ = f\"ERROR: {error[:100]}\"\n        else:\n            results[backend] = shape\n\
-  \    \n    # Check if all results match\n    shapes = [v for v in results.values()\
-  \ if isinstance(v, tuple)]\n    all_match = len(set(shapes)) <= 1\n    \n    for\
-  \ backend, result in results.items():\n        status = \"\u2713\" if all_match\
-  \ else (\"\u2717\" if result != shapes[0] else \"\u2713\")\n        print(f\"  {status}\
-  \ {backend}: {result}\")\n    \n    if not all_match:\n        print(\"  *** MISMATCH\
-  \ DETECTED ***\")"
-replace: 'import numpy as np
-
-  import os
-
-
-  # Test with torch backend directly
-
-  os.environ["KERAS_BACKEND"] = "torch"
-
-
-  import keras
-
-  from keras import ops
-
-
-  print("Testing pooling operations with uppercase and lowercase padding:")
-
-  print("=" * 80)
-
-
-  input_data = np.ones((1, 10, 10, 3), dtype=np.float32)
-
-
-  # Test max_pool
-
-  print("\nmax_pool with padding=''SAME'':")
-
-  out = ops.max_pool(input_data, pool_size=3, strides=2, padding=''SAME'')
-
-  print(f"  Output shape: {tuple(out.shape)}, Expected: (1, 5, 5, 3)")
-
-
-  print("max_pool with padding=''same'':")
-
-  out = ops.max_pool(input_data, pool_size=3, strides=2, padding=''same'')
-
-  print(f"  Output shape: {tuple(out.shape)}, Expected: (1, 5, 5, 3)")
-
-
-  # Test average_pool
-
-  print("\naverage_pool with padding=''SAME'':")
-
-  out = ops.average_pool(input_data, pool_size=3, strides=2, padding=''SAME'')
-
-  print(f"  Output shape: {tuple(out.shape)}, Expected: (1, 5, 5, 3)")
-
-
-  print("average_pool with padding=''same'':")
-
-  out = ops.average_pool(input_data, pool_size=3, strides=2, padding=''same'')
-
-  print(f"  Output shape: {tuple(out.shape)}, Expected: (1, 5, 5, 3)")
-
-
-  # Test conv
-
-  print("\nconv with padding=''SAME'':")
-
-  kernel = np.ones((3, 3, 3, 6), dtype=np.float32)
-
-  out = ops.conv(input_data, kernel, strides=2, padding=''SAME'')
-
-  print(f"  Output shape: {tuple(out.shape)}, Expected: (1, 5, 5, 6)")
-
-
-  print("conv with padding=''same'':")
-
-  out = ops.conv(input_data, kernel, strides=2, padding=''same'')
-
-  print(f"  Output shape: {tuple(out.shape)}, Expected: (1, 5, 5, 6)")
-
-
-  # Test depthwise_conv
-
-  print("\ndepthwise_conv with padding=''SAME'':")
-
-  kernel = np.ones((3, 3, 3, 1), dtype=np.float32)
-
-  out = ops.depthwise_conv(input_data, kernel, strides=2, padding=''SAME'')
-
-  print(f"  Output shape: {tuple(out.shape)}, Expected: (1, 5, 5, 3)")
-
-
-  print("depthwise_conv with padding=''same'':")
-
-  out = ops.depthwise_conv(input_data, kernel, strides=2, padding=''same'')
-
-  print(f"  Output shape: {tuple(out.shape)}, Expected: (1, 5, 5, 3)")
-
-
-  print("\nAll tests passed!")'
-
-========================================================================================================================
-TOOL RETURN (find_and_replace_code)
-```
-Successfully replaced code in test_depthwise_conv.py:
-
---- test_depthwise_conv.py
-+++ test_depthwise_conv.py
-@@ -1,66 +1,54 @@
--import numpy as np
--import subprocess
--import sys
--
--# Test various input sizes and strides with both uppercase and lowercase padding
--test_cases = [
--    ((1, 613, 696, 3), (1, 5, 3, 1), 1, 'SAME'),
--    ((1, 613, 696, 3), (1, 5, 3, 1), 1, 'same'),
--    ((1, 10, 10, 3), (3, 3, 3, 1), 2, 'SAME'),
--    ((1, 10, 10, 3), (3, 3, 3, 1), 2, 'same'),
--]
--
--def run_test(backend...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && python test_depthwise_conv.py 2>&1
-timeout: 60
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Using PyTorch backend.
-Testing pooling operations with uppercase and lowercase padding:
-================================================================================
-
-max_pool with padding='SAME':
-  Output shape: (1, 5, 5, 3), Expected: (1, 5, 5, 3)
-max_pool with padding='same':
-  Output shape: (1, 5, 5, 3), Expected: (1, 5, 5, 3)
-
-average_pool with padding='SAME':
-  Output shape: (1, 5, 5, 3), Expected: (1, 5, 5, 3)
-average_pool with padding='same':
-  Output shape: (1, 5, 5, 3), Expected: (1...
-```
-========================================================================================================================
-AGENT:
-All operations now work correctly with both uppercase and lowercase padding values. Let me run a broader set of tests to make sure I haven't broken anything:
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && KERAS_BACKEND=torch python -m pytest keras/ops/nn_test.py
-  -x --timeout=120 2>&1 | tail -30
-timeout: 300
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Using PyTorch backend.
-ERROR: usage: __main__.py [options] [file_or_dir] [file_or_dir] [...]
-__main__.py: error: unrecognized arguments: --timeout=120
-  inifile: /workspace/pyproject.toml
-  rootdir: /workspace...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && KERAS_BACKEND=torch python -m pytest keras/ops/nn_test.py
-  -x 2>&1 | tail -30
-timeout: 300
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-keras/ops/nn_test.py::NNOpsCorrectnessTest::test_conv_1d7 SKIPPED        [ 71%]
-keras/ops/nn_test.py::NNOpsCorrectnessTest::test_conv_1d8 PASSED         [ 72%]
-keras/ops/nn_test.py::NNOpsCorrectnessTest::test_conv_1d9 SKIPPED        [ 73%]
-keras/ops/nn_test.py::NNOpsCorrectnessTest::test_conv_2d PASSED          [ 74%]
-keras/ops/nn_test.py::NNOpsCorrectnessTest::test_conv_3d PASSED          [ 75%]
-keras/ops/nn_test.py::NNOpsCorrectnessTest::test_conv_transpose_1d PASSED [ 76%]
-keras/ops/nn_test.p...
-```
-========================================================================================================================
-AGENT:
-All tests pass. Let me also verify the changes I made by reviewing the modified code:
-========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: keras/backend/torch/nn.py
-line_ranges:
-- - 194
-  - 220
-- - - 247
-    - 275
-- - - 321
-    - 350
-
-========================================================================================================================
-TOOL RETURN (inspect_code)
-```
-Error executing tool inspect_code: 2 validation errors for inspect_codeArguments
-line_ranges.1.0
-  Input should be a valid integer [type=int_type, input_value=[247, 275], input_type=list]
-    For further information visit https://errors.pydantic.dev/2.12/v/int_type
-line_ranges.2.0
-  Input should be a valid integer [type=int_type, input_value=[321, 350], input_type=list]
-    For further information visit https://errors.pydantic.dev/2.12/v/int_type...
-```
-========================================================================================================================
-TOOL CALL (inspect_code)
-file_path: keras/backend/torch/nn.py
-line_ranges:
-- - 194
-  - 220
-- - 247
-  - 275
-- - 321
-  - 350
-
-========================================================================================================================
-TOOL RETURN (inspect_code)
-```
-Successfully expanded code chunks in keras/backend/torch/nn.py:
-
-````python
-   0 import numpy as np
-   1 import torch
-   2 import torch.nn.functional as tnn
-   3 
-   4 from keras.backend import standardize_data_format
-   5 from keras.backend import standardize_dtype
-   6 from keras.backend.common.backend_utils import (
-   7     compute_conv_transpose_padding_args_for_torch,
-   8 )
-   9 from keras.backend.config import epsilon
-  10 from keras.backend.torch.core import cast
-  11 from keras.backend...
-```
-========================================================================================================================
-AGENT:
-I can see the changes I made:
-1. Line 204: `padding = padding.lower()` in `max_pool`
-2. Line 258: `padding = padding.lower()` in `average_pool`
-3. Line 335: `padding = padding.lower()` in `conv`
-
-These changes ensure that the padding parameter is normalized to lowercase before being compared, which fixes the issue where uppercase "SAME" was not being recognized.
-
-Let me clean up the test file:
-========================================================================================================================
-TOOL CALL (delete_file)
-file_path: test_depthwise_conv.py
-
-========================================================================================================================
-TOOL RETURN (delete_file)
-```
-Successfully deleted test_depthwise_conv.py....
-```
-========================================================================================================================
-AGENT:
-Now let me run the tests one more time to make sure everything is working correctly:
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && KERAS_BACKEND=torch python -m pytest keras/ops/nn_test.py
-  -x -q 2>&1 | tail -10
-timeout: 300
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-keras/ops/nn_test.py::NNOpsCorrectnessTest::test_selu PASSED             [ 92%]
-keras/ops/nn_test.py::NNOpsCorrectnessTest::test_separable_conv_2d PASSED [ 93%]
-keras/ops/nn_test.py::NNOpsCorrectnessTest::test_sigmoid PASSED          [ 94%]
-keras/ops/nn_test.py::NNOpsCorrectnessTest::test_silu PASSED             [ 95%]
-keras/ops/nn_test.py::NNOpsCorrectnessTest::test_softmax PASSED          [ 96%]
-keras/ops/nn_test.py::NNOpsCorrectnessTest::test_softplus PASSED         [ 97%]
-keras/ops/nn_test.p...
-```
-========================================================================================================================
-AGENT:
-All tests pass. Let me also run a quick test with JAX and TensorFlow backends to make sure the fix is consistent:
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && KERAS_BACKEND=jax python -m pytest keras/ops/nn_test.py::NNOpsCorrectnessTest::test_depthwise_conv_2d
-  -xvs 2>&1
-timeout: 120
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Using JAX backend.
-============================= test session starts ==============================
-platform linux -- Python 3.11.12, pytest-9.0.2, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python
-cachedir: .pytest_cache
-rootdir: /workspace
-configfile: pyproject.toml
-collecting ... collected 1 item
-
-keras/ops/nn_test.py::NNOpsCorrectnessTest::test_depthwise_conv_2d PASSED
-
-============================== 1 passed in 1.25s ===============================...
-```
-========================================================================================================================
-TOOL CALL (bash)
-command: cd /workspace && KERAS_BACKEND=tensorflow python -m pytest keras/ops/nn_test.py::NNOpsCorrectnessTest::test_depthwise_conv_2d
-  -xvs 2>&1
-timeout: 120
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Using TensorFlow backend
-============================= test session starts ==============================
-platform linux -- Python 3.11.12, pytest-9.0.2, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python
-cachedir: .pytest_cache
-rootdir: /workspace
-configfile: pyproject.toml
-collecting ... collected 1 item
-
-keras/ops/nn_test.py::NNOpsCorrectnessTest::test_depthwise_conv_2d PASSED
-
-============================== 1 passed in 0.20s ===============================...
-```
-========================================================================================================================
-AGENT:
-All tests pass on all backends. Let me create a final verification script to confirm the fix works as expected:
-========================================================================================================================
-TOOL CALL (bash)
-command: 'cd /workspace && python -c "
-
-  import numpy as np
-
-  import os
-
-  os.environ[''KERAS_BACKEND''] = ''torch''
-
-
-  import keras
-
-  from keras import ops
-
-
-  # Reproduce the exact issue from the problem statement
-
-  input_data = np.ones((1, 613, 696, 3), dtype=np.float32)
-
-  kernel = np.ones((1, 5, 3, 1), dtype=np.float32)
-
-
-  # Test with uppercase SAME (as in the issue)
-
-  out = ops.depthwise_conv(input_data, kernel, strides=1, padding=''SAME'')
-
-  print(f''Input shape: {input_data.shape}'')
-
-  print(f''Kernel shape: {kernel.shape}'')
-
-  print(f''Output shape with padding=\"SAME\": {tuple(out.shape)}'')
-
-  print(f''Expected: (1, 613, 696, 3)'')
-
-
-  assert tuple(out.shape) == (1, 613, 696, 3), f''FAILED: Expected (1, 613, 696, 3),
-  got {tuple(out.shape)}''
-
-  print(''SUCCESS: The issue is fixed!'')
-
-  " 2>&1'
-timeout: 60
-
-========================================================================================================================
-TOOL RETURN (bash)
-```
-Using PyTorch backend.
-Input shape: (1, 613, 696, 3)
-Kernel shape: (1, 5, 3, 1)
-Output shape with padding="SAME": (1, 613, 696, 3)
-Expected: (1, 613, 696, 3)
-SUCCESS: The issue is fixed!...
-```
-========================================================================================================================
-AGENT:
-The fix has been implemented and tested. The issue was that the torch backend's conv, max_pool, and average_pool functions were comparing padding with lowercase "same" but not normalizing the input. When users passed uppercase "SAME" (as TensorFlow/JAX accept), the padding was not applied. The fix adds `padding = padding.lower()` to normalize the padding value in these three functions.
-========================================================================================================================
-AGENT:
-STEP 3: REVIEW CHANGES
-
-<thinking>
-Let me review the changes I made to ensure they are correct and complete:
-
-1. I identified that the issue was in the torch backend where padding comparison was case-sensitive
-2. I added `padding = padding.lower()` to three functions:
-   - `max_pool` (line 204)
-   - `average_pool` (line 258)
-   - `conv` (line 335)
-
-The `depthwise_conv` function calls `conv`, so it automatically benefits from the fix in `conv`.
-
-Let me also check if there are any other functions in the torch backend that might have the same issue:
-</thinking>
-========================================================================================================================
-TOOL CALL (grep)
-content_pattern: padding == \"same\"
-path_glob: '**/torch/*.py'
-
-========================================================================================================================
-TOOL RETURN (grep)
-```
-keras/backend/torch/nn.py:215:    if padding == "same":
-keras/backend/torch/nn.py:269:    if padding == "same":
-keras/backend/torch/nn.py:343:    if padding == "same":...
-```
-========================================================================================================================
-AGENT:
-All three places where `padding == "same"` is checked now have the `padding = padding.lower()` normalization before the check. Let me also verify that the `conv_transpose` function doesn't have the same issue:
+Now let me also check if `conv_transpose` has the same issue:
 ========================================================================================================================
 TOOL CALL (inspect_code)
 file_path: keras/backend/torch/nn.py
@@ -1704,7 +673,7 @@ Successfully expanded code chunks in keras/backend/torch/nn.py:
 ========================================================================================================================
 AGENT:
 <thinking>
-I see that `conv_transpose` passes the `padding` parameter to `compute_conv_transpose_padding_args_for_torch`. Let me check if that function handles case sensitivity:
+I see that `conv_transpose` passes the padding to `compute_conv_transpose_padding_args_for_torch`. Let me check that function to see if it handles case sensitivity:
 </thinking>
 ========================================================================================================================
 TOOL CALL (inspect_code)
@@ -1760,50 +729,497 @@ Successfully expanded code chunks in keras/backend/common/backend_utils.py:
 ```
 ========================================================================================================================
 AGENT:
-I can see that `_convert_conv_tranpose_padding_args_from_keras_to_torch` already handles case sensitivity by using `padding.lower()` at lines 56 and 60. So `conv_transpose` is already case-insensitive for padding.
+<thinking>
+I can see that `_convert_conv_tranpose_padding_args_from_keras_to_torch` already handles case sensitivity by using `padding.lower()` in the assertion and comparisons (lines 56, 60, 71). So `conv_transpose` is already case-insensitive.
 
-Let me run the conv_transpose tests to confirm:
+Now let me verify my fix by running the test case from the issue:
+</thinking>
+
+STEP 3: VERIFY THE FIX
 ========================================================================================================================
 TOOL CALL (bash)
-command: cd /workspace && KERAS_BACKEND=torch python -m pytest keras/ops/nn_test.py::NNOpsCorrectnessTest::test_conv_transpose_1d
-  keras/ops/nn_test.py::NNOpsCorrectnessTest::test_conv_transpose_2d -xvs 2>&1
-timeout: 120
+command: "cd /workspace && KERAS_BACKEND=torch python3 -c \"\nimport numpy as np\n\
+  import keras\nfrom keras import ops\n\n# Test case from the issue\ninput = np.ones((1,\
+  \ 613, 696, 3))\nkernel = np.ones((1, 5, 3, 1))\n\n# Test with uppercase 'SAME'\n\
+  out = ops.depthwise_conv(\n    input, kernel, strides=1, padding='SAME'\n)\nprint('Torch\
+  \ output shape with SAME:', out.shape)\n\n# Test with lowercase 'same'\nout2 = ops.depthwise_conv(\n\
+  \    input, kernel, strides=1, padding='same'\n)\nprint('Torch output shape with\
+  \ same:', out2.shape)\n\n# Verify both are correct\nexpected_shape = (1, 613, 696,\
+  \ 3)\nassert tuple(out.shape) == expected_shape, f'Expected {expected_shape}, got\
+  \ {tuple(out.shape)}'\nassert tuple(out2.shape) == expected_shape, f'Expected {expected_shape},\
+  \ got {tuple(out2.shape)}'\nprint('All tests passed!')\n\""
 
 ========================================================================================================================
 TOOL RETURN (bash)
 ```
 Using PyTorch backend.
-============================= test session starts ==============================
-platform linux -- Python 3.11.12, pytest-9.0.2, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python
-cachedir: .pytest_cache
-rootdir: /workspace
-configfile: pyproject.toml
-collecting ... collected 2 items
-
-keras/ops/nn_test.py::NNOpsCorrectnessTest::test_conv_transpose_1d PASSED
-keras/ops/nn_test.py::NNOpsCorrectnessTest::test_conv_transpose_2d PASSED
-
-============================== 2 pass...
+Torch output shape with SAME: torch.Size([1, 613, 696, 3])
+Torch output shape with same: torch.Size([1, 613, 696, 3])
+All tests passed!...
 ```
 ========================================================================================================================
 AGENT:
-All tests pass. Let me now mark the task as complete:
+The fix works. Now let me also test the `conv`, `max_pool`, and `average_pool` functions to make sure they also work correctly with uppercase padding:
+========================================================================================================================
+TOOL CALL (bash)
+command: 'cd /workspace && KERAS_BACKEND=torch python3 -c "
+
+  import numpy as np
+
+  import keras
+
+  from keras import ops
+
+
+  # Test conv with uppercase ''SAME''
+
+  input_conv = np.ones((1, 10, 10, 3))
+
+  kernel_conv = np.ones((3, 3, 3, 8))
+
+
+  out_conv = ops.conv(input_conv, kernel_conv, strides=1, padding=''SAME'')
+
+  print(''Conv output shape with SAME:'', out_conv.shape)
+
+  assert tuple(out_conv.shape) == (1, 10, 10, 8), f''Expected (1, 10, 10, 8), got
+  {tuple(out_conv.shape)}''
+
+
+  # Test max_pool with uppercase ''SAME''
+
+  input_pool = np.ones((1, 10, 10, 3))
+
+  out_max_pool = ops.max_pool(input_pool, pool_size=3, strides=1, padding=''SAME'')
+
+  print(''Max pool output shape with SAME:'', out_max_pool.shape)
+
+  assert tuple(out_max_pool.shape) == (1, 10, 10, 3), f''Expected (1, 10, 10, 3),
+  got {tuple(out_max_pool.shape)}''
+
+
+  # Test average_pool with uppercase ''SAME''
+
+  out_avg_pool = ops.average_pool(input_pool, pool_size=3, strides=1, padding=''SAME'')
+
+  print(''Average pool output shape with SAME:'', out_avg_pool.shape)
+
+  assert tuple(out_avg_pool.shape) == (1, 10, 10, 3), f''Expected (1, 10, 10, 3),
+  got {tuple(out_avg_pool.shape)}''
+
+
+  print(''All tests passed!'')
+
+  "'
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Using PyTorch backend.
+Conv output shape with SAME: torch.Size([1, 10, 10, 8])
+Max pool output shape with SAME: torch.Size([1, 10, 10, 3])
+Average pool output shape with SAME: torch.Size([1, 10, 10, 3])
+All tests passed!...
+```
+========================================================================================================================
+AGENT:
+Excellent! All tests pass. Let me also run the existing tests to make sure I haven't broken anything:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && KERAS_BACKEND=torch python3 -m pytest keras/ops/nn_test.py
+  -v -k "depthwise" --timeout=60 2>&1 | head -100
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+/root/.pyenv/versions/3.11.12/bin/python3: No module named pytest...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: pip install pytest pytest-timeout -q 2>&1 | tail -3
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && KERAS_BACKEND=torch python3 -m pytest keras/ops/nn_test.py
+  -v -k "depthwise" --timeout=120 2>&1 | head -100
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+============================= test session starts ==============================
+platform linux -- Python 3.11.12, pytest-9.0.2, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python3
+cachedir: .pytest_cache
+rootdir: /workspace
+configfile: pyproject.toml
+plugins: timeout-2.4.0
+timeout: 120.0s
+timeout method: signal
+timeout func_only: False
+collecting ... collected 0 items / 1 error
+
+==================================== ERRORS ====================================
+____________________ ERROR col...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: pip install tensorflow -q 2>&1 | tail -3
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && KERAS_BACKEND=torch python3 -m pytest keras/ops/nn_test.py
+  -v -k "depthwise" --timeout=120 2>&1 | head -100
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+============================= test session starts ==============================
+platform linux -- Python 3.11.12, pytest-9.0.2, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python3
+cachedir: .pytest_cache
+rootdir: /workspace
+configfile: pyproject.toml
+plugins: timeout-2.4.0
+timeout: 120.0s
+timeout method: signal
+timeout func_only: False
+collecting ... collected 94 items / 91 deselected / 3 selected
+
+keras/ops/nn_test.py::NNOpsDynamicShapeTest::test_depthwise_conv PASSED  [ 33%]
+keras/ops/n...
+```
+========================================================================================================================
+AGENT:
+All depthwise conv tests pass. Let me also run the conv and pooling tests:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && KERAS_BACKEND=torch python3 -m pytest keras/ops/nn_test.py
+  -v -k "conv" --timeout=120 2>&1 | tail -30
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+collecting ... collected 94 items / 68 deselected / 26 selected
+
+keras/ops/nn_test.py::NNOpsDynamicShapeTest::test_conv PASSED            [  3%]
+keras/ops/nn_test.py::NNOpsDynamicShapeTest::test_conv_transpose PASSED  [  7%]
+keras/ops/nn_test.py::NNOpsDynamicShapeTest::test_depthwise_conv PASSED  [ 11%]
+keras/ops/nn_test.py::NNOpsDynamicShapeTest::test_separable_conv PASSED  [ 15%]
+keras/ops/nn_test.py::NNOpsStaticShapeTest::test_conv PASSED             [ 19%]
+keras/ops/nn_test.py::NNOpsStaticSh...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && KERAS_BACKEND=torch python3 -m pytest keras/ops/nn_test.py
+  -v -k "pool" --timeout=120 2>&1 | tail -30
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+============================= test session starts ==============================
+platform linux -- Python 3.11.12, pytest-9.0.2, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python3
+cachedir: .pytest_cache
+rootdir: /workspace
+configfile: pyproject.toml
+plugins: timeout-2.4.0
+timeout: 120.0s
+timeout method: signal
+timeout func_only: False
+collecting ... collected 94 items / 87 deselected / 7 selected
+
+keras/ops/nn_test.py::NNOpsDynamicShapeTest::test_average_pool PASSED    [ 14%]
+keras/ops/n...
+```
+========================================================================================================================
+AGENT:
+All tests pass. Let me also verify the fix works with other backends (tensorflow and jax) to ensure consistency:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && pip install jax jaxlib -q 2>&1 | tail -3
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python3 -c \"\nimport numpy as np\n\n# Test with all backends\n\
+  backends = ['tensorflow', 'jax', 'torch']\nresults = {}\n\nfor backend in backends:\n\
+  \    import os\n    os.environ['KERAS_BACKEND'] = backend\n    \n    # Need to reimport\
+  \ keras for each backend\n    import importlib\n    import keras\n    importlib.reload(keras)\n\
+  \    from keras import ops\n    \n    input = np.ones((1, 613, 696, 3))\n    kernel\
+  \ = np.ones((1, 5, 3, 1))\n    \n    out = ops.depthwise_conv(\n        input, kernel,\
+  \ strides=1, padding='SAME'\n    )\n    results[backend] = tuple(out.shape)\n  \
+  \  print(f'{backend} output shape with SAME: {out.shape}')\n\n# Verify all backends\
+  \ produce the same shape\nexpected = (1, 613, 696, 3)\nfor backend, shape in results.items():\n\
+  \    assert shape == expected, f'{backend}: Expected {expected}, got {shape}'\n\n\
+  print('All backends produce consistent results!')\n\""
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Using TensorFlow backend
+tensorflow output shape with SAME: (1, 613, 696, 3)
+jax output shape with SAME: (1, 613, 696, 3)
+torch output shape with SAME: (1, 613, 696, 3)
+All backends produce consistent results!...
+```
+========================================================================================================================
+AGENT:
+All three backends now produce consistent results with uppercase 'SAME' padding.
+
+STEP 4: REVIEW CHANGES
+
+Let me review the changes I made to ensure they are correct and complete:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && git diff keras/backend/torch/nn.py
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+diff --git a/keras/backend/torch/nn.py b/keras/backend/torch/nn.py
+index c04584c48..4a826302a 100644
+--- a/keras/backend/torch/nn.py
++++ b/keras/backend/torch/nn.py
+@@ -202,6 +202,7 @@ def max_pool(
+     inputs = convert_to_tensor(inputs)
+     num_spatial_dims = inputs.ndim - 2
+     pool_size = standardize_tuple(pool_size, num_spatial_dims, "pool_size")
++    padding = padding.lower()
+     if strides is None:
+         strides = pool_size
+     else:
+@@ -255,6 +256,7 @@ def average_pool(
+     input...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+The changes look correct. I added `padding = padding.lower()` to normalize the padding parameter to lowercase in three functions:
+1. `max_pool` - line 204
+2. `average_pool` - line 258
+3. `conv` - line 335
+
+The `depthwise_conv` function calls `conv`, so it automatically benefits from this fix. The `conv_transpose` function already handles case sensitivity in the `_convert_conv_tranpose_padding_args_from_keras_to_torch` helper function.
+
+Let me also check if there are any other places in the torch backend that might have similar issues:
+</thinking>
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: padding == \"same\"
+path_glob: '**/torch/*.py'
+
+========================================================================================================================
+TOOL RETURN (grep)
+```
+keras/backend/torch/nn.py:215:    if padding == "same":
+keras/backend/torch/nn.py:269:    if padding == "same":
+keras/backend/torch/nn.py:343:    if padding == "same":...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+All three occurrences of `padding == "same"` are in the functions I've already fixed:
+- Line 215: `max_pool` - fixed with `padding = padding.lower()` at line 204
+- Line 269: `average_pool` - fixed with `padding = padding.lower()` at line 258
+- Line 343: `conv` - fixed with `padding = padding.lower()` at line 335
+
+Let me also check if there are any other backends that might have similar issues:
+</thinking>
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: padding == \"same\"
+path_glob: '**/jax/*.py'
+
+========================================================================================================================
+TOOL RETURN (grep)
+```
+No matches found for pattern 'padding == \"same\"'....
+```
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: padding == \"same\"
+path_glob: '**/numpy/*.py'
+
+========================================================================================================================
+TOOL RETURN (grep)
+```
+No matches found for pattern 'padding == \"same\"'....
+```
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: padding == \"same\"
+path_glob: '**/tensorflow/*.py'
+
+========================================================================================================================
+TOOL RETURN (grep)
+```
+No matches found for pattern 'padding == \"same\"'....
+```
+========================================================================================================================
+AGENT:
+<thinking>
+The jax, numpy, and tensorflow backends don't have the same issue because they either:
+1. Pass the padding string directly to the underlying framework which handles case sensitivity
+2. Use `.upper()` or `.lower()` to normalize the padding string
+
+Let me run a broader test to ensure the fix is complete:
+</thinking>
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && KERAS_BACKEND=torch python3 -c \"\nimport numpy as np\n\
+  import keras\nfrom keras import ops\n\n# Test various padding cases\ntest_cases\
+  \ = ['same', 'SAME', 'Same', 'SaMe', 'valid', 'VALID', 'Valid']\n\ninput = np.ones((1,\
+  \ 10, 10, 3))\nkernel = np.ones((3, 3, 3, 8))\n\nfor padding in test_cases:\n  \
+  \  try:\n        out = ops.conv(input, kernel, strides=1, padding=padding)\n   \
+  \     expected_shape = (1, 10, 10, 8) if padding.lower() == 'same' else (1, 8, 8,\
+  \ 8)\n        assert tuple(out.shape) == expected_shape, f'padding={padding}: Expected\
+  \ {expected_shape}, got {tuple(out.shape)}'\n        print(f'padding={padding!r}:\
+  \ shape={tuple(out.shape)} \u2713')\n    except Exception as e:\n        print(f'padding={padding!r}:\
+  \ ERROR - {e}')\n\nprint('All padding cases work correctly!')\n\""
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Using PyTorch backend.
+padding='same': shape=(1, 10, 10, 8) ✓
+padding='SAME': shape=(1, 10, 10, 8) ✓
+padding='Same': shape=(1, 10, 10, 8) ✓
+padding='SaMe': shape=(1, 10, 10, 8) ✓
+padding='valid': shape=(1, 8, 8, 8) ✓
+padding='VALID': shape=(1, 8, 8, 8) ✓
+padding='Valid': shape=(1, 8, 8, 8) ✓
+All padding cases work correctly!...
+```
+========================================================================================================================
+AGENT:
+All padding cases work correctly now. Let me run a final comprehensive test to ensure the fix is complete:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && KERAS_BACKEND=torch python3 -c \"\nimport numpy as np\n\
+  import keras\nfrom keras import ops\n\nprint('Testing depthwise_conv with SAME padding...')\n\
+  input = np.ones((1, 613, 696, 3))\nkernel = np.ones((1, 5, 3, 1))\nout = ops.depthwise_conv(input,\
+  \ kernel, strides=1, padding='SAME')\nassert tuple(out.shape) == (1, 613, 696, 3),\
+  \ f'Expected (1, 613, 696, 3), got {tuple(out.shape)}'\nprint(f'  depthwise_conv:\
+  \ {tuple(out.shape)} \u2713')\n\nprint('Testing conv with SAME padding...')\ninput\
+  \ = np.ones((1, 10, 10, 3))\nkernel = np.ones((3, 3, 3, 8))\nout = ops.conv(input,\
+  \ kernel, strides=1, padding='SAME')\nassert tuple(out.shape) == (1, 10, 10, 8),\
+  \ f'Expected (1, 10, 10, 8), got {tuple(out.shape)}'\nprint(f'  conv: {tuple(out.shape)}\
+  \ \u2713')\n\nprint('Testing max_pool with SAME padding...')\ninput = np.ones((1,\
+  \ 10, 10, 3))\nout = ops.max_pool(input, pool_size=3, strides=1, padding='SAME')\n\
+  assert tuple(out.shape) == (1, 10, 10, 3), f'Expected (1, 10, 10, 3), got {tuple(out.shape)}'\n\
+  print(f'  max_pool: {tuple(out.shape)} \u2713')\n\nprint('Testing average_pool with\
+  \ SAME padding...')\nout = ops.average_pool(input, pool_size=3, strides=1, padding='SAME')\n\
+  assert tuple(out.shape) == (1, 10, 10, 3), f'Expected (1, 10, 10, 3), got {tuple(out.shape)}'\n\
+  print(f'  average_pool: {tuple(out.shape)} \u2713')\n\nprint('Testing separable_conv\
+  \ with SAME padding...')\ninput = np.ones((1, 10, 10, 3))\ndepthwise_kernel = np.ones((3,\
+  \ 3, 3, 1))\npointwise_kernel = np.ones((1, 1, 3, 8))\nout = ops.separable_conv(input,\
+  \ depthwise_kernel, pointwise_kernel, strides=1, padding='SAME')\nassert tuple(out.shape)\
+  \ == (1, 10, 10, 8), f'Expected (1, 10, 10, 8), got {tuple(out.shape)}'\nprint(f'\
+  \  separable_conv: {tuple(out.shape)} \u2713')\n\nprint()\nprint('All tests passed!\
+  \ The fix is complete.')\n\""
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Using PyTorch backend.
+Testing depthwise_conv with SAME padding...
+  depthwise_conv: (1, 613, 696, 3) ✓
+Testing conv with SAME padding...
+  conv: (1, 10, 10, 8) ✓
+Testing max_pool with SAME padding...
+  max_pool: (1, 10, 10, 3) ✓
+Testing average_pool with SAME padding...
+  average_pool: (1, 10, 10, 3) ✓
+Testing separable_conv with SAME padding...
+  separable_conv: (1, 10, 10, 8) ✓
+
+All tests passed! The fix is complete....
+```
+========================================================================================================================
+AGENT:
+The fix has been implemented and tested. The issue was that the torch backend's conv, max_pool, and average_pool functions were comparing the padding parameter with lowercase "same" but not normalizing the input padding parameter. When padding="SAME" (uppercase) was passed, the comparison failed and no padding was applied. The fix adds `padding = padding.lower()` to normalize the padding parameter to lowercase in these three functions.
+========================================================================================================================
+AGENT:
+Let me run a few more tests to ensure the fix is robust:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && KERAS_BACKEND=torch python3 -m pytest keras/ops/nn_test.py
+  -v --timeout=300 2>&1 | tail -50
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+keras/ops/nn_test.py::NNOpsStaticShapeTest::test_separable_conv PASSED   [ 50%]
+keras/ops/nn_test.py::NNOpsStaticShapeTest::test_sigmoid PASSED          [ 51%]
+keras/ops/nn_test.py::NNOpsStaticShapeTest::test_silu PASSED             [ 52%]
+keras/ops/nn_test.py::NNOpsStaticShapeTest::test_softmax PASSED          [ 53%]
+keras/ops/nn_test.py::NNOpsStaticShapeTest::test_softplus PASSED         [ 54%]
+keras/ops/nn_test.py::NNOpsStaticShapeTest::test_softsign PASSED         [ 55%]
+keras/ops/nn_test.py...
+```
+========================================================================================================================
+AGENT:
+All 89 tests pass (5 skipped). Let me also verify the fix works correctly with the exact test case from the issue:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python3 -c \"\nimport numpy as np\nimport os \n\n# Test\
+  \ with all three backends as shown in the issue\nfor backend in ['tensorflow', 'jax',\
+  \ 'torch']:\n    os.environ['KERAS_BACKEND'] = backend\n    \n    # Need to reimport\
+  \ keras for each backend\n    import importlib\n    import keras\n    importlib.reload(keras)\n\
+  \    from keras import ops\n    \n    input = np.ones((1, 613, 696, 3))\n    kernel\
+  \ = np.ones((1, 5, 3, 1))\n    \n    out = ops.depthwise_conv(\n        input, kernel,\
+  \ strides=1, padding='SAME'\n    )\n    print(f'# with {backend}')\n    print(f'out.shape:\
+  \ {tuple(out.shape)}')\n    print()\n\""
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Using TensorFlow backend
+# with tensorflow
+out.shape: (1, 613, 696, 3)
+
+# with jax
+out.shape: (1, 613, 696, 3)
+
+# with torch
+out.shape: (1, 613, 696, 3)...
+```
+========================================================================================================================
+AGENT:
+All three backends now produce the same output shape `(1, 613, 696, 3)` as expected.
 ========================================================================================================================
 AGENT:
 Successfully fixed the issue where `depthwise_conv` ops with `padding='SAME'` (uppercase) was not working correctly on the torch backend.
 
 **Root Cause:**
-The torch backend's `conv`, `max_pool`, and `average_pool` functions were comparing the padding parameter with lowercase `"same"`, but not normalizing the input. When users passed uppercase `"SAME"` (which is accepted by TensorFlow and JAX), the condition `if padding == "same"` was false, so no padding was applied, resulting in incorrect output shapes.
+The torch backend's `conv`, `max_pool`, and `average_pool` functions were comparing the padding parameter with lowercase `"same"` but not normalizing the input padding parameter. When `padding="SAME"` (uppercase) was passed, the comparison `if padding == "same"` failed, so no padding was applied, resulting in incorrect output shapes.
 
 **Fix:**
-Added `padding = padding.lower()` to normalize the padding value to lowercase in three functions in `keras/backend/torch/nn.py`:
+Added `padding = padding.lower()` to normalize the padding parameter to lowercase in three functions in `keras/backend/torch/nn.py`:
 1. `max_pool` (line 204)
 2. `average_pool` (line 258)
 3. `conv` (line 335)
 
-The `depthwise_conv` function calls `conv` internally, so it automatically benefits from the fix.
+The `depthwise_conv` function calls `conv`, so it automatically benefits from this fix. The `conv_transpose` function already handled case sensitivity in its helper function.
 
 **Verification:**
-- The exact example from the issue now produces the correct output shape `(1, 613, 696, 3)` instead of the incorrect `(1, 613, 692, 3)`
-- All existing tests pass (89 passed, 5 skipped)
-- Both uppercase and lowercase padding values now work consistently across all backends (TensorFlow, JAX, and Torch)
+- All three backends (tensorflow, jax, torch) now produce consistent output shape `(1, 613, 696, 3)` for the test case from the issue
+- All 89 nn_test.py tests pass on the torch backend
+- Various padding cases ('same', 'SAME', 'Same', 'valid', 'VALID', etc.) all work correctly
