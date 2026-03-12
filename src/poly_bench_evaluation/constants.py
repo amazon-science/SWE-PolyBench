@@ -1,7 +1,24 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: CC-BY-NC-4.0
+import os
+
 JAVA_TIMEOUT = 1800
 DEFAULT_TIMEOUT = 1200
+
+# Docker registry configuration
+# Default to GHCR public registry, can be overridden via environment variable
+DEFAULT_REGISTRY_HOST = os.environ.get(
+    "SWE_POLYBENCH_REGISTRY_HOST",
+    "ghcr.io"
+)
+DEFAULT_REGISTRY_NAMESPACE = os.environ.get(
+    "SWE_POLYBENCH_REGISTRY_NAMESPACE",
+    "timesler"
+)
+DEFAULT_REGISTRY_REPO = os.environ.get(
+    "SWE_POLYBENCH_REGISTRY_REPO",
+    "swe-polybench"
+)
 
 REPO_TO_PARSER_CLASS = {
     "google/guava": "JavaGenericParser",

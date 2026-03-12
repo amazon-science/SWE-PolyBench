@@ -127,6 +127,17 @@ def evaluate_instance(
     else:
         # Fall back to building locally
         logger.info("Pre-built image not available, building docker image locally...")
+
+        # Build base image if needed (non-Python languages only)
+        if language != "Python":
+            base_image_id = f"polybench_{language.lower()}_base"
+            base_docker_manager = DockerManager(
+                image_id=base_image_id, delete_image=False, client=client
+            )
+            if not base_docker_manager.check_image_local(local_image_name=base_image_id):
+                logger.info(f"Building base image for {language}...")
+                base_docker_manager.build_base_image(language=language)
+
         # clone the repo and build docker image
         repo_manager = RepoManager(repo_name=repo, repo_path=repo_path)
         repo_manager.clone_repo()
@@ -198,9 +209,15 @@ def evaluate_instance(
         patch_success = docker_manager.apply_patch_to_container(
             patch_content=model_patch, patch_type="code"
         )
-    except Exception:
+    except Exception as e:
         patch_success = 1
-        logger.debug(f"patch error for instance id: {instance_id}")
+        logger.error(f"patch error for instance id: {instance_id}, error: {e}")
+        # Log patch content for debugging
+        if model_patch:
+            patch_preview = model_patch[:500] + "..." if len(model_patch) > 500 else model_patch
+            logger.debug(f"Failed patch content preview: {patch_preview}")
+        else:
+            logger.debug(f"Model patch is empty or None for {instance_id}")
 
     if patch_success != 0:
         logger.info(f"patch apply error for instance id: {instance_id}")
@@ -283,6 +300,7 @@ def evaluate_predictions(
     skip_existing: bool,
     retrieval_metrics_only: bool = False,
     node_retrieval_metrics: bool = False,
+    instance_id: str = None,
 ):
     """Predictions file evaluation function.
     Args:
@@ -296,6 +314,7 @@ def evaluate_predictions(
         skip_existing: Whether to skip the existing evaluations in result_path.
         retrieval_metrics_only: Whether to only compute retrieval metrics.
         node_retrieval_metrics: Whether to compute compute-heavy node retrieval metrics.
+        instance_id: Optional instance ID to evaluate only a single instance.
     Raises:
         ValueError: If the predictions file is not in the correct format.
     """
@@ -321,14 +340,16 @@ def evaluate_predictions(
     logger.info(f"Remaining samples to evaluate: {len(dataset)}")
     assert "language" in dataset.columns, "language column not found in dataset file."
 
-    logger.info("Building base images...")
-    for language in dataset["language"].unique():
-        if language != "Python":
-            base_image_id = f"polybench_{language.lower()}_base"
-            base_docker_manager = DockerManager(
-                image_id=base_image_id, delete_image=False, client=client
-            )
-            base_docker_manager.build_base_image(language=language)
+    # Filter by instance_id if specified
+    if instance_id:
+        dataset = dataset[dataset["instance_id"] == instance_id]
+        if len(dataset) == 0:
+            logger.error(f"Instance ID '{instance_id}' not found in dataset.")
+            return
+        logger.info(f"Evaluating single instance: {instance_id}")
+
+    # Note: Base images will be built on-demand when needed for local image building
+    # This avoids unnecessary base image builds when pre-built images are available from GHCR
 
     if predictions_path:
         try:
@@ -341,14 +362,14 @@ def evaluate_predictions(
                 "instance_id" in predictions.columns
             ), "instance_id column not found in predictions file."
 
+            # Use inner join to only evaluate instances with predictions
             dataset = pd.merge(
                 dataset,
                 predictions[["instance_id", "model_patch"]],
-                how="left",
+                how="inner",  # Only keep instances that have predictions
                 on="instance_id",
             )
-            # Fill any missing model_patch values with empty string
-            dataset.fillna({"model_patch": ""}, inplace=True)
+            logger.info(f"Evaluating {len(dataset)} instances from predictions file")
         except Exception:
             raise ValueError("Please provide a correct predictions jsonl file.")
 
@@ -399,6 +420,12 @@ if __name__ == "__main__":
         default=False,
         help="If set, node retrieval metrics will be computed.",
     )
+    parser.add_argument(
+        "--instance-id",
+        type=str,
+        default=None,
+        help="Optional instance ID to evaluate only a single instance.",
+    )
 
     args = parser.parse_args()
 
@@ -413,4 +440,5 @@ if __name__ == "__main__":
         skip_existing=args.skip_existing,
         retrieval_metrics_only=args.metrics_only,
         node_retrieval_metrics=args.node_metrics,
+        instance_id=args.instance_id,
     )

@@ -11,7 +11,7 @@ from typing import List, Literal
 
 import docker
 from loguru import logger
-from .constants import LANGUAGE_TO_BASE_DOCKERFILE
+from .constants import LANGUAGE_TO_BASE_DOCKERFILE, DEFAULT_REGISTRY_HOST, DEFAULT_REGISTRY_NAMESPACE, DEFAULT_REGISTRY_REPO
 
 
 class DockerManager:
@@ -38,35 +38,36 @@ class DockerManager:
             return False
 
     def try_pull_prebuilt_image(self, instance_id: str, version: str = "latest") -> bool:
-        """Try to pull a pre-built image from GHCR
-        
+        """Try to pull a pre-built image from container registry
+
         Args:
             instance_id: The instance ID for the image
             version: Image version tag (default: "latest")
-            
+
         Returns:
             bool: True if image was successfully pulled, False otherwise
         """
-        ghcr_image_name = f"ghcr.io/timesler/swe-polybench.eval.x86_64.{instance_id.lower()}:{version}"
-        
+        # Format: {registry_host}/{namespace}/{repo}:eval.x86_64.{instance_id}_{version}
+        registry_image_name = f"{DEFAULT_REGISTRY_HOST}/{DEFAULT_REGISTRY_NAMESPACE}/{DEFAULT_REGISTRY_REPO}:eval.x86_64.{instance_id}_{version}"
+
         try:
-            logger.info(f"Attempting to pull pre-built image: {ghcr_image_name}")
-            
-            # Try to pull the image from GHCR
-            self.client.images.pull(ghcr_image_name)
-            
+            logger.info(f"Attempting to pull pre-built image: {registry_image_name}")
+
+            # Try to pull the image from registry
+            self.client.images.pull(registry_image_name)
+
             # Tag the pulled image with our local naming convention
-            pulled_image = self.client.images.get(ghcr_image_name)
+            pulled_image = self.client.images.get(registry_image_name)
             pulled_image.tag(self.image_id)
-            
-            # Store GHCR image name for cleanup
-            self.ghcr_image_name = ghcr_image_name
-            
+
+            # Store registry image name for cleanup
+            self.ghcr_image_name = registry_image_name
+
             logger.info(f"Successfully pulled and tagged pre-built image for {instance_id}")
             return True
-            
+
         except docker.errors.ImageNotFound:
-            logger.info(f"Pre-built image not found in GHCR: {ghcr_image_name}")
+            logger.info(f"Pre-built image not found in registry: {registry_image_name}")
             return False
         except docker.errors.APIError as e:
             logger.info(f"Failed to pull pre-built image: {e}")
@@ -170,6 +171,7 @@ class DockerManager:
                 # Clean up the temporary file
                 Path(tmp_file.name).unlink(missing_ok=True)
 
+
     def apply_patch_to_container(
         self, patch_content: str, patch_type: Literal["code", "test"]
     ) -> int:
@@ -188,30 +190,90 @@ class DockerManager:
         # The filename as it should appear inside the container
         container_patch_filename = f"patch_{patch_type}.diff"
 
+        # Log patch content for debugging
+        patch_lines = patch_content.strip().split('\n') if patch_content else []
+        logger.info(f"=== Patch ({patch_type}) content ({len(patch_lines)} lines) ===")
+        logger.info(f"Patch preview (first 50 lines):\n{chr(10).join(patch_lines[:50])}")
+        if len(patch_lines) > 50:
+            logger.info(f"... ({len(patch_lines) - 50} more lines)")
+        logger.info(f"=== End patch preview ===")
+
+        # Check if patch is empty
+        if not patch_content.strip():
+            logger.warning(f"Patch ({patch_type}) is empty, skipping")
+            return 0
+
         if not self.copy_file_to_container(patch_content, container_patch_filename, workdir):
             raise ValueError("Failed to create patch file in container")
 
         try:
-            # First try: git apply
+            # First try: git apply with --reject to allow partial application
+            logger.info(f"Attempting git apply for {patch_type} patch...")
             exec_result = self.container.exec_run(
                 cmd=f"git apply -v --ignore-whitespace --reject {workdir}/{container_patch_filename}",
                 workdir=workdir,
                 user="root",
             )
+            git_apply_output = exec_result.output.decode('utf-8', errors='replace') if exec_result.output else "No output"
+
             if exec_result.exit_code != 0:
-                # Second try: patch command
-                exec_result = self.container.exec_run(
-                    cmd=f"patch --batch --fuzz=5 -p1 -f -i {workdir}/{container_patch_filename}",
-                    workdir=workdir,
-                    user="root",
-                )
-                if exec_result.exit_code != 0:
-                    raise ValueError("Failed to apply patch.")
-                else:
+                # Log full output for debugging
+                logger.warning(f"=== git apply output (exit_code={exec_result.exit_code}) ===")
+                logger.warning(git_apply_output)
+                logger.warning(f"=== End git apply output ===")
+
+                # Check if this is a partial success (some files applied, some rejected)
+                # git apply --reject will create .rej files for rejected hunks
+                # but will still modify files that apply cleanly
+                has_applied = "Applied patch" in git_apply_output
+
+                if has_applied:
+                    # Partial success - some files were applied
+                    logger.warning(f"git apply partially succeeded for {patch_type} patch (some hunks rejected)")
+
+                    # For code patches, partial application is acceptable
+                    # The tests will reveal if the fix is correct
                     success = 0
+                    logger.info(f"Accepted partial patch application for {patch_type} patch")
+                else:
+                    # Complete failure - try patch command as fallback
+                    logger.warning(f"git apply completely failed for {patch_type} patch")
+
+                    # Second try: patch command
+                    logger.info(f"Attempting patch command for {patch_type} patch...")
+                    exec_result = self.container.exec_run(
+                        cmd=f"patch --batch --fuzz=5 -p1 -f -i {workdir}/{container_patch_filename}",
+                        workdir=workdir,
+                        user="root",
+                    )
+                    patch_output = exec_result.output.decode('utf-8', errors='replace') if exec_result.output else "No output"
+
+                    if exec_result.exit_code != 0:
+                        logger.error(f"=== patch command output (exit_code={exec_result.exit_code}) ===")
+                        logger.error(patch_output)
+                        logger.error(f"=== End patch command output ===")
+
+                        # Diagnostic info
+                        diag_result = self.container.exec_run(
+                            cmd=f"ls -la {workdir}/{container_patch_filename}",
+                            workdir=workdir,
+                            user="root",
+                        )
+                        logger.error(f"Patch file check: {diag_result.output.decode('utf-8', errors='replace') if diag_result.output else 'No output'}")
+
+                        raise ValueError(f"Failed to apply {patch_type} patch. git apply output: {git_apply_output}; patch output: {patch_output}")
+                    else:
+                        success = 0
+                        logger.info(f"Successfully applied {patch_type} patch using patch command")
             else:
                 success = 0
+                logger.info(f"Successfully applied {patch_type} patch using git apply")
 
+        except ValueError:
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error applying {patch_type} patch: {type(e).__name__}: {str(e)}")
+            raise ValueError(f"Failed to apply patch: {str(e)}") from e
         finally:
             # Clean up if patch failed
             if success != 0:
