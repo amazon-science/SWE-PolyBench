@@ -1,6 +1,10 @@
 # iSWE-Agent
 
-iSWE-Agent is a multi-agent system developed by IBM Research to tackle software engineering tasks. The latest release of iSWE focuses on Java development and is built using IBM’s [Prompt Declaration Language (PDL)](https://github.com/IBM/prompt-declaration-language). The iSWE Agent currently consists of two components: the _Localization_ agent and the _Editing_ agent, which operate in a sequential workflow. Unlike the conventional approach that relies on `bash` for code navigation and `str_replace_edit` for patch generation, iSWE introduces a **novel** methodology for both code understanding and editing.
+iSWE-Agent is a multi-agent system developed by IBM Research to tackle software engineering tasks. 
+
+Our arXiv paper, which includes additional details, is now available at: [Resolving Java Code Repository Issues with iSWE Agent](https://arxiv.org/abs/2603.11356v1)
+
+The latest release of iSWE focuses on Java development and is built using IBM’s [Prompt Declaration Language (PDL)](https://github.com/IBM/prompt-declaration-language). The iSWE Agent currently consists of two components: the _Localization_ agent and the _Editing_ agent, which operate in a sequential workflow. Unlike the conventional approach that relies on `bash` for code navigation and `str_replace_edit` for patch generation, iSWE introduces a **novel** methodology for both code understanding and editing.
 
 We evaluated the performance of this development version of the iSWE Agent on the Java subset of the full SWE-PolyBench dataset, where it achieves 33.3%
 
@@ -36,7 +40,6 @@ The iSWE Editing Agent:
 - integrates validation checks using both linting and compilation feedback to guarantee syntax correctness before applying changes, and
 - does not use Anthropic's `str_replace_edit` tool, commonly used by other agents such as (M)SWE-Agent, (M)OpenHands and (M)Agentless.
 
-Our team is preparing an arXiv paper with additional details to be released soon.
 
 ### NOTE
 
