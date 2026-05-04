@@ -1,0 +1,747 @@
+########################################################################################################################
+PHASE 1
+########################################################################################################################
+========================================================================================================================
+AGENT:
+I will start by viewing the workspace to understand its structure and contents. This will help me identify key files and locations that may be relevant to the task.
+========================================================================================================================
+USER PROMPT:
+Resolve the following problem statement:
+
+<problem_statement>
+Incorrect router probability calculation
+### System Info
+
+transformers version 4.36.0
+
+### Who can help?
+
+ @ArthurZucker and @younesbelkada
+
+### Information
+
+- [X] The official example scripts
+- [ ] My own modified scripts
+
+### Tasks
+
+- [ ] An officially supported task in the `examples` folder (such as GLUE/SQuAD, ...)
+- [ ] My own task or dataset (give details below)
+
+### Reproduction
+
+I think load_balancing_loss_func in modeling_mixtral creates router_prob_per_group_and_expert incorrectly
+https://github.com/huggingface/transformers/blob/v4.36.0/src/transformers/models/mixtral/modeling_mixtral.py#L120
+
+Trying to multiply something batch_size * num_hidden_layers, num_experts by batch_size * num_hidden_layers, topk, 1
+
+`torch.mean(tokens_per_group_and_expert * router_prob_per_group_and_expert.unsqueeze(-1)) * (num_experts**2)`
+
+Correct creation of routing_weights should likely be from gate_logits, which ensures it is the correct size
+
+`routing_weights = gate_logits.softamx(dim=-1)`
+
+The unsqueeze(-1) is necessary with this. Also router_prob_per_group_and_expert should average over axis=-2
+
+`router_prob_per_group_and_expert = torch.mean(routing_weights, axis=-2)`
+
+This follows the previous implementation in modeling_switch_transformers
+https://github.com/huggingface/transformers/blob/v4.36.0/src/transformers/models/switch_transformers/modeling_switch_transformers.py#L91
+
+### Expected behavior
+
+Something like this would fix it
+
+```
+def router_loss_func_test(gate_logits: torch.Tensor, top_k=2) -> float:
+    if gate_logits is None:
+        return 0
+
+    if isinstance(gate_logits, tuple):
+        # cat along the layers?
+        gate_logits = torch.cat(gate_logits, dim=0) # batch_size * num_hidden_layers, sequence_length, num_experts
+
+    num_experts = gate_logits.shape[-1]
+
+    _, expert_indicies = torch.topk(gate_logits, top_k, dim=-1)  # this is done so you don't need to pass expert_indicies
+    routing_probs = gate_logits.softmax(dim=-1) # routing probs
+
+    if expert_indicies.dtype != torch.int64: # cast the expert indices to int64, otherwise one-hot encoding will fail
+        expert_indicies = expert_indicies.to(torch.int64)
+
+    if len(expert_indicies.shape) == 2:
+        expert_indicies = expert_indicies.unsqueeze(2)
+
+    expert_mask = torch.nn.functional.one_hot(expert_indicies, num_experts)
+
+    # For a given token, determine if it was routed to a given expert.
+    expert_mask = torch.max(expert_mask, axis=-2).values
+
+    expert_mask = expert_mask.to(torch.float32) # cast to float32 otherwise mean will fail
+    tokens_per_group_and_expert = torch.mean(expert_mask, axis=-2)
+
+    router_prob_per_group_and_expert = torch.mean(routing_probs, axis=-2)
+
+    loss = torch.mean(tokens_per_group_and_expert * router_prob_per_group_and_expert) * (num_experts**2)
+    return loss
+```
+
+</problem_statement>
+
+Do not stop until you have made code changes that resolve the problem statement. Do not ask for clarifications.
+
+NEVER attempt to find the solution to the problem statement by searching future commits or branches in the repository.
+========================================================================================================================
+AGENT:
+Starting to analyze the problem statement. The issue is about an incorrect router probability calculation in the `load_balancing_loss_func` function in `modeling_mixtral.py`. I need to examine the current implementation and compare it with the expected behavior described in the issue.
+========================================================================================================================
+AGENT:
+STEP 1: EXPLORE THE CODEBASE
+
+<thinking>
+Let me first look at the current implementation of the `load_balancing_loss_func` function in the `modeling_mixtral.py` file to understand the issue better. I'll also look at the `modeling_switch_transformers.py` file for reference since the problem statement mentions it as a correct implementation.
+</thinking>
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- src/transformers/models/mixtral/modeling_mixtral.py
+- src/transformers/models/switch_transformers/modeling_switch_transformers.py
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened src/transformers/models/mixtral/modeling_mixtral.py:\n\n````python\n   0 # coding=utf-8\n...\n  20 import inspect\n...\n  23 from typing import List, Optional, Tuple, Union\n  24 \n  25 import torch\n...\n  28 from torch import nn\n...\n  33 from ...modeling_attn_mask_utils import (\n...\n  36 from ...modeling_outputs import (\n...\n  41 from ...modeling_utils import PreTrainedModel\n  42 from ...pytorch_utils import is_torch_greater_or_equal_than_1_13\n  43 from ...utils i...
+```
+========================================================================================================================
+AGENT:
+Now let me expand the `load_balancing_loss_func` function in both files to see the full implementation:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/models/mixtral/modeling_mixtral.py
+patterns:
+- load_balancing_loss_func
+
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/models/switch_transformers/modeling_switch_transformers.py
+patterns:
+- load_balancing_loss_func
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/transformers/models/mixtral/modeling_mixtral.py:
+
+````python
+   0 # coding=utf-8
+...
+  20 import inspect
+...
+  23 from typing import List, Optional, Tuple, Union
+  24 
+  25 import torch
+...
+  28 from torch import nn
+...
+  33 from ...modeling_attn_mask_utils import (
+...
+  36 from ...modeling_outputs import (
+...
+  41 from ...modeling_utils import PreTrainedModel
+  42 from ...pytorch_utils import is_torch_greater_or_equal_than_1_13
+  43 from ...utils impor...
+```
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/transformers/models/switch_transformers/modeling_switch_transformers.py:
+
+````python
+   0 # coding=utf-8
+...
+  17 import copy
+...
+  20 from typing import Optional, Tuple, Union
+  21 
+  22 import torch
+  23 import torch.nn as nn
+  24 from torch.nn import CrossEntropyLoss
+...
+  27 from ...modeling_outputs import (
+...
+  33 from ...modeling_utils import PreTrainedModel
+  34 from ...pytorch_utils import ALL_LAYERNORM_LAYERS, find_pruneable_heads_and_indices, ...
+```
+========================================================================================================================
+AGENT:
+STEP 2: ANALYZE THE ISSUE
+
+<thinking>
+Now I can clearly see the issue. Let me compare the two implementations:
+
+**Switch Transformers (correct implementation):**
+```python
+def load_balancing_loss_func(router_probs: torch.Tensor, expert_indices: torch.Tensor) -> float:
+    num_experts = router_probs.shape[-1]
+    
+    # ... one-hot encoding of expert_indices ...
+    expert_mask = torch.nn.functional.one_hot(expert_indices, num_experts)
+    expert_mask = torch.max(expert_mask, axis=-2).values
+    expert_mask = expert_mask.to(torch.float32)
+    tokens_per_group_and_expert = torch.mean(expert_mask, axis=-2)  # Shape: [batch_size, num_experts]
+    
+    router_prob_per_group_and_expert = torch.mean(router_probs, axis=-2)  # Shape: [batch_size, num_experts]
+    return torch.mean(tokens_per_group_and_expert * router_prob_per_group_and_expert) * (num_experts**2)
+```
+
+Here, `router_probs` is the softmax of gate_logits with shape `[batch_size, sequence_length, num_experts]`, and after `torch.mean(router_probs, axis=-2)`, it becomes `[batch_size, num_experts]`.
+
+**Mixtral (incorrect implementation):**
+```python
+def load_balancing_loss_func(gate_logits: torch.Tensor, num_experts: torch.Tensor = None, top_k=2) -> float:
+    # ... concatenate gate_logits from all layers ...
+    
+    routing_weights, selected_experts = torch.topk(gate_logits, top_k, dim=-1)
+    routing_weights = routing_weights.softmax(dim=-1)  # Shape: [batch_size * num_layers, seq_len, top_k]
+    
+    # ... one-hot encoding of selected_experts ...
+    expert_mask = torch.nn.functional.one_hot(selected_experts, num_experts)
+    expert_mask = torch.max(expert_mask, axis=-2).values
+    expert_mask = expert_mask.to(torch.float32)
+    tokens_per_group_and_expert = torch.mean(expert_mask, axis=-2)  # Shape: [batch_size * num_layers, num_experts]
+    
+    router_prob_per_group_and_expert = torch.mean(routing_weights, axis=-1)  # Shape: [batch_size * num_layers, top_k]
+    return torch.mean(tokens_per_group_and_expert * router_prob_per_group_and_expert.unsqueeze(-1)) * (num_experts**2)
+```
+
+The issue is:
+1. `routing_weights` is computed from `torch.topk(gate_logits, top_k, dim=-1)` and then softmax is applied. This gives shape `[batch_size * num_layers, seq_len, top_k]` - the softmax is over the top_k dimension, not over all experts.
+2. `router_prob_per_group_and_expert = torch.mean(routing_weights, axis=-1)` gives shape `[batch_size * num_layers, seq_len]` - this is wrong!
+3. The shapes don't match: `tokens_per_group_and_expert` has shape `[batch_size * num_layers, num_experts]` while `router_prob_per_group_and_expert.unsqueeze(-1)` has shape `[batch_size * num_layers, seq_len, 1]`.
+
+The fix should be:
+1. Compute `routing_weights` as the softmax of `gate_logits` over all experts (not just top_k)
+2. Compute `router_prob_per_group_and_expert = torch.mean(routing_weights, axis=-2)` to get shape `[batch_size * num_layers, num_experts]`
+
+This matches the expected behavior described in the issue:
+```python
+routing_probs = gate_logits.softmax(dim=-1)  # routing probs over all experts
+router_prob_per_group_and_expert = torch.mean(routing_probs, axis=-2)  # average over sequence length
+```
+
+Let me now fix the `load_balancing_loss_func` function in `modeling_mixtral.py`.
+</thinking>
+
+Now I understand the issue. The problem is in lines 100-101 and 119-120 of `modeling_mixtral.py`:
+
+1. Line 100-101: `routing_weights` is computed from `torch.topk` and then softmax is applied over the top_k dimension. This gives shape `[batch_size * num_layers, seq_len, top_k]`.
+2. Line 119: `router_prob_per_group_and_expert = torch.mean(routing_weights, axis=-1)` averages over the wrong dimension, giving shape `[batch_size * num_layers, seq_len]` instead of `[batch_size * num_layers, num_experts]`.
+
+The fix should:
+1. Compute `routing_weights` as the softmax of `gate_logits` over all experts (not just top_k)
+2. Compute `router_prob_per_group_and_expert = torch.mean(routing_weights, axis=-2)` to average over the sequence length dimension
+
+Let me make the fix:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/models/mixtral/modeling_mixtral.py
+find: "    routing_weights, selected_experts = torch.topk(gate_logits, top_k, dim=-1)\n\
+  \    routing_weights = routing_weights.softmax(dim=-1)\n\n    # cast the expert\
+  \ indices to int64, otherwise one-hot encoding will fail\n    if selected_experts.dtype\
+  \ != torch.int64:\n        selected_experts = selected_experts.to(torch.int64)\n\
+  \n    if len(selected_experts.shape) == 2:\n        selected_experts = selected_experts.unsqueeze(2)\n\
+  \n    expert_mask = torch.nn.functional.one_hot(selected_experts, num_experts)\n\
+  \n    # For a given token, determine if it was routed to a given expert.\n    expert_mask\
+  \ = torch.max(expert_mask, axis=-2).values\n\n    # cast to float32 otherwise mean\
+  \ will fail\n    expert_mask = expert_mask.to(torch.float32)\n    tokens_per_group_and_expert\
+  \ = torch.mean(expert_mask, axis=-2)\n\n    router_prob_per_group_and_expert = torch.mean(routing_weights,\
+  \ axis=-1)\n    return torch.mean(tokens_per_group_and_expert * router_prob_per_group_and_expert.unsqueeze(-1))\
+  \ * (num_experts**2)"
+replace: "    routing_weights = torch.nn.functional.softmax(gate_logits, dim=-1)\n\
+  \n    _, selected_experts = torch.topk(routing_weights, top_k, dim=-1)\n\n    #\
+  \ cast the expert indices to int64, otherwise one-hot encoding will fail\n    if\
+  \ selected_experts.dtype != torch.int64:\n        selected_experts = selected_experts.to(torch.int64)\n\
+  \n    if len(selected_experts.shape) == 2:\n        selected_experts = selected_experts.unsqueeze(2)\n\
+  \n    expert_mask = torch.nn.functional.one_hot(selected_experts, num_experts)\n\
+  \n    # For a given token, determine if it was routed to a given expert.\n    expert_mask\
+  \ = torch.max(expert_mask, axis=-2).values\n\n    # cast to float32 otherwise mean\
+  \ will fail\n    expert_mask = expert_mask.to(torch.float32)\n    tokens_per_group_and_expert\
+  \ = torch.mean(expert_mask, axis=-2)\n\n    router_prob_per_group_and_expert = torch.mean(routing_weights,\
+  \ axis=-2)\n    return torch.mean(tokens_per_group_and_expert * router_prob_per_group_and_expert)\
+  \ * (num_experts**2)"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/models/mixtral/modeling_mixtral.py:
+
+--- src/transformers/models/mixtral/modeling_mixtral.py
++++ src/transformers/models/mixtral/modeling_mixtral.py
+@@ -98,8 +98,9 @@
+         compute_device = gate_logits[0].device
+         gate_logits = torch.cat([gate.to(compute_device) for gate in gate_logits], dim=0)
+ 
+-    routing_weights, selected_experts = torch.topk(gate_logits, top_k, dim=-1)
+-    routing_weights = routing_weights.softmax(dim=-1)
++    routi...
+```
+========================================================================================================================
+AGENT:
+STEP 3: VERIFY THE CHANGES
+
+<thinking>
+Now let me verify the changes by:
+1. Opening the modified file to confirm the changes are correct
+2. Creating a simple test script to verify the fix works correctly
+
+Let me first review the changes in the file.
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/models/mixtral/modeling_mixtral.py
+patterns:
+- load_balancing_loss_func
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/transformers/models/mixtral/modeling_mixtral.py:
+
+````python
+   0 # coding=utf-8
+...
+  20 import inspect
+...
+  23 from typing import List, Optional, Tuple, Union
+  24 
+  25 import torch
+...
+  28 from torch import nn
+...
+  33 from ...modeling_attn_mask_utils import (
+...
+  36 from ...modeling_outputs import (
+...
+  41 from ...modeling_utils import PreTrainedModel
+  42 from ...pytorch_utils import is_torch_greater_or_equal_than_1_13
+  43 from ...utils impor...
+```
+========================================================================================================================
+AGENT:
+The changes look correct. Now let me create a simple test script to verify the fix works correctly:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && cat > test_router_loss.py << 'EOF'\nimport torch\nimport\
+  \ sys\nsys.path.insert(0, 'src')\n\n# Test the fixed load_balancing_loss_func\n\
+  from transformers.models.mixtral.modeling_mixtral import load_balancing_loss_func\n\
+  \ndef test_load_balancing_loss_func():\n    \"\"\"Test that the load_balancing_loss_func\
+  \ works correctly with proper tensor shapes.\"\"\"\n    \n    # Simulate gate_logits\
+  \ from multiple layers\n    # Shape: [batch_size, sequence_length, num_experts]\
+  \ per layer\n    batch_size = 2\n    seq_len = 10\n    num_experts = 8\n    num_layers\
+  \ = 4\n    top_k = 2\n    \n    # Create random gate logits for each layer\n   \
+  \ gate_logits = tuple(\n        torch.randn(batch_size, seq_len, num_experts) \n\
+  \        for _ in range(num_layers)\n    )\n    \n    # Call the function\n    loss\
+  \ = load_balancing_loss_func(gate_logits, num_experts=num_experts, top_k=top_k)\n\
+  \    \n    print(f\"Loss value: {loss}\")\n    print(f\"Loss type: {type(loss)}\"\
+  )\n    print(f\"Loss is a scalar: {loss.dim() == 0}\")\n    \n    # Verify the loss\
+  \ is a valid scalar\n    assert loss.dim() == 0, f\"Expected scalar loss, got shape\
+  \ {loss.shape}\"\n    assert not torch.isnan(loss), \"Loss is NaN\"\n    assert\
+  \ not torch.isinf(loss), \"Loss is infinite\"\n    assert loss >= 0, f\"Loss should\
+  \ be non-negative, got {loss}\"\n    \n    print(\"Test passed!\")\n    \n    #\
+  \ Also test with a single tensor (not tuple)\n    single_gate_logits = torch.randn(batch_size,\
+  \ seq_len, num_experts)\n    loss_single = load_balancing_loss_func(single_gate_logits,\
+  \ num_experts=num_experts, top_k=top_k)\n    \n    print(f\"\\nSingle tensor loss\
+  \ value: {loss_single}\")\n    assert loss_single.dim() == 0, f\"Expected scalar\
+  \ loss, got shape {loss_single.shape}\"\n    assert not torch.isnan(loss_single),\
+  \ \"Loss is NaN\"\n    assert not torch.isinf(loss_single), \"Loss is infinite\"\
+  \n    \n    print(\"Single tensor test passed!\")\n    \n    # Test with None\n\
+  \    loss_none = load_balancing_loss_func(None, num_experts=num_experts, top_k=top_k)\n\
+  \    assert loss_none == 0, f\"Expected 0 for None input, got {loss_none}\"\n  \
+  \  print(\"None input test passed!\")\n\ndef test_tensor_shapes():\n    \"\"\"Test\
+  \ that intermediate tensors have correct shapes.\"\"\"\n    \n    batch_size = 2\n\
+  \    seq_len = 10\n    num_experts = 8\n    top_k = 2\n    \n    # Simulate concatenated\
+  \ gate_logits\n    gate_logits = torch.randn(batch_size, seq_len, num_experts)\n\
+  \    \n    # Step through the function logic\n    routing_weights = torch.nn.functional.softmax(gate_logits,\
+  \ dim=-1)\n    print(f\"routing_weights shape: {routing_weights.shape}\")  # Should\
+  \ be [batch_size, seq_len, num_experts]\n    assert routing_weights.shape == (batch_size,\
+  \ seq_len, num_experts)\n    \n    _, selected_experts = torch.topk(routing_weights,\
+  \ top_k, dim=-1)\n    print(f\"selected_experts shape: {selected_experts.shape}\"\
+  )  # Should be [batch_size, seq_len, top_k]\n    assert selected_experts.shape ==\
+  \ (batch_size, seq_len, top_k)\n    \n    if selected_experts.dtype != torch.int64:\n\
+  \        selected_experts = selected_experts.to(torch.int64)\n    \n    if len(selected_experts.shape)\
+  \ == 2:\n        selected_experts = selected_experts.unsqueeze(2)\n    \n    expert_mask\
+  \ = torch.nn.functional.one_hot(selected_experts, num_experts)\n    print(f\"expert_mask\
+  \ shape after one_hot: {expert_mask.shape}\")  # Should be [batch_size, seq_len,\
+  \ top_k, num_experts]\n    assert expert_mask.shape == (batch_size, seq_len, top_k,\
+  \ num_experts)\n    \n    expert_mask = torch.max(expert_mask, axis=-2).values\n\
+  \    print(f\"expert_mask shape after max: {expert_mask.shape}\")  # Should be [batch_size,\
+  \ seq_len, num_experts]\n    assert expert_mask.shape == (batch_size, seq_len, num_experts)\n\
+  \    \n    expert_mask = expert_mask.to(torch.float32)\n    tokens_per_group_and_expert\
+  \ = torch.mean(expert_mask, axis=-2)\n    print(f\"tokens_per_group_and_expert shape:\
+  \ {tokens_per_group_and_expert.shape}\")  # Should be [batch_size, num_experts]\n\
+  \    assert tokens_per_group_and_expert.shape == (batch_size, num_experts)\n   \
+  \ \n    router_prob_per_group_and_expert = torch.mean(routing_weights, axis=-2)\n\
+  \    print(f\"router_prob_per_group_and_expert shape: {router_prob_per_group_and_expert.shape}\"\
+  )  # Should be [batch_size, num_experts]\n    assert router_prob_per_group_and_expert.shape\
+  \ == (batch_size, num_experts)\n    \n    # Now the multiplication should work correctly\n\
+  \    result = tokens_per_group_and_expert * router_prob_per_group_and_expert\n \
+  \   print(f\"result shape: {result.shape}\")  # Should be [batch_size, num_experts]\n\
+  \    assert result.shape == (batch_size, num_experts)\n    \n    loss = torch.mean(result)\
+  \ * (num_experts**2)\n    print(f\"loss shape: {loss.shape}\")  # Should be scalar\n\
+  \    assert loss.dim() == 0\n    \n    print(\"\\nAll tensor shape tests passed!\"\
+  )\n\nif __name__ == \"__main__\":\n    print(\"Testing load_balancing_loss_func...\"\
+  )\n    test_load_balancing_loss_func()\n    print(\"\\n\" + \"=\"*50 + \"\\n\")\n\
+  \    print(\"Testing tensor shapes...\")\n    test_tensor_shapes()\n    print(\"\
+  \\nAll tests passed!\")\nEOF\npython test_router_loss.py"
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Traceback (most recent call last):
+  File "/workspace/test_router_loss.py", line 1, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'...
+```
+========================================================================================================================
+AGENT:
+Let me install the required dependencies first:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && pip install torch --quiet 2>&1 | tail -5
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && pip install -e . --quiet 2>&1 | tail -5
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python test_router_loss.py
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Testing load_balancing_loss_func...
+Loss value: 2.1700572967529297
+Loss type: <class 'torch.Tensor'>
+Loss is a scalar: True
+Test passed!
+
+Single tensor loss value: 2.1901111602783203
+Single tensor test passed!
+None input test passed!
+
+==================================================
+
+Testing tensor shapes...
+routing_weights shape: torch.Size([2, 10, 8])
+selected_experts shape: torch.Size([2, 10, 2])
+expert_mask shape after one_hot: torch.Size([2, 10, 2, 8])
+expert_mask shape after max: torch.S...
+```
+========================================================================================================================
+AGENT:
+The tests pass. Now let me also verify that the fix matches the expected behavior from the problem statement by comparing with the reference implementation provided:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && cat > test_compare_implementations.py << 'EOF'\nimport\
+  \ torch\nimport sys\nsys.path.insert(0, 'src')\n\nfrom transformers.models.mixtral.modeling_mixtral\
+  \ import load_balancing_loss_func\n\ndef router_loss_func_expected(gate_logits:\
+  \ torch.Tensor, top_k=2) -> float:\n    \"\"\"Expected implementation from the problem\
+  \ statement.\"\"\"\n    if gate_logits is None:\n        return 0\n\n    if isinstance(gate_logits,\
+  \ tuple):\n        # cat along the layers?\n        gate_logits = torch.cat(gate_logits,\
+  \ dim=0) # batch_size * num_hidden_layers, sequence_length, num_experts\n\n    num_experts\
+  \ = gate_logits.shape[-1]\n\n    _, expert_indicies = torch.topk(gate_logits, top_k,\
+  \ dim=-1)  # this is done so you don't need to pass expert_indicies\n    routing_probs\
+  \ = gate_logits.softmax(dim=-1) # routing probs\n\n    if expert_indicies.dtype\
+  \ != torch.int64: # cast the expert indices to int64, otherwise one-hot encoding\
+  \ will fail\n        expert_indicies = expert_indicies.to(torch.int64)\n\n    if\
+  \ len(expert_indicies.shape) == 2:\n        expert_indicies = expert_indicies.unsqueeze(2)\n\
+  \n    expert_mask = torch.nn.functional.one_hot(expert_indicies, num_experts)\n\n\
+  \    # For a given token, determine if it was routed to a given expert.\n    expert_mask\
+  \ = torch.max(expert_mask, axis=-2).values\n\n    expert_mask = expert_mask.to(torch.float32)\
+  \ # cast to float32 otherwise mean will fail\n    tokens_per_group_and_expert =\
+  \ torch.mean(expert_mask, axis=-2)\n\n    router_prob_per_group_and_expert = torch.mean(routing_probs,\
+  \ axis=-2)\n\n    loss = torch.mean(tokens_per_group_and_expert * router_prob_per_group_and_expert)\
+  \ * (num_experts**2)\n    return loss\n\ndef test_compare_implementations():\n \
+  \   \"\"\"Compare the fixed implementation with the expected implementation from\
+  \ the issue.\"\"\"\n    \n    torch.manual_seed(42)\n    \n    batch_size = 2\n\
+  \    seq_len = 10\n    num_experts = 8\n    num_layers = 4\n    top_k = 2\n    \n\
+  \    # Create random gate logits for each layer\n    gate_logits = tuple(\n    \
+  \    torch.randn(batch_size, seq_len, num_experts) \n        for _ in range(num_layers)\n\
+  \    )\n    \n    # Call both implementations\n    loss_fixed = load_balancing_loss_func(gate_logits,\
+  \ num_experts=num_experts, top_k=top_k)\n    loss_expected = router_loss_func_expected(gate_logits,\
+  \ top_k=top_k)\n    \n    print(f\"Fixed implementation loss: {loss_fixed}\")\n\
+  \    print(f\"Expected implementation loss: {loss_expected}\")\n    print(f\"Difference:\
+  \ {abs(loss_fixed - loss_expected)}\")\n    \n    # They should be equal (or very\
+  \ close due to floating point)\n    assert torch.allclose(loss_fixed, loss_expected,\
+  \ rtol=1e-5, atol=1e-5), \\\n        f\"Losses don't match: fixed={loss_fixed},\
+  \ expected={loss_expected}\"\n    \n    print(\"\\nImplementations match!\")\n\n\
+  if __name__ == \"__main__\":\n    test_compare_implementations()\nEOF\npython test_compare_implementations.py"
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Fixed implementation loss: 2.2217583656311035
+Expected implementation loss: 2.2217583656311035
+Difference: 0.0
+
+Implementations match!...
+```
+========================================================================================================================
+AGENT:
+Excellent! The fixed implementation matches the expected implementation from the problem statement exactly. Let me also run the existing tests for the Mixtral model to make sure the fix doesn't break anything:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python -m pytest tests/models/mixtral/test_modeling_mixtral.py
+  -v -k "test_" --tb=short 2>&1 | head -100
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+/root/.pyenv/versions/3.11.12/bin/python: No module named pytest...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: pip install pytest --quiet && cd /workspace && python -m pytest tests/models/mixtral/test_modeling_mixtral.py
+  -v -k "test_" --tb=short 2>&1 | head -100
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip
+ImportError while loading c...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: pip install pytest==7.4.0 --quiet && cd /workspace && python -m pytest tests/models/mixtral/test_modeling_mixtral.py
+  -v -k "test_" --tb=short 2>&1 | head -150
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip
+===========================...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: pip install parameterized accelerate --quiet && cd /workspace && python -m
+  pytest tests/models/mixtral/test_modeling_mixtral.py -v -k "test_" --tb=short 2>&1
+  | head -200
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip
+===========================...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: pip install datasets --quiet && cd /workspace && python -m pytest tests/models/mixtral/test_modeling_mixtral.py
+  -v -k "test_" --tb=short 2>&1 | head -200
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip
+===========================...
+```
+========================================================================================================================
+AGENT:
+All tests pass, including the specific `test_load_balancing_loss` test. Let me clean up the test files I created:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && rm -f test_router_loss.py test_compare_implementations.py
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+...
+```
+========================================================================================================================
+AGENT:
+Now let me also check if there's a similar issue in the NLLB-MoE model, which might have the same problem:
+========================================================================================================================
+TOOL CALL (grep)
+content_pattern: load_balancing_loss_func
+path_glob: '**/modeling_*.py'
+
+========================================================================================================================
+TOOL RETURN (grep)
+```
+src/transformers/models/nllb_moe/modeling_nllb_moe.py:96:def load_balancing_loss_func(router_probs: torch.Tensor, expert_indices: torch.Tensor) -> float:
+src/transformers/models/nllb_moe/modeling_nllb_moe.py:1694:                encoder_aux_loss = load_balancing_loss_func(encoder_router_logits, encoder_expert_indexes)
+src/transformers/models/nllb_moe/modeling_nllb_moe.py:1697:                decoder_aux_loss = load_balancing_loss_func(decoder_router_logits, decoder_expert_indexes)
+src/transforme...
+```
+========================================================================================================================
+AGENT:
+Let me check the NLLB-MoE implementation to see if it has the same issue:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/models/nllb_moe/modeling_nllb_moe.py
+patterns:
+- load_balancing_loss_func
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/transformers/models/nllb_moe/modeling_nllb_moe.py:
+
+````python
+   0 # coding=utf-8
+...
+  17 import math
+  18 from typing import List, Optional, Tuple, Union
+  19 
+  20 import torch
+  21 import torch.nn as nn
+  22 from torch.nn import CrossEntropyLoss
+...
+  27 from ...modeling_outputs import (
+...
+  33 from ...modeling_utils import PreTrainedModel
+  34 from ...utils import (
+...
+  41 from .configuration_nllb_moe import NllbMoeConfig
+...
+  44 logger = loggi...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Looking at the NLLB-MoE implementation, it follows the same pattern as the Switch Transformers implementation - it takes `router_probs` (already softmaxed) and `expert_indices` as separate arguments. The implementation looks correct:
+
+```python
+router_prob_per_group_and_expert = torch.mean(router_probs, axis=-2)
+return torch.mean(tokens_per_group_and_expert * router_prob_per_group_and_expert) * (num_experts**2)
+```
+
+This is the same as the Switch Transformers implementation and is correct.
+
+The issue was specific to the Mixtral implementation, which had a different approach where it:
+1. Took `gate_logits` instead of `router_probs`
+2. Applied softmax incorrectly (on top_k values instead of all experts)
+3. Averaged over the wrong dimension
+
+My fix addresses all these issues in the Mixtral implementation. Let me verify the final state of the fix one more time.
+</thinking>
+
+Let me verify the final state of the fix:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/models/mixtral/modeling_mixtral.py
+line_ranges:
+- - 75
+  - 125
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/transformers/models/mixtral/modeling_mixtral.py:
+
+````python
+   0 # coding=utf-8
+...
+  20 import inspect
+...
+  23 from typing import List, Optional, Tuple, Union
+  24 
+  25 import torch
+...
+  28 from torch import nn
+...
+  33 from ...modeling_attn_mask_utils import (
+...
+  36 from ...modeling_outputs import (
+...
+  41 from ...modeling_utils import PreTrainedModel
+  42 from ...pytorch_utils import is_torch_greater_or_equal_than_1_13
+  43 from ...utils impor...
+```
+========================================================================================================================
+AGENT:
+The fix is in place. Let me summarize the changes made:
+
+## Summary of Changes
+
+The issue was in the `load_balancing_loss_func` function in `src/transformers/models/mixtral/modeling_mixtral.py`. The original implementation had two problems:
+
+### Problem 1: Incorrect softmax computation
+**Before:**
+```python
+routing_weights, selected_experts = torch.topk(gate_logits, top_k, dim=-1)
+routing_weights = routing_weights.softmax(dim=-1)
+```
+This computed softmax only over the top_k values, giving shape `[batch_size * num_layers, seq_len, top_k]`.
+
+**After:**
+```python
+routing_weights = torch.nn.functional.softmax(gate_logits, dim=-1)
+_, selected_experts = torch.topk(routing_weights, top_k, dim=-1)
+```
+This computes softmax over all experts, giving shape `[batch_size * num_layers, seq_len, num_experts]`.
+
+### Problem 2: Incorrect dimension for averaging router probabilities
+**Before:**
+```python
+router_prob_per_group_and_expert = torch.mean(routing_weights, axis=-1)
+return torch.mean(tokens_per_group_and_expert * router_prob_per_group_and_expert.unsqueeze(-1)) * (num_experts**2)
+```
+This averaged over the wrong dimension (the last dimension, which was top_k), resulting in shape `[batch_size * num_layers, seq_len]`.
+
+**After:**
+```python
+router_prob_per_group_and_expert = torch.mean(routing_weights, axis=-2)
+return torch.mean(tokens_per_group_and_expert * router_prob_per_group_and_expert) * (num_experts**2)
+```
+This averages over the sequence length dimension (axis=-2), resulting in shape `[batch_size * num_layers, num_experts]`, which matches `tokens_per_group_and_expert`.
+
+The fix now correctly follows the Switch Transformer paper's equations (4)-(6) and matches the implementation in `modeling_switch_transformers.py`.
+========================================================================================================================
+AGENT:
+Successfully fixed the incorrect router probability calculation in the `load_balancing_loss_func` function in `src/transformers/models/mixtral/modeling_mixtral.py`.
+
+The changes made:
+1. Changed `routing_weights` computation to apply softmax over all experts (not just top_k values): `routing_weights = torch.nn.functional.softmax(gate_logits, dim=-1)`
+2. Changed `router_prob_per_group_and_expert` to average over the sequence length dimension (axis=-2) instead of the last dimension (axis=-1): `router_prob_per_group_and_expert = torch.mean(routing_weights, axis=-2)`
+3. Removed the unnecessary `.unsqueeze(-1)` since both tensors now have matching shapes `[batch_size * num_layers, num_experts]`
+
+The fix was verified by:
+1. Creating test scripts that confirm the tensor shapes are correct
+2. Comparing the fixed implementation with the expected implementation from the problem statement (they match exactly)
+3. Running all 134 Mixtral model tests, which all pass including the specific `test_load_balancing_loss` test

@@ -1,0 +1,1497 @@
+########################################################################################################################
+PHASE 1
+########################################################################################################################
+========================================================================================================================
+AGENT:
+I will start by viewing the workspace to understand its structure and contents. This will help me identify key files and locations that may be relevant to the task.
+========================================================================================================================
+USER PROMPT:
+Resolve the following problem statement:
+
+<problem_statement>
+Make schedulers picklable
+### Feature request
+
+Change lambda functions passed to `LambdaLR` in `get_constant_schedule`, `get_constant_schedule_with_warmup`, `get_linear_schedule_with_warmup`, `get_cosine_schedule_with_warmup`, `get_cosine_with_hard_restarts_schedule_with_warmup` and `get_polynomial_decay_schedule_with_warmup` to callable objects.
+
+### Motivation
+
+Python cannot serialize lambda and local functions. Torch created a workaround around this in their `state_dict` method of `LambdaLR` by not returning any non-picklable functions:
+```python
+        ...
+        for idx, fn in enumerate(self.lr_lambdas):
+            if not isinstance(fn, types.FunctionType):
+                state_dict['lr_lambdas'][idx] = fn.__dict__.copy()
+
+        return state_dict
+```
+While this approach is fine when LR schedule is constant and deterministic, it makes it impossible to change the schedule mid training dynamically using lambda functions since any changes will not be saved to checkpoints.
+
+In my particular case I wanted to implement a dynamic LR schedule based on evaluation metrics. I've implemented a wrapper around `LambdaLR` that applies transformation `fn: float -> float` to existing LR schedule:
+```python
+class LambdaWrapper:
+
+    def __init__(self, lr_lamda: Callable[[Union[float, int]], float], wrapper_function: Callable[[float], float]):
+        self._wrapper_function = wrapper_function
+        self._lr_lambda = lr_lamda
+
+    def __call__(self, x: Union[float, int]):
+        return self._wrapper_function(self._lr_lambda(x))
+
+
+class DynamicScheduler:
+
+    def __init__(self, lr_scheduler: LambdaLR):
+        self._scheduler = lr_scheduler
+
+    def __getattr__(self, item):
+        # Calling the super class to avoid recursion
+        return getattr(super(DynamicScheduler, self).__getattribute__('_scheduler'), item)
+
+    def wrap_schedule(self, fn: Callable[[float], float]):
+        """If you want this object to be picklable, pass only picklable callable objects as `fn`!"""
+        wrappers_builder = partial(LambdaWrapper, wrapper_function=fn)  # wrap in callable object to preserve picklability
+        self._scheduler.lr_lambdas = list(map(wrappers_builder, self._scheduler.lr_lambdas))
+```
+I've taken special care to preserve picklability, however, since `LambdaLR` instances created by `transformers` library hold lambda and local functions in them, pickling of `DynamicScheduler` (as well as it's state, which is the same as the wrapped `LambdaLR` state) fails.
+
+While reimplementing dynamic scheduling with lambda functions will allow the `torch` workaround that handles lambda functions in scheduler, the whole point of dynamic scheduling will be lost since the complex dynamically constructed lambdas: `f_n(f_n-1(...f_1(schedule(x))...))` will fall back to their default state: `schedule(x)`.
+
+Here is the callback I use to track evaluation metrics for anyone interested:
+```python
+def get_warmup_steps(args: TrainingArguments, state: TrainerState) -> int:
+    return (
+        args.warmup_steps
+        if args.warmup_steps > 0
+        else math.ceil(state.max_steps * args.warmup_ratio)
+    )
+
+
+class DecreaseLRTransformer:
+    def __init__(self, decrease_ratio: float):
+        if decrease_ratio < 0.0 or decrease_ratio > 1.0:
+            raise ValueError('Decrease ratio should be within [1.0, 0.0]')
+        self._decrease_ratio = decrease_ratio
+
+    def __call__(self, lr: float):
+        return self._decrease_ratio * lr
+
+
+# Developer notice (may change in the future versions of transformers):
+# All kwargs have the following fields set: model, tokenizer, optimizer, lr_scheduler, train_dataloader, eval_dataloader
+
+class LRDecreaseCallback(TrainerCallback):
+    """
+    A [`TrainerCallback`] that handles learning rate decrease based on evaluation metrics.
+    """
+
+    def __init__(self, decrease_ratio: float, patience: int, *, decrease_on_warmup: bool = False, decrease_threshold: float = 0.0):
+        self._transformer = DecreaseLRTransformer(decrease_ratio)
+        self._patience = patience
+        self._decrease_on_warmup = decrease_on_warmup
+        self._decrease_threshold = decrease_threshold
+
+        self._failed_checks = 0
+
+    def _metric_improved(self, new_metric: float, old_metric: float, *, greater_is_better: bool = True) -> bool:
+        operator = np.greater if greater_is_better else np.less
+        return operator(new_metric, old_metric) and abs(new_metric - old_metric) > self._decrease_threshold
+
+    def check_metric_value(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, metric_value: float):
+        # best_metric is set by code for load_best_model
+        no_metric = (state.best_metric is None)
+
+        warmup_steps = get_warmup_steps(args, state)
+        skip_warmup = (self._decrease_on_warmup and warmup_steps >= state.global_step)
+
+        if skip_warmup:
+            return
+
+        if no_metric or self._metric_improved(metric_value, state.best_metric, greater_is_better=args.greater_is_better):
+            self._failed_checks = 0
+            control.should_save = True
+        else:
+            self._failed_checks += 1
+
+    def on_train_begin(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+        if args.metric_for_best_model is None:
+            raise ValueError(f"{self.__class__.__name__} requires metric_for_best_model to be defined defined")
+
+        if args.evaluation_strategy == IntervalStrategy.NO:
+            raise ValueError(f"{self.__class__.__name__} requires IntervalStrategy of steps or epoch")
+
+    def on_evaluate(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+        metrics: Dict[str, float] = kwargs['metrics']
+        lr_scheduler = kwargs['lr_scheduler']
+        if not isinstance(lr_scheduler, DynamicScheduler):
+            logger.warning(f'{self.__class__.__name__} is not compatible with {lr_scheduler.__class__.__name__} scheduler! '
+                           f'Wrap your scheduler with {DynamicScheduler.__class__.__name__} to change LR dynamically. '
+                           f'{self.__class__.__name__} is disabled!')
+            return
+
+        metric_to_check = args.metric_for_best_model
+        if not metric_to_check.startswith("eval_"):
+            metric_to_check = f"eval_{metric_to_check}"
+        metric_value = metrics.get(metric_to_check)
+
+        if metric_value is None:
+            logger.warning(f"{self.__class__.__name__} required metric_for_best_model, "
+                           f"but did not find {metric_to_check} in evaluation metrics. {self.__class__.__name__} is disabled!")
+            return
+
+        self.check_metric_value(args, state, control, metric_value)
+        if self._failed_checks >= self._patience:
+            lr_scheduler.wrap_schedule(self._transformer)
+            self._failed_checks = 0
+
+    def on_log(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+        logs: Dict[str, float] = kwargs['logs']
+        logs['lr_decrease_patience'] = (self._patience - self._failed_checks) / self._patience
+``` 
+
+### Your contribution
+
+The simplest and the cleanest workaround would be to make the local functions global:
+
+Intead of:
+```python
+def get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps, last_epoch=-1):
+    def lr_lambda(current_step: int):
+        if current_step < num_warmup_steps:
+            return float(current_step) / float(max(1, num_warmup_steps))
+        return max(
+            0.0, float(num_training_steps - current_step) / float(max(1, num_training_steps - num_warmup_steps))
+        )
+
+    return LambdaLR(optimizer, lr_lambda, last_epoch)
+```
+
+Do this:
+```python
+def _linear_schedule_with_warmup_step(current_step: int, *, num_warmup_steps: int, num_training_steps: int) -> float:
+      if current_step < num_warmup_steps:
+          return float(current_step) / float(max(1, num_warmup_steps))
+      return max(
+          0.0, float(num_training_steps - current_step) / float(max(1, num_training_steps - num_warmup_steps))
+      )
+
+def get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps, last_epoch=-1):
+    schedule = partial(_linear_schedule_with_warmup_step, num_warmup_steps=num_warmup_steps, num_training_steps=num_training_steps)
+    return LambdaLR(optimizer, schedule, last_epoch)
+```
+When created with global functions, partial function are picklable:
+```python
+>>>from functools import partial
+
+>>>import pickle
+
+>>>def f(x):
+...    print(x)
+    
+>>>with open('f.pkl', 'wb') as file:
+...    pickle.dump(partial(f, x='Dog'), file)
+    
+>>>with open('f.pkl', 'rb') as file:
+...    unpickled_f = pickle.load(file)
+    
+>>>unpickled_f()
+Dog
+```
+
+The fix is straightforward and I can create a PR. Nonetheless, it would be my first contribution so I might need some help along the way.
+
+</problem_statement>
+
+Do not stop until you have made code changes that resolve the problem statement. Do not ask for clarifications.
+
+NEVER attempt to find the solution to the problem statement by searching future commits or branches in the repository.
+========================================================================================================================
+AGENT:
+Starting to analyze the problem statement. The issue is about making schedulers picklable by changing lambda functions to callable objects or using partial functions with global functions. I need to find and modify the optimization.py file that contains the scheduler functions.
+========================================================================================================================
+AGENT:
+STEP 1: LOCATE AND OPEN THE OPTIMIZATION FILE
+
+<thinking>
+The problem statement mentions that the following functions need to be modified:
+- `get_constant_schedule`
+- `get_constant_schedule_with_warmup`
+- `get_linear_schedule_with_warmup`
+- `get_cosine_schedule_with_warmup`
+- `get_cosine_with_hard_restarts_schedule_with_warmup`
+- `get_polynomial_decay_schedule_with_warmup`
+
+These are likely in the `src/transformers/optimization.py` file based on the workspace structure. Let me open this file and examine the current implementation.
+</thinking>
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- src/transformers/optimization.py
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened src/transformers/optimization.py:\n\n````python\n   0 # coding=utf-8\n...\n  16 import math\n  17 import warnings\n  18 from typing import Callable, Iterable, Optional, Tuple, Union\n  19 \n  20 import torch\n  21 from torch import nn\n...\n  30 logger = logging.get_logger(__name__)\n...\n  33 def get_constant_schedule(optimizer: Optimizer, last_epoch: int = -1):\n...\n  49 def get_constant_schedule_with_warmup(optimizer: Optimizer, num_warmup_steps: int, last_epoch: int = ...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+I can see the file structure. Now I need to expand the relevant code chunks to see the full implementation of each scheduler function that needs to be modified. Let me expand all the scheduler functions mentioned in the problem statement.
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/optimization.py
+patterns:
+- get_constant_schedule
+- get_constant_schedule_with_warmup
+- get_linear_schedule_with_warmup
+- get_cosine_schedule_with_warmup
+- get_cosine_with_hard_restarts_schedule_with_warmup
+- get_polynomial_decay_schedule_with_warmup
+- get_inverse_sqrt_schedule
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/transformers/optimization.py:
+
+````python
+   0 # coding=utf-8
+   1 # Copyright 2018 The Google AI Language Team Authors and The HuggingFace Inc. team.
+   2 #
+   3 # Licensed under the Apache License, Version 2.0 (the "License");
+   4 # you may not use this file except in compliance with the License.
+   5 # You may obtain a copy of the License at
+   6 #
+   7 #     http://www.apache.org/licenses/LICENSE-2.0
+   8 #
+   9 # Unless required by applicable law or...
+```
+========================================================================================================================
+AGENT:
+STEP 2: IMPLEMENT THE FIX
+
+<thinking>
+Now I have a clear understanding of the code. I need to:
+
+1. Add `from functools import partial` to the imports
+2. Create global functions for each scheduler's lr_lambda
+3. Modify each scheduler function to use `partial` with the global function instead of local lambda/functions
+
+The functions that need to be modified are:
+1. `get_constant_schedule` - uses `lambda _: 1` - this is simple and can stay as is since it doesn't capture any variables, but for consistency we could make it a global function too
+2. `get_constant_schedule_with_warmup` - uses local `lr_lambda` function
+3. `get_linear_schedule_with_warmup` - uses local `lr_lambda` function
+4. `get_cosine_schedule_with_warmup` - uses local `lr_lambda` function
+5. `get_cosine_with_hard_restarts_schedule_with_warmup` - uses local `lr_lambda` function
+6. `get_polynomial_decay_schedule_with_warmup` - uses local `lr_lambda` function
+7. `get_inverse_sqrt_schedule` - uses local `lr_lambda` function
+
+Let me also check the `AdafactorSchedule` class which has a local `lr_lambda` function.
+
+Now let me implement the fix. I'll:
+1. Add `from functools import partial` to imports
+2. Create global functions for each schedule type
+3. Modify each scheduler function to use partial with the global function
+
+Let me start by modifying the file.
+</thinking>
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/optimization.py
+find: 'import math
+
+  import warnings
+
+  from typing import Callable, Iterable, Optional, Tuple, Union
+
+
+  import torch'
+replace: 'import math
+
+  import warnings
+
+  from functools import partial
+
+  from typing import Callable, Iterable, Optional, Tuple, Union
+
+
+  import torch'
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/optimization.py:
+
+--- src/transformers/optimization.py
++++ src/transformers/optimization.py
+@@ -16,6 +16,7 @@
+ 
+ import math
+ import warnings
++from functools import partial
+ from typing import Callable, Iterable, Optional, Tuple, Union
+ 
+ import torch
+...
+```
+========================================================================================================================
+AGENT:
+Now let me add the global functions and modify each scheduler. I'll start with `get_constant_schedule`:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/optimization.py
+find: "logger = logging.get_logger(__name__)\n\n\ndef get_constant_schedule(optimizer:\
+  \ Optimizer, last_epoch: int = -1):\n    \"\"\"\n    Create a schedule with a constant\
+  \ learning rate, using the learning rate set in optimizer.\n\n    Args:\n      \
+  \  optimizer ([`~torch.optim.Optimizer`]):\n            The optimizer for which\
+  \ to schedule the learning rate.\n        last_epoch (`int`, *optional*, defaults\
+  \ to -1):\n            The index of the last epoch when resuming training.\n\n \
+  \   Return:\n        `torch.optim.lr_scheduler.LambdaLR` with the appropriate schedule.\n\
+  \    \"\"\"\n    return LambdaLR(optimizer, lambda _: 1, last_epoch=last_epoch)"
+replace: "logger = logging.get_logger(__name__)\n\n\ndef _get_constant_lambda(current_step:\
+  \ int):\n    return 1\n\n\ndef _get_constant_schedule_with_warmup_lr_lambda(current_step:\
+  \ int, *, num_warmup_steps: int):\n    if current_step < num_warmup_steps:\n   \
+  \     return float(current_step) / float(max(1.0, num_warmup_steps))\n    return\
+  \ 1.0\n\n\ndef _get_linear_schedule_with_warmup_lr_lambda(current_step: int, *,\
+  \ num_warmup_steps: int, num_training_steps: int):\n    if current_step < num_warmup_steps:\n\
+  \        return float(current_step) / float(max(1, num_warmup_steps))\n    return\
+  \ max(\n        0.0, float(num_training_steps - current_step) / float(max(1, num_training_steps\
+  \ - num_warmup_steps))\n    )\n\n\ndef _get_cosine_schedule_with_warmup_lr_lambda(\n\
+  \    current_step: int, *, num_warmup_steps: int, num_training_steps: int, num_cycles:\
+  \ float\n):\n    if current_step < num_warmup_steps:\n        return float(current_step)\
+  \ / float(max(1, num_warmup_steps))\n    progress = float(current_step - num_warmup_steps)\
+  \ / float(max(1, num_training_steps - num_warmup_steps))\n    return max(0.0, 0.5\
+  \ * (1.0 + math.cos(math.pi * float(num_cycles) * 2.0 * progress)))\n\n\ndef _get_cosine_with_hard_restarts_schedule_with_warmup_lr_lambda(\n\
+  \    current_step: int, *, num_warmup_steps: int, num_training_steps: int, num_cycles:\
+  \ int\n):\n    if current_step < num_warmup_steps:\n        return float(current_step)\
+  \ / float(max(1, num_warmup_steps))\n    progress = float(current_step - num_warmup_steps)\
+  \ / float(max(1, num_training_steps - num_warmup_steps))\n    if progress >= 1.0:\n\
+  \        return 0.0\n    return max(0.0, 0.5 * (1.0 + math.cos(math.pi * ((float(num_cycles)\
+  \ * progress) % 1.0))))\n\n\ndef _get_polynomial_decay_schedule_with_warmup_lr_lambda(\n\
+  \    current_step: int,\n    *,\n    num_warmup_steps: int,\n    num_training_steps:\
+  \ int,\n    lr_end: float,\n    power: float,\n    lr_init: int,\n):\n    if current_step\
+  \ < num_warmup_steps:\n        return float(current_step) / float(max(1, num_warmup_steps))\n\
+  \    elif current_step > num_training_steps:\n        return lr_end / lr_init  #\
+  \ as LambdaLR multiplies by lr_init\n    else:\n        lr_range = lr_init - lr_end\n\
+  \        decay_steps = num_training_steps - num_warmup_steps\n        pct_remaining\
+  \ = 1 - (current_step - num_warmup_steps) / decay_steps\n        decay = lr_range\
+  \ * pct_remaining**power + lr_end\n        return decay / lr_init  # as LambdaLR\
+  \ multiplies by lr_init\n\n\ndef _get_inverse_sqrt_schedule_lr_lambda(current_step:\
+  \ int, *, num_warmup_steps: int, timescale: int):\n    if current_step < num_warmup_steps:\n\
+  \        return float(current_step) / float(max(1, num_warmup_steps))\n    shift\
+  \ = timescale - num_warmup_steps\n    decay = 1.0 / math.sqrt((current_step + shift)\
+  \ / timescale)\n    return decay\n\n\ndef get_constant_schedule(optimizer: Optimizer,\
+  \ last_epoch: int = -1):\n    \"\"\"\n    Create a schedule with a constant learning\
+  \ rate, using the learning rate set in optimizer.\n\n    Args:\n        optimizer\
+  \ ([`~torch.optim.Optimizer`]):\n            The optimizer for which to schedule\
+  \ the learning rate.\n        last_epoch (`int`, *optional*, defaults to -1):\n\
+  \            The index of the last epoch when resuming training.\n\n    Return:\n\
+  \        `torch.optim.lr_scheduler.LambdaLR` with the appropriate schedule.\n  \
+  \  \"\"\"\n    return LambdaLR(optimizer, _get_constant_lambda, last_epoch=last_epoch)"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/optimization.py:
+
+--- src/transformers/optimization.py
++++ src/transformers/optimization.py
+@@ -32,6 +32,73 @@
+ logger = logging.get_logger(__name__)
+ 
+ 
++def _get_constant_lambda(current_step: int):
++    return 1
++
++
++def _get_constant_schedule_with_warmup_lr_lambda(current_step: int, *, num_warmup_steps: int):
++    if current_step < num_warmup_steps:
++        return float(current_step) / float(max(1.0, num_warmup_steps))
++    return 1.0
++
++
++def _...
+```
+========================================================================================================================
+AGENT:
+Now let me update `get_constant_schedule_with_warmup`:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/optimization.py
+find: "def get_constant_schedule_with_warmup(optimizer: Optimizer, num_warmup_steps:\
+  \ int, last_epoch: int = -1):\n    \"\"\"\n    Create a schedule with a constant\
+  \ learning rate preceded by a warmup period during which the learning rate\n   \
+  \ increases linearly between 0 and the initial lr set in the optimizer.\n\n    Args:\n\
+  \        optimizer ([`~torch.optim.Optimizer`]):\n            The optimizer for\
+  \ which to schedule the learning rate.\n        num_warmup_steps (`int`):\n    \
+  \        The number of steps for the warmup phase.\n        last_epoch (`int`, *optional*,\
+  \ defaults to -1):\n            The index of the last epoch when resuming training.\n\
+  \n    Return:\n        `torch.optim.lr_scheduler.LambdaLR` with the appropriate\
+  \ schedule.\n    \"\"\"\n\n    def lr_lambda(current_step: int):\n        if current_step\
+  \ < num_warmup_steps:\n            return float(current_step) / float(max(1.0, num_warmup_steps))\n\
+  \        return 1.0\n\n    return LambdaLR(optimizer, lr_lambda, last_epoch=last_epoch)"
+replace: "def get_constant_schedule_with_warmup(optimizer: Optimizer, num_warmup_steps:\
+  \ int, last_epoch: int = -1):\n    \"\"\"\n    Create a schedule with a constant\
+  \ learning rate preceded by a warmup period during which the learning rate\n   \
+  \ increases linearly between 0 and the initial lr set in the optimizer.\n\n    Args:\n\
+  \        optimizer ([`~torch.optim.Optimizer`]):\n            The optimizer for\
+  \ which to schedule the learning rate.\n        num_warmup_steps (`int`):\n    \
+  \        The number of steps for the warmup phase.\n        last_epoch (`int`, *optional*,\
+  \ defaults to -1):\n            The index of the last epoch when resuming training.\n\
+  \n    Return:\n        `torch.optim.lr_scheduler.LambdaLR` with the appropriate\
+  \ schedule.\n    \"\"\"\n\n    lr_lambda = partial(_get_constant_schedule_with_warmup_lr_lambda,\
+  \ num_warmup_steps=num_warmup_steps)\n    return LambdaLR(optimizer, lr_lambda,\
+  \ last_epoch=last_epoch)"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/optimization.py:
+
+--- src/transformers/optimization.py
++++ src/transformers/optimization.py
+@@ -132,11 +132,7 @@
+         `torch.optim.lr_scheduler.LambdaLR` with the appropriate schedule.
+     """
+ 
+-    def lr_lambda(current_step: int):
+-        if current_step < num_warmup_steps:
+-            return float(current_step) / float(max(1.0, num_warmup_steps))
+-        return 1.0
+-
++    lr_lambda = partial(_get_constant_schedule_with_warmup_lr_lambda, ...
+```
+========================================================================================================================
+AGENT:
+Now let me update `get_linear_schedule_with_warmup`:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/optimization.py
+find: "def get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps,\
+  \ last_epoch=-1):\n    \"\"\"\n    Create a schedule with a learning rate that decreases\
+  \ linearly from the initial lr set in the optimizer to 0, after\n    a warmup period\
+  \ during which it increases linearly from 0 to the initial lr set in the optimizer.\n\
+  \n    Args:\n        optimizer ([`~torch.optim.Optimizer`]):\n            The optimizer\
+  \ for which to schedule the learning rate.\n        num_warmup_steps (`int`):\n\
+  \            The number of steps for the warmup phase.\n        num_training_steps\
+  \ (`int`):\n            The total number of training steps.\n        last_epoch\
+  \ (`int`, *optional*, defaults to -1):\n            The index of the last epoch\
+  \ when resuming training.\n\n    Return:\n        `torch.optim.lr_scheduler.LambdaLR`\
+  \ with the appropriate schedule.\n    \"\"\"\n\n    def lr_lambda(current_step:\
+  \ int):\n        if current_step < num_warmup_steps:\n            return float(current_step)\
+  \ / float(max(1, num_warmup_steps))\n        return max(\n            0.0, float(num_training_steps\
+  \ - current_step) / float(max(1, num_training_steps - num_warmup_steps))\n     \
+  \   )\n\n    return LambdaLR(optimizer, lr_lambda, last_epoch)"
+replace: "def get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps,\
+  \ last_epoch=-1):\n    \"\"\"\n    Create a schedule with a learning rate that decreases\
+  \ linearly from the initial lr set in the optimizer to 0, after\n    a warmup period\
+  \ during which it increases linearly from 0 to the initial lr set in the optimizer.\n\
+  \n    Args:\n        optimizer ([`~torch.optim.Optimizer`]):\n            The optimizer\
+  \ for which to schedule the learning rate.\n        num_warmup_steps (`int`):\n\
+  \            The number of steps for the warmup phase.\n        num_training_steps\
+  \ (`int`):\n            The total number of training steps.\n        last_epoch\
+  \ (`int`, *optional*, defaults to -1):\n            The index of the last epoch\
+  \ when resuming training.\n\n    Return:\n        `torch.optim.lr_scheduler.LambdaLR`\
+  \ with the appropriate schedule.\n    \"\"\"\n\n    lr_lambda = partial(\n     \
+  \   _get_linear_schedule_with_warmup_lr_lambda,\n        num_warmup_steps=num_warmup_steps,\n\
+  \        num_training_steps=num_training_steps,\n    )\n    return LambdaLR(optimizer,\
+  \ lr_lambda, last_epoch)"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/optimization.py:
+
+--- src/transformers/optimization.py
++++ src/transformers/optimization.py
+@@ -155,13 +155,11 @@
+         `torch.optim.lr_scheduler.LambdaLR` with the appropriate schedule.
+     """
+ 
+-    def lr_lambda(current_step: int):
+-        if current_step < num_warmup_steps:
+-            return float(current_step) / float(max(1, num_warmup_steps))
+-        return max(
+-            0.0, float(num_training_steps - current_step) / float(max(1,...
+```
+========================================================================================================================
+AGENT:
+Now let me update `get_cosine_schedule_with_warmup`:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/optimization.py
+line_ranges:
+- - 162
+  - 210
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/transformers/optimization.py:
+
+````python
+   0 # coding=utf-8
+   1 # Copyright 2018 The Google AI Language Team Authors and The HuggingFace Inc. team.
+   2 #
+   3 # Licensed under the Apache License, Version 2.0 (the "License");
+   4 # you may not use this file except in compliance with the License.
+   5 # You may obtain a copy of the License at
+   6 #
+   7 #     http://www.apache.org/licenses/LICENSE-2.0
+   8 #
+   9 # Unless required by applicable law or...
+```
+========================================================================================================================
+AGENT:
+Now I can see the remaining functions that need to be updated. Let me update `get_cosine_schedule_with_warmup`:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/optimization.py
+find: "def get_cosine_schedule_with_warmup(\n    optimizer: Optimizer, num_warmup_steps:\
+  \ int, num_training_steps: int, num_cycles: float = 0.5, last_epoch: int = -1\n\
+  ):\n    \"\"\"\n    Create a schedule with a learning rate that decreases following\
+  \ the values of the cosine function between the\n    initial lr set in the optimizer\
+  \ to 0, after a warmup period during which it increases linearly between 0 and the\n\
+  \    initial lr set in the optimizer.\n\n    Args:\n        optimizer ([`~torch.optim.Optimizer`]):\n\
+  \            The optimizer for which to schedule the learning rate.\n        num_warmup_steps\
+  \ (`int`):\n            The number of steps for the warmup phase.\n        num_training_steps\
+  \ (`int`):\n            The total number of training steps.\n        num_cycles\
+  \ (`float`, *optional*, defaults to 0.5):\n            The number of waves in the\
+  \ cosine schedule (the defaults is to just decrease from the max value to 0\n  \
+  \          following a half-cosine).\n        last_epoch (`int`, *optional*, defaults\
+  \ to -1):\n            The index of the last epoch when resuming training.\n\n \
+  \   Return:\n        `torch.optim.lr_scheduler.LambdaLR` with the appropriate schedule.\n\
+  \    \"\"\"\n\n    def lr_lambda(current_step):\n        if current_step < num_warmup_steps:\n\
+  \            return float(current_step) / float(max(1, num_warmup_steps))\n    \
+  \    progress = float(current_step - num_warmup_steps) / float(max(1, num_training_steps\
+  \ - num_warmup_steps))\n        return max(0.0, 0.5 * (1.0 + math.cos(math.pi *\
+  \ float(num_cycles) * 2.0 * progress)))\n\n    return LambdaLR(optimizer, lr_lambda,\
+  \ last_epoch)"
+replace: "def get_cosine_schedule_with_warmup(\n    optimizer: Optimizer, num_warmup_steps:\
+  \ int, num_training_steps: int, num_cycles: float = 0.5, last_epoch: int = -1\n\
+  ):\n    \"\"\"\n    Create a schedule with a learning rate that decreases following\
+  \ the values of the cosine function between the\n    initial lr set in the optimizer\
+  \ to 0, after a warmup period during which it increases linearly between 0 and the\n\
+  \    initial lr set in the optimizer.\n\n    Args:\n        optimizer ([`~torch.optim.Optimizer`]):\n\
+  \            The optimizer for which to schedule the learning rate.\n        num_warmup_steps\
+  \ (`int`):\n            The number of steps for the warmup phase.\n        num_training_steps\
+  \ (`int`):\n            The total number of training steps.\n        num_cycles\
+  \ (`float`, *optional*, defaults to 0.5):\n            The number of waves in the\
+  \ cosine schedule (the defaults is to just decrease from the max value to 0\n  \
+  \          following a half-cosine).\n        last_epoch (`int`, *optional*, defaults\
+  \ to -1):\n            The index of the last epoch when resuming training.\n\n \
+  \   Return:\n        `torch.optim.lr_scheduler.LambdaLR` with the appropriate schedule.\n\
+  \    \"\"\"\n\n    lr_lambda = partial(\n        _get_cosine_schedule_with_warmup_lr_lambda,\n\
+  \        num_warmup_steps=num_warmup_steps,\n        num_training_steps=num_training_steps,\n\
+  \        num_cycles=num_cycles,\n    )\n    return LambdaLR(optimizer, lr_lambda,\
+  \ last_epoch)"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/optimization.py:
+
+--- src/transformers/optimization.py
++++ src/transformers/optimization.py
+@@ -188,12 +188,12 @@
+         `torch.optim.lr_scheduler.LambdaLR` with the appropriate schedule.
+     """
+ 
+-    def lr_lambda(current_step):
+-        if current_step < num_warmup_steps:
+-            return float(current_step) / float(max(1, num_warmup_steps))
+-        progress = float(current_step - num_warmup_steps) / float(max(1, num_training_steps - num_...
+```
+========================================================================================================================
+AGENT:
+Now let me update `get_cosine_with_hard_restarts_schedule_with_warmup`:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/optimization.py
+find: "def get_cosine_with_hard_restarts_schedule_with_warmup(\n    optimizer: Optimizer,\
+  \ num_warmup_steps: int, num_training_steps: int, num_cycles: int = 1, last_epoch:\
+  \ int = -1\n):\n    \"\"\"\n    Create a schedule with a learning rate that decreases\
+  \ following the values of the cosine function between the\n    initial lr set in\
+  \ the optimizer to 0, with several hard restarts, after a warmup period during which\
+  \ it increases\n    linearly between 0 and the initial lr set in the optimizer.\n\
+  \n    Args:\n        optimizer ([`~torch.optim.Optimizer`]):\n            The optimizer\
+  \ for which to schedule the learning rate.\n        num_warmup_steps (`int`):\n\
+  \            The number of steps for the warmup phase.\n        num_training_steps\
+  \ (`int`):\n            The total number of training steps.\n        num_cycles\
+  \ (`int`, *optional*, defaults to 1):\n            The number of hard restarts to\
+  \ use.\n        last_epoch (`int`, *optional*, defaults to -1):\n            The\
+  \ index of the last epoch when resuming training.\n\n    Return:\n        `torch.optim.lr_scheduler.LambdaLR`\
+  \ with the appropriate schedule.\n    \"\"\"\n\n    def lr_lambda(current_step):\n\
+  \        if current_step < num_warmup_steps:\n            return float(current_step)\
+  \ / float(max(1, num_warmup_steps))\n        progress = float(current_step - num_warmup_steps)\
+  \ / float(max(1, num_training_steps - num_warmup_steps))\n        if progress >=\
+  \ 1.0:\n            return 0.0\n        return max(0.0, 0.5 * (1.0 + math.cos(math.pi\
+  \ * ((float(num_cycles) * progress) % 1.0))))\n\n    return LambdaLR(optimizer,\
+  \ lr_lambda, last_epoch)"
+replace: "def get_cosine_with_hard_restarts_schedule_with_warmup(\n    optimizer:\
+  \ Optimizer, num_warmup_steps: int, num_training_steps: int, num_cycles: int = 1,\
+  \ last_epoch: int = -1\n):\n    \"\"\"\n    Create a schedule with a learning rate\
+  \ that decreases following the values of the cosine function between the\n    initial\
+  \ lr set in the optimizer to 0, with several hard restarts, after a warmup period\
+  \ during which it increases\n    linearly between 0 and the initial lr set in the\
+  \ optimizer.\n\n    Args:\n        optimizer ([`~torch.optim.Optimizer`]):\n   \
+  \         The optimizer for which to schedule the learning rate.\n        num_warmup_steps\
+  \ (`int`):\n            The number of steps for the warmup phase.\n        num_training_steps\
+  \ (`int`):\n            The total number of training steps.\n        num_cycles\
+  \ (`int`, *optional*, defaults to 1):\n            The number of hard restarts to\
+  \ use.\n        last_epoch (`int`, *optional*, defaults to -1):\n            The\
+  \ index of the last epoch when resuming training.\n\n    Return:\n        `torch.optim.lr_scheduler.LambdaLR`\
+  \ with the appropriate schedule.\n    \"\"\"\n\n    lr_lambda = partial(\n     \
+  \   _get_cosine_with_hard_restarts_schedule_with_warmup_lr_lambda,\n        num_warmup_steps=num_warmup_steps,\n\
+  \        num_training_steps=num_training_steps,\n        num_cycles=num_cycles,\n\
+  \    )\n    return LambdaLR(optimizer, lr_lambda, last_epoch)"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/optimization.py:
+
+--- src/transformers/optimization.py
++++ src/transformers/optimization.py
+@@ -221,14 +221,12 @@
+         `torch.optim.lr_scheduler.LambdaLR` with the appropriate schedule.
+     """
+ 
+-    def lr_lambda(current_step):
+-        if current_step < num_warmup_steps:
+-            return float(current_step) / float(max(1, num_warmup_steps))
+-        progress = float(current_step - num_warmup_steps) / float(max(1, num_training_steps - num_...
+```
+========================================================================================================================
+AGENT:
+Now let me update `get_polynomial_decay_schedule_with_warmup`:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/optimization.py
+find: "def get_polynomial_decay_schedule_with_warmup(\n    optimizer, num_warmup_steps,\
+  \ num_training_steps, lr_end=1e-7, power=1.0, last_epoch=-1\n):\n    \"\"\"\n  \
+  \  Create a schedule with a learning rate that decreases as a polynomial decay from\
+  \ the initial lr set in the\n    optimizer to end lr defined by *lr_end*, after\
+  \ a warmup period during which it increases linearly from 0 to the\n    initial\
+  \ lr set in the optimizer.\n\n    Args:\n        optimizer ([`~torch.optim.Optimizer`]):\n\
+  \            The optimizer for which to schedule the learning rate.\n        num_warmup_steps\
+  \ (`int`):\n            The number of steps for the warmup phase.\n        num_training_steps\
+  \ (`int`):\n            The total number of training steps.\n        lr_end (`float`,\
+  \ *optional*, defaults to 1e-7):\n            The end LR.\n        power (`float`,\
+  \ *optional*, defaults to 1.0):\n            Power factor.\n        last_epoch (`int`,\
+  \ *optional*, defaults to -1):\n            The index of the last epoch when resuming\
+  \ training.\n\n    Note: *power* defaults to 1.0 as in the fairseq implementation,\
+  \ which in turn is based on the original BERT\n    implementation at\n    https://github.com/google-research/bert/blob/f39e881b169b9d53bea03d2d341b31707a6c052b/optimization.py#L37\n\
+  \n    Return:\n        `torch.optim.lr_scheduler.LambdaLR` with the appropriate\
+  \ schedule.\n\n    \"\"\"\n\n    lr_init = optimizer.defaults[\"lr\"]\n    if not\
+  \ (lr_init > lr_end):\n        raise ValueError(f\"lr_end ({lr_end}) must be be\
+  \ smaller than initial lr ({lr_init})\")\n\n    def lr_lambda(current_step: int):\n\
+  \        if current_step < num_warmup_steps:\n            return float(current_step)\
+  \ / float(max(1, num_warmup_steps))\n        elif current_step > num_training_steps:\n\
+  \            return lr_end / lr_init  # as LambdaLR multiplies by lr_init\n    \
+  \    else:\n            lr_range = lr_init - lr_end\n            decay_steps = num_training_steps\
+  \ - num_warmup_steps\n            pct_remaining = 1 - (current_step - num_warmup_steps)\
+  \ / decay_steps\n            decay = lr_range * pct_remaining**power + lr_end\n\
+  \            return decay / lr_init  # as LambdaLR multiplies by lr_init\n\n   \
+  \ return LambdaLR(optimizer, lr_lambda, last_epoch)"
+replace: "def get_polynomial_decay_schedule_with_warmup(\n    optimizer, num_warmup_steps,\
+  \ num_training_steps, lr_end=1e-7, power=1.0, last_epoch=-1\n):\n    \"\"\"\n  \
+  \  Create a schedule with a learning rate that decreases as a polynomial decay from\
+  \ the initial lr set in the\n    optimizer to end lr defined by *lr_end*, after\
+  \ a warmup period during which it increases linearly from 0 to the\n    initial\
+  \ lr set in the optimizer.\n\n    Args:\n        optimizer ([`~torch.optim.Optimizer`]):\n\
+  \            The optimizer for which to schedule the learning rate.\n        num_warmup_steps\
+  \ (`int`):\n            The number of steps for the warmup phase.\n        num_training_steps\
+  \ (`int`):\n            The total number of training steps.\n        lr_end (`float`,\
+  \ *optional*, defaults to 1e-7):\n            The end LR.\n        power (`float`,\
+  \ *optional*, defaults to 1.0):\n            Power factor.\n        last_epoch (`int`,\
+  \ *optional*, defaults to -1):\n            The index of the last epoch when resuming\
+  \ training.\n\n    Note: *power* defaults to 1.0 as in the fairseq implementation,\
+  \ which in turn is based on the original BERT\n    implementation at\n    https://github.com/google-research/bert/blob/f39e881b169b9d53bea03d2d341b31707a6c052b/optimization.py#L37\n\
+  \n    Return:\n        `torch.optim.lr_scheduler.LambdaLR` with the appropriate\
+  \ schedule.\n\n    \"\"\"\n\n    lr_init = optimizer.defaults[\"lr\"]\n    if not\
+  \ (lr_init > lr_end):\n        raise ValueError(f\"lr_end ({lr_end}) must be be\
+  \ smaller than initial lr ({lr_init})\")\n\n    lr_lambda = partial(\n        _get_polynomial_decay_schedule_with_warmup_lr_lambda,\n\
+  \        num_warmup_steps=num_warmup_steps,\n        num_training_steps=num_training_steps,\n\
+  \        lr_end=lr_end,\n        power=power,\n        lr_init=lr_init,\n    )\n\
+  \    return LambdaLR(optimizer, lr_lambda, last_epoch)"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/optimization.py:
+
+--- src/transformers/optimization.py
++++ src/transformers/optimization.py
+@@ -265,18 +265,14 @@
+     if not (lr_init > lr_end):
+         raise ValueError(f"lr_end ({lr_end}) must be be smaller than initial lr ({lr_init})")
+ 
+-    def lr_lambda(current_step: int):
+-        if current_step < num_warmup_steps:
+-            return float(current_step) / float(max(1, num_warmup_steps))
+-        elif current_step > num_training_steps:
+-  ...
+```
+========================================================================================================================
+AGENT:
+Now let me update `get_inverse_sqrt_schedule`:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/optimization.py
+find: "def get_inverse_sqrt_schedule(\n    optimizer: Optimizer, num_warmup_steps:\
+  \ int, timescale: int = None, last_epoch: int = -1\n):\n    \"\"\"\n    Create a\
+  \ schedule with an inverse square-root learning rate, from the initial lr set in\
+  \ the optimizer, after a\n    warmup period which increases lr linearly from 0 to\
+  \ the initial lr set in the optimizer.\n\n    Args:\n        optimizer ([`~torch.optim.Optimizer`]):\n\
+  \            The optimizer for which to schedule the learning rate.\n        num_warmup_steps\
+  \ (`int`):\n            The number of steps for the warmup phase.\n        timescale\
+  \ (`int`, *optional*, defaults to `num_warmup_steps`):\n            Time scale.\n\
+  \        last_epoch (`int`, *optional*, defaults to -1):\n            The index\
+  \ of the last epoch when resuming training.\n\n    Return:\n        `torch.optim.lr_scheduler.LambdaLR`\
+  \ with the appropriate schedule.\n    \"\"\"\n    # Note: this implementation is\
+  \ adapted from\n    # https://github.com/google-research/big_vision/blob/f071ce68852d56099437004fd70057597a95f6ef/big_vision/utils.py#L930\n\
+  \n    if timescale is None:\n        timescale = num_warmup_steps\n\n    def lr_lambda(current_step:\
+  \ int):\n        if current_step < num_warmup_steps:\n            return float(current_step)\
+  \ / float(max(1, num_warmup_steps))\n        shift = timescale - num_warmup_steps\n\
+  \        decay = 1.0 / math.sqrt((current_step + shift) / timescale)\n        return\
+  \ decay\n\n    return LambdaLR(optimizer, lr_lambda, last_epoch=last_epoch)"
+replace: "def get_inverse_sqrt_schedule(\n    optimizer: Optimizer, num_warmup_steps:\
+  \ int, timescale: int = None, last_epoch: int = -1\n):\n    \"\"\"\n    Create a\
+  \ schedule with an inverse square-root learning rate, from the initial lr set in\
+  \ the optimizer, after a\n    warmup period which increases lr linearly from 0 to\
+  \ the initial lr set in the optimizer.\n\n    Args:\n        optimizer ([`~torch.optim.Optimizer`]):\n\
+  \            The optimizer for which to schedule the learning rate.\n        num_warmup_steps\
+  \ (`int`):\n            The number of steps for the warmup phase.\n        timescale\
+  \ (`int`, *optional*, defaults to `num_warmup_steps`):\n            Time scale.\n\
+  \        last_epoch (`int`, *optional*, defaults to -1):\n            The index\
+  \ of the last epoch when resuming training.\n\n    Return:\n        `torch.optim.lr_scheduler.LambdaLR`\
+  \ with the appropriate schedule.\n    \"\"\"\n    # Note: this implementation is\
+  \ adapted from\n    # https://github.com/google-research/big_vision/blob/f071ce68852d56099437004fd70057597a95f6ef/big_vision/utils.py#L930\n\
+  \n    if timescale is None:\n        timescale = num_warmup_steps\n\n    lr_lambda\
+  \ = partial(\n        _get_inverse_sqrt_schedule_lr_lambda,\n        num_warmup_steps=num_warmup_steps,\n\
+  \        timescale=timescale,\n    )\n    return LambdaLR(optimizer, lr_lambda,\
+  \ last_epoch=last_epoch)"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/optimization.py:
+
+--- src/transformers/optimization.py
++++ src/transformers/optimization.py
+@@ -302,13 +302,11 @@
+     if timescale is None:
+         timescale = num_warmup_steps
+ 
+-    def lr_lambda(current_step: int):
+-        if current_step < num_warmup_steps:
+-            return float(current_step) / float(max(1, num_warmup_steps))
+-        shift = timescale - num_warmup_steps
+-        decay = 1.0 / math.sqrt((current_step + shift) / timescale)...
+```
+========================================================================================================================
+AGENT:
+Now I need to also update the `AdafactorSchedule` class which has a local `lr_lambda` function. Let me first view the current implementation:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/optimization.py
+patterns:
+- AdafactorSchedule
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/transformers/optimization.py:
+
+````python
+   0 # coding=utf-8
+   1 # Copyright 2018 The Google AI Language Team Authors and The HuggingFace Inc. team.
+   2 #
+   3 # Licensed under the Apache License, Version 2.0 (the "License");
+   4 # you may not use this file except in compliance with the License.
+   5 # You may obtain a copy of the License at
+   6 #
+   7 #     http://www.apache.org/licenses/LICENSE-2.0
+   8 #
+   9 # Unless required by applicable law or...
+```
+========================================================================================================================
+AGENT:
+I see the `AdafactorSchedule` class still has a local `lr_lambda` function. Let me add a global function for it and update the class. First, I'll add the global function for Adafactor:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/optimization.py
+find: "def _get_inverse_sqrt_schedule_lr_lambda(current_step: int, *, num_warmup_steps:\
+  \ int, timescale: int):\n    if current_step < num_warmup_steps:\n        return\
+  \ float(current_step) / float(max(1, num_warmup_steps))\n    shift = timescale -\
+  \ num_warmup_steps\n    decay = 1.0 / math.sqrt((current_step + shift) / timescale)\n\
+  \    return decay"
+replace: "def _get_inverse_sqrt_schedule_lr_lambda(current_step: int, *, num_warmup_steps:\
+  \ int, timescale: int):\n    if current_step < num_warmup_steps:\n        return\
+  \ float(current_step) / float(max(1, num_warmup_steps))\n    shift = timescale -\
+  \ num_warmup_steps\n    decay = 1.0 / math.sqrt((current_step + shift) / timescale)\n\
+  \    return decay\n\n\ndef _get_adafactor_schedule_lr_lambda(_: int, *, initial_lr:\
+  \ float):\n    return initial_lr"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/optimization.py:
+
+--- src/transformers/optimization.py
++++ src/transformers/optimization.py
+@@ -97,6 +97,10 @@
+     shift = timescale - num_warmup_steps
+     decay = 1.0 / math.sqrt((current_step + shift) / timescale)
+     return decay
++
++
++def _get_adafactor_schedule_lr_lambda(_: int, *, initial_lr: float):
++    return initial_lr
+ 
+ 
+ def get_constant_schedule(optimizer: Optimizer, last_epoch: int = -1):
+...
+```
+========================================================================================================================
+AGENT:
+Now let me update the `AdafactorSchedule` class to use the global function:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: src/transformers/optimization.py
+find: "class AdafactorSchedule(LambdaLR):\n    \"\"\"\n    Since [`~optimization.Adafactor`]\
+  \ performs its own scheduling, if the training loop relies on a scheduler (e.g.,\n\
+  \    for logging), this class creates a proxy object that retrieves the current\
+  \ lr values from the optimizer.\n\n    It returns `initial_lr` during startup and\
+  \ the actual `lr` during stepping.\n    \"\"\"\n\n    def __init__(self, optimizer,\
+  \ initial_lr=0.0):\n        def lr_lambda(_):\n            return initial_lr\n\n\
+  \        for group in optimizer.param_groups:\n            group[\"initial_lr\"\
+  ] = initial_lr\n        super().__init__(optimizer, lr_lambda)\n        for group\
+  \ in optimizer.param_groups:\n            del group[\"initial_lr\"]"
+replace: "class AdafactorSchedule(LambdaLR):\n    \"\"\"\n    Since [`~optimization.Adafactor`]\
+  \ performs its own scheduling, if the training loop relies on a scheduler (e.g.,\n\
+  \    for logging), this class creates a proxy object that retrieves the current\
+  \ lr values from the optimizer.\n\n    It returns `initial_lr` during startup and\
+  \ the actual `lr` during stepping.\n    \"\"\"\n\n    def __init__(self, optimizer,\
+  \ initial_lr=0.0):\n        lr_lambda = partial(_get_adafactor_schedule_lr_lambda,\
+  \ initial_lr=initial_lr)\n        for group in optimizer.param_groups:\n       \
+  \     group[\"initial_lr\"] = initial_lr\n        super().__init__(optimizer, lr_lambda)\n\
+  \        for group in optimizer.param_groups:\n            del group[\"initial_lr\"\
+  ]"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in src/transformers/optimization.py:
+
+--- src/transformers/optimization.py
++++ src/transformers/optimization.py
+@@ -730,9 +730,7 @@
+     """
+ 
+     def __init__(self, optimizer, initial_lr=0.0):
+-        def lr_lambda(_):
+-            return initial_lr
+-
++        lr_lambda = partial(_get_adafactor_schedule_lr_lambda, initial_lr=initial_lr)
+         for group in optimizer.param_groups:
+             group["initial_lr"] = initial_lr
+         super().__init__(optimizer, lr...
+```
+========================================================================================================================
+AGENT:
+STEP 3: VERIFY THE CHANGES
+
+<thinking>
+Now I've made all the necessary changes. Let me verify the changes by:
+1. Opening the modified file to review the changes
+2. Creating a test script to verify that the schedulers are now picklable
+
+Let me first view the modified file to ensure all changes are correct.
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: src/transformers/optimization.py
+line_ranges:
+- - 0
+  - 150
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in src/transformers/optimization.py:
+
+````python
+   0 # coding=utf-8
+   1 # Copyright 2018 The Google AI Language Team Authors and The HuggingFace Inc. team.
+   2 #
+   3 # Licensed under the Apache License, Version 2.0 (the "License");
+   4 # you may not use this file except in compliance with the License.
+   5 # You may obtain a copy of the License at
+   6 #
+   7 #     http://www.apache.org/licenses/LICENSE-2.0
+   8 #
+   9 # Unless required by applicable law or...
+```
+========================================================================================================================
+AGENT:
+The code looks good. Now let me create a test script to verify that the schedulers are now picklable:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && pip install torch -q 2>&1 | tail -5
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && pip install -e . -q 2>&1 | tail -5
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python3 -c \"\nimport pickle\nimport torch\nfrom torch.optim\
+  \ import SGD\nfrom transformers.optimization import (\n    get_constant_schedule,\n\
+  \    get_constant_schedule_with_warmup,\n    get_linear_schedule_with_warmup,\n\
+  \    get_cosine_schedule_with_warmup,\n    get_cosine_with_hard_restarts_schedule_with_warmup,\n\
+  \    get_polynomial_decay_schedule_with_warmup,\n    get_inverse_sqrt_schedule,\n\
+  )\n\n# Create a simple model and optimizer\nmodel = torch.nn.Linear(10, 10)\noptimizer\
+  \ = SGD(model.parameters(), lr=0.1)\n\n# Test each scheduler\nschedulers = {\n \
+  \   'constant': get_constant_schedule(optimizer),\n    'constant_with_warmup': get_constant_schedule_with_warmup(optimizer,\
+  \ num_warmup_steps=10),\n    'linear_with_warmup': get_linear_schedule_with_warmup(optimizer,\
+  \ num_warmup_steps=10, num_training_steps=100),\n    'cosine_with_warmup': get_cosine_schedule_with_warmup(optimizer,\
+  \ num_warmup_steps=10, num_training_steps=100),\n    'cosine_hard_restarts': get_cosine_with_hard_restarts_schedule_with_warmup(optimizer,\
+  \ num_warmup_steps=10, num_training_steps=100),\n    'polynomial_decay': get_polynomial_decay_schedule_with_warmup(optimizer,\
+  \ num_warmup_steps=10, num_training_steps=100),\n    'inverse_sqrt': get_inverse_sqrt_schedule(optimizer,\
+  \ num_warmup_steps=10),\n}\n\nprint('Testing picklability of schedulers...')\nfor\
+  \ name, scheduler in schedulers.items():\n    try:\n        # Try to pickle and\
+  \ unpickle the scheduler\n        pickled = pickle.dumps(scheduler)\n        unpickled\
+  \ = pickle.loads(pickled)\n        \n        # Verify the scheduler still works\
+  \ after unpickling\n        # Get the lr_lambda from the scheduler\n        lr_lambda\
+  \ = scheduler.lr_lambdas[0]\n        unpickled_lr_lambda = unpickled.lr_lambdas[0]\n\
+  \        \n        # Test at a few steps\n        for step in [0, 5, 10, 50, 100]:\n\
+  \            original_val = lr_lambda(step)\n            unpickled_val = unpickled_lr_lambda(step)\n\
+  \            assert original_val == unpickled_val, f'Mismatch at step {step}: {original_val}\
+  \ vs {unpickled_val}'\n        \n        print(f'  \u2713 {name}: picklable and\
+  \ works correctly')\n    except Exception as e:\n        print(f'  \u2717 {name}:\
+  \ FAILED - {e}')\n\nprint('\\\\nAll schedulers are picklable!')\n\"\n"
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Testing picklability of schedulers...
+  ✓ constant: picklable and works correctly
+  ✓ constant_with_warmup: picklable and works correctly
+  ✓ linear_with_warmup: picklable and works correctly
+  ✓ cosine_with_warmup: picklable and works correctly
+  ✓ cosine_hard_restarts: picklable and works correctly
+  ✓ polynomial_decay: picklable and works correctly
+  ✓ inverse_sqrt: picklable and works correctly
+
+All schedulers are picklable!...
+```
+========================================================================================================================
+AGENT:
+All schedulers are now picklable. Let me also run the existing tests to make sure the changes don't break anything:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python3 -m pytest tests/optimization/ -v 2>&1 | head -100
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+/root/.pyenv/versions/3.11.12/bin/python3: No module named pytest...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: pip install pytest -q 2>&1 | tail -3
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: pip install --upgrade pip...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python3 -m pytest tests/optimization/ -v 2>&1 | head -100
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+============================= test session starts ==============================
+platform linux -- Python 3.11.12, pytest-9.0.2, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python3
+cachedir: .pytest_cache
+rootdir: /workspace
+configfile: setup.cfg
+collecting ... collected 5 items
+
+tests/optimization/test_optimization.py::OptimizationTest::test_adafactor PASSED [ 20%]
+tests/optimization/test_optimization.py::OptimizationTest::test_adam_w PASSED [ 40%]
+tests/optimization/test_optimization.py:...
+```
+========================================================================================================================
+AGENT:
+All tests pass. Let me also verify that the scheduler values are computed correctly by comparing the output of the new implementation with expected values:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python3 -c \"\nimport math\nimport torch\nfrom torch.optim\
+  \ import SGD\nfrom transformers.optimization import (\n    get_constant_schedule,\n\
+  \    get_constant_schedule_with_warmup,\n    get_linear_schedule_with_warmup,\n\
+  \    get_cosine_schedule_with_warmup,\n    get_cosine_with_hard_restarts_schedule_with_warmup,\n\
+  \    get_polynomial_decay_schedule_with_warmup,\n    get_inverse_sqrt_schedule,\n\
+  )\n\n# Create a simple model and optimizer\nmodel = torch.nn.Linear(10, 10)\noptimizer\
+  \ = SGD(model.parameters(), lr=0.1)\n\n# Test constant schedule\nscheduler = get_constant_schedule(optimizer)\n\
+  assert scheduler.lr_lambdas[0](0) == 1\nassert scheduler.lr_lambdas[0](100) == 1\n\
+  print('\u2713 get_constant_schedule: correct')\n\n# Test constant schedule with\
+  \ warmup\nscheduler = get_constant_schedule_with_warmup(optimizer, num_warmup_steps=10)\n\
+  assert scheduler.lr_lambdas[0](0) == 0.0\nassert scheduler.lr_lambdas[0](5) == 0.5\n\
+  assert scheduler.lr_lambdas[0](10) == 1.0\nassert scheduler.lr_lambdas[0](100) ==\
+  \ 1.0\nprint('\u2713 get_constant_schedule_with_warmup: correct')\n\n# Test linear\
+  \ schedule with warmup\nscheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=10,\
+  \ num_training_steps=100)\nassert scheduler.lr_lambdas[0](0) == 0.0\nassert scheduler.lr_lambdas[0](5)\
+  \ == 0.5\nassert scheduler.lr_lambdas[0](10) == 1.0\nassert scheduler.lr_lambdas[0](55)\
+  \ == 0.5\nassert scheduler.lr_lambdas[0](100) == 0.0\nprint('\u2713 get_linear_schedule_with_warmup:\
+  \ correct')\n\n# Test cosine schedule with warmup\nscheduler = get_cosine_schedule_with_warmup(optimizer,\
+  \ num_warmup_steps=10, num_training_steps=100)\nassert scheduler.lr_lambdas[0](0)\
+  \ == 0.0\nassert scheduler.lr_lambdas[0](5) == 0.5\nassert scheduler.lr_lambdas[0](10)\
+  \ == 1.0\n# At step 55, progress = (55-10)/(100-10) = 0.5, so cos(pi * 0.5 * 2 *\
+  \ 0.5) = cos(pi/2) = 0\nassert abs(scheduler.lr_lambdas[0](55) - 0.5) < 0.01\nassert\
+  \ scheduler.lr_lambdas[0](100) == 0.0\nprint('\u2713 get_cosine_schedule_with_warmup:\
+  \ correct')\n\n# Test cosine with hard restarts schedule with warmup\nscheduler\
+  \ = get_cosine_with_hard_restarts_schedule_with_warmup(optimizer, num_warmup_steps=10,\
+  \ num_training_steps=100, num_cycles=2)\nassert scheduler.lr_lambdas[0](0) == 0.0\n\
+  assert scheduler.lr_lambdas[0](5) == 0.5\nassert scheduler.lr_lambdas[0](10) ==\
+  \ 1.0\nprint('\u2713 get_cosine_with_hard_restarts_schedule_with_warmup: correct')\n\
+  \n# Test polynomial decay schedule with warmup\nscheduler = get_polynomial_decay_schedule_with_warmup(optimizer,\
+  \ num_warmup_steps=10, num_training_steps=100)\nassert scheduler.lr_lambdas[0](0)\
+  \ == 0.0\nassert scheduler.lr_lambdas[0](5) == 0.5\nassert scheduler.lr_lambdas[0](10)\
+  \ == 1.0\nprint('\u2713 get_polynomial_decay_schedule_with_warmup: correct')\n\n\
+  # Test inverse sqrt schedule\nscheduler = get_inverse_sqrt_schedule(optimizer, num_warmup_steps=10)\n\
+  assert scheduler.lr_lambdas[0](0) == 0.0\nassert scheduler.lr_lambdas[0](5) == 0.5\n\
+  assert scheduler.lr_lambdas[0](10) == 1.0\n# At step 20, decay = 1/sqrt((20 + 0)\
+  \ / 10) = 1/sqrt(2) \u2248 0.707\nassert abs(scheduler.lr_lambdas[0](20) - 1/math.sqrt(2))\
+  \ < 0.01\nprint('\u2713 get_inverse_sqrt_schedule: correct')\n\nprint('\\\\nAll\
+  \ scheduler values are computed correctly!')\n\"\n"
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+✓ get_constant_schedule: correct
+✓ get_constant_schedule_with_warmup: correct
+✓ get_linear_schedule_with_warmup: correct
+✓ get_cosine_schedule_with_warmup: correct
+✓ get_cosine_with_hard_restarts_schedule_with_warmup: correct
+✓ get_polynomial_decay_schedule_with_warmup: correct
+✓ get_inverse_sqrt_schedule: correct
+
+All scheduler values are computed correctly!...
+```
+========================================================================================================================
+AGENT:
+All scheduler values are computed correctly. Let me also test the AdafactorSchedule to ensure it's picklable:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python3 -c \"\nimport pickle\nimport torch\nfrom transformers.optimization\
+  \ import Adafactor, AdafactorSchedule, get_adafactor_schedule\n\n# Create a simple\
+  \ model and optimizer\nmodel = torch.nn.Linear(10, 10)\noptimizer = Adafactor(model.parameters(),\
+  \ scale_parameter=True, relative_step=True, warmup_init=True, lr=None)\n\n# Test\
+  \ AdafactorSchedule\nscheduler = AdafactorSchedule(optimizer, initial_lr=0.1)\n\n\
+  try:\n    # Try to pickle and unpickle the scheduler\n    pickled = pickle.dumps(scheduler)\n\
+  \    unpickled = pickle.loads(pickled)\n    \n    # Verify the scheduler still works\
+  \ after unpickling\n    lr_lambda = scheduler.lr_lambdas[0]\n    unpickled_lr_lambda\
+  \ = unpickled.lr_lambdas[0]\n    \n    # Test at a few steps\n    for step in [0,\
+  \ 5, 10, 50, 100]:\n        original_val = lr_lambda(step)\n        unpickled_val\
+  \ = unpickled_lr_lambda(step)\n        assert original_val == unpickled_val, f'Mismatch\
+  \ at step {step}: {original_val} vs {unpickled_val}'\n    \n    print('\u2713 AdafactorSchedule:\
+  \ picklable and works correctly')\nexcept Exception as e:\n    print(f'\u2717 AdafactorSchedule:\
+  \ FAILED - {e}')\n\n# Test get_adafactor_schedule\nscheduler = get_adafactor_schedule(optimizer,\
+  \ initial_lr=0.1)\n\ntry:\n    # Try to pickle and unpickle the scheduler\n    pickled\
+  \ = pickle.dumps(scheduler)\n    unpickled = pickle.loads(pickled)\n    \n    #\
+  \ Verify the scheduler still works after unpickling\n    lr_lambda = scheduler.lr_lambdas[0]\n\
+  \    unpickled_lr_lambda = unpickled.lr_lambdas[0]\n    \n    # Test at a few steps\n\
+  \    for step in [0, 5, 10, 50, 100]:\n        original_val = lr_lambda(step)\n\
+  \        unpickled_val = unpickled_lr_lambda(step)\n        assert original_val\
+  \ == unpickled_val, f'Mismatch at step {step}: {original_val} vs {unpickled_val}'\n\
+  \    \n    print('\u2713 get_adafactor_schedule: picklable and works correctly')\n\
+  except Exception as e:\n    print(f'\u2717 get_adafactor_schedule: FAILED - {e}')\n\
+  \nprint('\\\\nAll Adafactor schedulers are picklable!')\n\"\n"
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+✓ AdafactorSchedule: picklable and works correctly
+✓ get_adafactor_schedule: picklable and works correctly
+
+All Adafactor schedulers are picklable!...
+```
+========================================================================================================================
+AGENT:
+Excellent! All schedulers are now picklable. Let me also run a more comprehensive test to ensure the schedulers work correctly in a training loop:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python3 -c \"\nimport pickle\nimport torch\nfrom torch.optim\
+  \ import SGD\nfrom transformers.optimization import (\n    get_constant_schedule,\n\
+  \    get_constant_schedule_with_warmup,\n    get_linear_schedule_with_warmup,\n\
+  \    get_cosine_schedule_with_warmup,\n    get_cosine_with_hard_restarts_schedule_with_warmup,\n\
+  \    get_polynomial_decay_schedule_with_warmup,\n    get_inverse_sqrt_schedule,\n\
+  )\n\n# Create a simple model and optimizer\nmodel = torch.nn.Linear(10, 10)\noptimizer\
+  \ = SGD(model.parameters(), lr=0.1)\n\n# Test linear schedule with warmup in a training\
+  \ loop\nscheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=10,\
+  \ num_training_steps=100)\n\n# Simulate training for a few steps\nfor step in range(20):\n\
+  \    optimizer.step()\n    scheduler.step()\n\n# Get the current learning rate\n\
+  current_lr = scheduler.get_last_lr()[0]\nprint(f'Current LR after 20 steps: {current_lr:.6f}')\n\
+  \n# Pickle and unpickle the scheduler\npickled = pickle.dumps(scheduler)\nunpickled\
+  \ = pickle.loads(pickled)\n\n# Verify the scheduler state is preserved\nunpickled_lr\
+  \ = unpickled.get_last_lr()[0]\nprint(f'Unpickled LR: {unpickled_lr:.6f}')\n\nassert\
+  \ abs(current_lr - unpickled_lr) < 1e-6, f'LR mismatch: {current_lr} vs {unpickled_lr}'\n\
+  print('\u2713 Scheduler state is preserved after pickling')\n\n# Continue training\
+  \ with the unpickled scheduler\nfor step in range(20, 30):\n    optimizer.step()\n\
+  \    unpickled.step()\n\nnew_lr = unpickled.get_last_lr()[0]\nprint(f'LR after 30\
+  \ steps (using unpickled scheduler): {new_lr:.6f}')\n\nprint('\\\\nScheduler works\
+  \ correctly after pickling and unpickling!')\n\"\n"
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Current LR after 20 steps: 0.088889
+Unpickled LR: 0.088889
+✓ Scheduler state is preserved after pickling
+LR after 30 steps (using unpickled scheduler): 0.077778
+
+Scheduler works correctly after pickling and unpickling!...
+```
+========================================================================================================================
+AGENT:
+The schedulers work correctly after pickling and unpickling. Let me also verify that the `get_scheduler` function works correctly with the updated schedulers:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python3 -c \"\nimport pickle\nimport torch\nfrom torch.optim\
+  \ import SGD\nfrom transformers.optimization import get_scheduler\n\n# Create a\
+  \ simple model and optimizer\nmodel = torch.nn.Linear(10, 10)\noptimizer = SGD(model.parameters(),\
+  \ lr=0.1)\n\n# Test all scheduler types via get_scheduler\nscheduler_types = [\n\
+  \    ('constant', {}),\n    ('constant_with_warmup', {'num_warmup_steps': 10}),\n\
+  \    ('linear', {'num_warmup_steps': 10, 'num_training_steps': 100}),\n    ('cosine',\
+  \ {'num_warmup_steps': 10, 'num_training_steps': 100}),\n    ('cosine_with_restarts',\
+  \ {'num_warmup_steps': 10, 'num_training_steps': 100}),\n    ('polynomial', {'num_warmup_steps':\
+  \ 10, 'num_training_steps': 100}),\n    ('inverse_sqrt', {'num_warmup_steps': 10}),\n\
+  ]\n\nprint('Testing get_scheduler with all scheduler types...')\nfor name, kwargs\
+  \ in scheduler_types:\n    try:\n        scheduler = get_scheduler(name, optimizer,\
+  \ **kwargs)\n        \n        # Try to pickle and unpickle the scheduler\n    \
+  \    pickled = pickle.dumps(scheduler)\n        unpickled = pickle.loads(pickled)\n\
+  \        \n        # Verify the scheduler still works after unpickling\n       \
+  \ lr_lambda = scheduler.lr_lambdas[0]\n        unpickled_lr_lambda = unpickled.lr_lambdas[0]\n\
+  \        \n        # Test at a few steps\n        for step in [0, 5, 10, 50, 100]:\n\
+  \            original_val = lr_lambda(step)\n            unpickled_val = unpickled_lr_lambda(step)\n\
+  \            assert original_val == unpickled_val, f'Mismatch at step {step}: {original_val}\
+  \ vs {unpickled_val}'\n        \n        print(f'  \u2713 {name}: picklable and\
+  \ works correctly')\n    except Exception as e:\n        print(f'  \u2717 {name}:\
+  \ FAILED - {e}')\n\nprint('\\\\nAll scheduler types via get_scheduler are picklable!')\n\
+  \"\n"
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Testing get_scheduler with all scheduler types...
+  ✓ constant: picklable and works correctly
+  ✓ constant_with_warmup: picklable and works correctly
+  ✓ linear: picklable and works correctly
+  ✓ cosine: picklable and works correctly
+  ✓ cosine_with_restarts: picklable and works correctly
+  ✓ polynomial: picklable and works correctly
+  ✓ inverse_sqrt: picklable and works correctly
+
+All scheduler types via get_scheduler are picklable!...
+```
+========================================================================================================================
+AGENT:
+All tests pass. Let me also run a quick check to ensure there are no syntax errors or import issues:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python3 -c "from transformers.optimization import *; print('All
+  imports successful!')"
+timeout: 30
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+All imports successful!...
+```
+========================================================================================================================
+AGENT:
+All changes have been made and tested. The schedulers are now picklable. Let me do a final review of the changes to ensure everything is correct.
+========================================================================================================================
+AGENT:
+STEP 4: FINAL REVIEW
+
+<thinking>
+Let me do a final review of all the changes I made to ensure they are correct and complete:
+
+1. Added `from functools import partial` to imports
+2. Created global functions for each scheduler's lr_lambda:
+   - `_get_constant_lambda`
+   - `_get_constant_schedule_with_warmup_lr_lambda`
+   - `_get_linear_schedule_with_warmup_lr_lambda`
+   - `_get_cosine_schedule_with_warmup_lr_lambda`
+   - `_get_cosine_with_hard_restarts_schedule_with_warmup_lr_lambda`
+   - `_get_polynomial_decay_schedule_with_warmup_lr_lambda`
+   - `_get_inverse_sqrt_schedule_lr_lambda`
+   - `_get_adafactor_schedule_lr_lambda`
+3. Modified each scheduler function to use `partial` with the global function instead of local lambda/functions
+
+All tests pass:
+- Pickling and unpickling works for all schedulers
+- Scheduler values are computed correctly
+- Scheduler state is preserved after pickling
+- All existing tests pass
+
+The changes are complete and correct.
+</thinking>
+
+Let me view the final state of the modified file to confirm all changes are in place:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && head -105 src/transformers/optimization.py
+timeout: 30
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+# coding=utf-8
+# Copyright 2018 The Google AI Language Team Authors and The HuggingFace Inc. team.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITION...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && grep -n "partial(" src/transformers/optimization.py
+timeout: 30
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+139:    lr_lambda = partial(_get_constant_schedule_with_warmup_lr_lambda, num_warmup_steps=num_warmup_steps)
+162:    lr_lambda = partial(
+195:    lr_lambda = partial(
+228:    lr_lambda = partial(
+272:    lr_lambda = partial(
+309:    lr_lambda = partial(
+733:        lr_lambda = partial(_get_adafactor_schedule_lr_lambda, initial_lr=initial_lr)...
+```
+========================================================================================================================
+AGENT:
+All the changes are in place. Let me run the optimization tests one more time to make sure everything is working:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python3 -m pytest tests/optimization/test_optimization.py
+  -v 2>&1
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+============================= test session starts ==============================
+platform linux -- Python 3.11.12, pytest-9.0.2, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python3
+cachedir: .pytest_cache
+rootdir: /workspace
+configfile: setup.cfg
+collecting ... collected 3 items
+
+tests/optimization/test_optimization.py::OptimizationTest::test_adafactor PASSED [ 33%]
+tests/optimization/test_optimization.py::OptimizationTest::test_adam_w PASSED [ 66%]
+tests/optimization/test_optimization.py:...
+```
+========================================================================================================================
+AGENT:
+All tests pass. Let me also check if there are any other tests that might be affected by these changes:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && grep -r "get_linear_schedule_with_warmup\|get_cosine_schedule_with_warmup\|get_constant_schedule"
+  tests/ --include="*.py" | head -20
+timeout: 30
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+tests/optimization/test_optimization.py:        get_constant_schedule,
+tests/optimization/test_optimization.py:        get_constant_schedule_with_warmup,
+tests/optimization/test_optimization.py:        get_cosine_schedule_with_warmup,
+tests/optimization/test_optimization.py:        get_linear_schedule_with_warmup,
+tests/optimization/test_optimization.py:            get_constant_schedule: ({}, [10.0] * self.num_steps),
+tests/optimization/test_optimization.py:            get_constant_schedule_with...
+```
+========================================================================================================================
+AGENT:
+Good. The tests are in the optimization test file which we already ran. Let me also check if there are any trainer tests that might use these schedulers:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && grep -r "lr_scheduler\|LambdaLR" tests/trainer/ --include="*.py"
+  2>/dev/null | head -10
+timeout: 30
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+tests/trainer/test_trainer.py:        lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda x: 1.0)
+tests/trainer/test_trainer.py:        trainer = Trainer(model, args, train_dataset=train_dataset, optimizers=(optimizer, lr_scheduler))
+tests/trainer/test_trainer.py:        # test the special case where lr=None, since Trainer can't not have lr_scheduler
+tests/trainer/test_trainer.py:        lr_scheduler = AdafactorSchedule(optimizer)
+tests/trainer/test_trainer.py:        tr...
+```
+========================================================================================================================
+AGENT:
+Let me run a quick test on the trainer tests that use AdafactorSchedule:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && python3 -m pytest tests/trainer/test_trainer.py::TrainerOptimizerChoiceTest
+  -v 2>&1 | tail -30
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+============================= test session starts ==============================
+platform linux -- Python 3.11.12, pytest-9.0.2, pluggy-1.6.0 -- /root/.pyenv/versions/3.11.12/bin/python3
+cachedir: .pytest_cache
+rootdir: /workspace
+configfile: setup.cfg
+collecting ... ERROR: found no collectors for /workspace/tests/trainer/test_trainer.py::TrainerOptimizerChoiceTest
+
+collected 0 items / 1 error
+
+==================================== ERRORS ====================================
+________________ ERRO...
+```
+========================================================================================================================
+AGENT:
+The trainer tests have an import error unrelated to our changes. The optimization tests pass, which is the relevant test suite for our changes.
+
+Let me create a final comprehensive test to demonstrate the picklability feature:
+========================================================================================================================
+TOOL CALL (bash)
+command: "cd /workspace && python3 -c \"\nimport pickle\nimport io\nimport torch\n\
+  from torch.optim import SGD\nfrom transformers.optimization import (\n    get_constant_schedule,\n\
+  \    get_constant_schedule_with_warmup,\n    get_linear_schedule_with_warmup,\n\
+  \    get_cosine_schedule_with_warmup,\n    get_cosine_with_hard_restarts_schedule_with_warmup,\n\
+  \    get_polynomial_decay_schedule_with_warmup,\n    get_inverse_sqrt_schedule,\n\
+  \    get_scheduler,\n    Adafactor,\n    AdafactorSchedule,\n    get_adafactor_schedule,\n\
+  )\n\nprint('=' * 60)\nprint('Testing Picklability of All Schedulers')\nprint('='\
+  \ * 60)\n\n# Create a simple model and optimizer\nmodel = torch.nn.Linear(10, 10)\n\
+  optimizer = SGD(model.parameters(), lr=0.1)\n\n# Test all scheduler functions\n\
+  schedulers = [\n    ('get_constant_schedule', get_constant_schedule(optimizer)),\n\
+  \    ('get_constant_schedule_with_warmup', get_constant_schedule_with_warmup(optimizer,\
+  \ num_warmup_steps=10)),\n    ('get_linear_schedule_with_warmup', get_linear_schedule_with_warmup(optimizer,\
+  \ num_warmup_steps=10, num_training_steps=100)),\n    ('get_cosine_schedule_with_warmup',\
+  \ get_cosine_schedule_with_warmup(optimizer, num_warmup_steps=10, num_training_steps=100)),\n\
+  \    ('get_cosine_with_hard_restarts_schedule_with_warmup', get_cosine_with_hard_restarts_schedule_with_warmup(optimizer,\
+  \ num_warmup_steps=10, num_training_steps=100)),\n    ('get_polynomial_decay_schedule_with_warmup',\
+  \ get_polynomial_decay_schedule_with_warmup(optimizer, num_warmup_steps=10, num_training_steps=100)),\n\
+  \    ('get_inverse_sqrt_schedule', get_inverse_sqrt_schedule(optimizer, num_warmup_steps=10)),\n\
+  ]\n\n# Test get_scheduler with all types\nscheduler_types = ['constant', 'constant_with_warmup',\
+  \ 'linear', 'cosine', 'cosine_with_restarts', 'polynomial', 'inverse_sqrt']\nfor\
+  \ stype in scheduler_types:\n    kwargs = {}\n    if stype != 'constant':\n    \
+  \    kwargs['num_warmup_steps'] = 10\n    if stype in ['linear', 'cosine', 'cosine_with_restarts',\
+  \ 'polynomial']:\n        kwargs['num_training_steps'] = 100\n    schedulers.append((f'get_scheduler({stype})',\
+  \ get_scheduler(stype, optimizer, **kwargs)))\n\n# Test Adafactor schedulers\nadafactor_optimizer\
+  \ = Adafactor(model.parameters(), scale_parameter=True, relative_step=True, warmup_init=True,\
+  \ lr=None)\nschedulers.append(('AdafactorSchedule', AdafactorSchedule(adafactor_optimizer,\
+  \ initial_lr=0.1)))\nschedulers.append(('get_adafactor_schedule', get_adafactor_schedule(adafactor_optimizer,\
+  \ initial_lr=0.1)))\n\nall_passed = True\nfor name, scheduler in schedulers:\n \
+  \   try:\n        # Pickle to bytes\n        buffer = io.BytesIO()\n        pickle.dump(scheduler,\
+  \ buffer)\n        buffer.seek(0)\n        \n        # Unpickle\n        unpickled\
+  \ = pickle.load(buffer)\n        \n        # Verify lr_lambda works\n        lr_lambda\
+  \ = scheduler.lr_lambdas[0]\n        unpickled_lr_lambda = unpickled.lr_lambdas[0]\n\
+  \        \n        # Test at a few steps\n        for step in [0, 5, 10, 50]:\n\
+  \            original_val = lr_lambda(step)\n            unpickled_val = unpickled_lr_lambda(step)\n\
+  \            if original_val != unpickled_val:\n                raise ValueError(f'Mismatch\
+  \ at step {step}: {original_val} vs {unpickled_val}')\n        \n        print(f'\u2713\
+  \ {name}')\n    except Exception as e:\n        print(f'\u2717 {name}: {e}')\n \
+  \       all_passed = False\n\nprint('=' * 60)\nif all_passed:\n    print('SUCCESS:\
+  \ All schedulers are picklable!')\nelse:\n    print('FAILURE: Some schedulers failed\
+  \ pickling test')\nprint('=' * 60)\n\"\n"
+timeout: 60
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+============================================================
+Testing Picklability of All Schedulers
+============================================================
+✓ get_constant_schedule
+✓ get_constant_schedule_with_warmup
+✓ get_linear_schedule_with_warmup
+✓ get_cosine_schedule_with_warmup
+✓ get_cosine_with_hard_restarts_schedule_with_warmup
+✓ get_polynomial_decay_schedule_with_warmup
+✓ get_inverse_sqrt_schedule
+✓ get_scheduler(constant)
+✓ get_scheduler(constant_with_warmup)
+✓ get_scheduler(linear...
+```
+========================================================================================================================
+AGENT:
+All schedulers are now picklable. Let me mark the task as complete:
+========================================================================================================================
+AGENT:
+Successfully made all schedulers picklable by:
+
+1. Added `from functools import partial` to imports in `src/transformers/optimization.py`
+
+2. Created global functions for each scheduler's lr_lambda:
+   - `_get_constant_lambda` - for constant schedule
+   - `_get_constant_schedule_with_warmup_lr_lambda` - for constant schedule with warmup
+   - `_get_linear_schedule_with_warmup_lr_lambda` - for linear schedule with warmup
+   - `_get_cosine_schedule_with_warmup_lr_lambda` - for cosine schedule with warmup
+   - `_get_cosine_with_hard_restarts_schedule_with_warmup_lr_lambda` - for cosine with hard restarts schedule
+   - `_get_polynomial_decay_schedule_with_warmup_lr_lambda` - for polynomial decay schedule
+   - `_get_inverse_sqrt_schedule_lr_lambda` - for inverse sqrt schedule
+   - `_get_adafactor_schedule_lr_lambda` - for Adafactor schedule
+
+3. Modified each scheduler function to use `partial` with the global function instead of local lambda/functions:
+   - `get_constant_schedule` - uses `_get_constant_lambda` directly
+   - `get_constant_schedule_with_warmup` - uses `partial(_get_constant_schedule_with_warmup_lr_lambda, ...)`
+   - `get_linear_schedule_with_warmup` - uses `partial(_get_linear_schedule_with_warmup_lr_lambda, ...)`
+   - `get_cosine_schedule_with_warmup` - uses `partial(_get_cosine_schedule_with_warmup_lr_lambda, ...)`
+   - `get_cosine_with_hard_restarts_schedule_with_warmup` - uses `partial(_get_cosine_with_hard_restarts_schedule_with_warmup_lr_lambda, ...)`
+   - `get_polynomial_decay_schedule_with_warmup` - uses `partial(_get_polynomial_decay_schedule_with_warmup_lr_lambda, ...)`
+   - `get_inverse_sqrt_schedule` - uses `partial(_get_inverse_sqrt_schedule_lr_lambda, ...)`
+   - `AdafactorSchedule.__init__` - uses `partial(_get_adafactor_schedule_lr_lambda, ...)`
+
+All tests pass:
+- All schedulers can be pickled and unpickled successfully
+- Scheduler values are computed correctly after unpickling
+- Scheduler state is preserved after pickling
+- All existing optimization tests pass

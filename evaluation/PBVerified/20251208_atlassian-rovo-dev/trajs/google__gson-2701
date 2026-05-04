@@ -1,0 +1,1197 @@
+########################################################################################################################
+PHASE 1
+########################################################################################################################
+========================================================================================================================
+AGENT:
+I will start by viewing the workspace to understand its structure and contents. This will help me identify key files and locations that may be relevant to the task.
+========================================================================================================================
+USER PROMPT:
+Resolve the following problem statement:
+
+<problem_statement>
+Read `json_name` from protobuf field annotations for serialization and deserialization
+# Background
+
+We would like to have custom names for keys in JSON strings that do not match the names of the proto fields. Such a feature was added to the GSON library in 2015 via #710, which allowed developers to register custom field options in the ProtoTypeAdapter to read annotations for custom field names from the proto definition. Unfortunately some users use the `json_name` annotation described at https://protobuf.dev/programming-guides/proto3/#json, and it does not appear in [the field options list in the proto field descriptor](https://github.com/protocolbuffers/protobuf/blob/a30b25578a0435c9c692f9a54b7b060a234dc6b3/src/google/protobuf/descriptor.proto#L303). Instead, it is set as [its own first-class field in the field descriptor](https://github.com/protocolbuffers/protobuf/blob/a30b25578a0435c9c692f9a54b7b060a234dc6b3/src/google/protobuf/descriptor.proto#L297-L301).
+
+# Design decisions
+
+## Backwards compatibility
+
+One important criteria in making changes to GSON is backwards compatibility, because any changes we make must not break existing users. The first thing I want to establish is that the functionality of reading the `json_name` field should absolutely not be enabled by default. Doing so has the potential to break many users, some of whom would not even realize that such a thing was happening. As such, **I believe that we should add a new boolean flag named something like `shouldUseJsonNameFieldOption` to the ProtoTypeAdapter and its Builder in order to configure whether or not the json_name field option should be read or not.**
+
+## Interaction with other existing features
+
+Assuming that we add such a `shouldUseJsonNameFieldOption` boolean, the next question is what should happen if it is turned on (in other words, set to `true`) in the presence of other features like field name serialization/deserialization formats and custom serialized name extensions.
+
+### Field name serialization and deserialization formats
+
+ProtoTypeAdapter allows the user to [set the expected "case format" of the names of both the proto and the JSON fields](https://github.com/google/gson/blob/99cc4cb11f73a6d672aa6381013d651b7921e00f/proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java#L109-L130). By [default](https://github.com/google/gson/blob/99cc4cb11f73a6d672aa6381013d651b7921e00f/proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java#L187-L194), it expects proto field names to be written in `lower_underscore` and JSON field names to be written in `lowerCamelCase`. During serialization and deserialization, it converts between the "from" and "to" case formats. **I propose that we should ignore the field name serialization format configuration when reading the json_name field option** for three reasons:
+
+1. The `json_name` annotation is an explicit decision written by the user.
+2. This matches existing behavior from the Protobuf library's [JsonFormat](https://github.com/protocolbuffers/protobuf/blob/a30b25578a0435c9c692f9a54b7b060a234dc6b3/java/util/src/main/java/com/google/protobuf/util/JsonFormat.java#L1039) class in Java and implementations in other languages.
+3. This matches the behavior displayed when ProtoTypeAdapter is configured to read other custom serialized field names via its Builder's `addSerializedNameExtension` method.
+
+### Custom serialized name extensions
+
+Due to the aforementioned PR #710, the ProtoTypeAdapter class already features a way to register a custom field option such that annotations are used to determine JSON field names during serialization and deserialization. If the user registers such a custom field option and also enables reading the `json_name` field, we need to determine what the ProtoTypeAdapter will do when it serializes and deserializes a field that features both annotations. **I believe that we have several options here, though I personally advocate for one particular approach noted below.**
+
+#### Don't allow them both to be set at the ProtoTypeAdapter level
+
+One option would be to throw an error when a ProtoTypeAdapter is built with both options configured. This may solve our issue by disallowing invalid states, but it may be excessively restrictive for users. A protobuf message definition can be effectively arbitrarily complex, and it's even possible for no single team to have ownership of every field all the way down the message definition hierarchy, so it's very possible that a protobuf may need both options to be set.
+
+One counter-argument to this example would be that users should register a separate ProtoTypeAdapter for different subclasses of `Message.class` with different needs.
+
+#### Don't allow them both to be set on a particular field
+
+Instead of throwing an error at the point where a ProtoTypeAdapter is built, we could simply allow it and then throw an error when encountering a field that has both the specially registered field option and a `json_name` option as annotations on itself.
+
+#### Allow both to be set but prefer the one that was set earlier in the ProtoTypeAdapter.Builder
+
+This option leaves control to the user about what to do when both options are enabled in the ProtoTypeAdapter and both annotations are present on a particular proto field. Similar to how custom field options are [chosen in the order that they are added](https://github.com/google/gson/blob/99cc4cb11f73a6d672aa6381013d651b7921e00f/proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java#L324-L328) in the Builder, we could track the order in which a call to `setShouldUseJsonNameFieldOption` was made relative to calls to `addSerializedNameExtension` and then read the annotation that corresponds to the earliest call for a given field. I am not a huge fan of this option because:
+
+* it is very implicit and quite unintuitive, and
+* it complicates the code implementation greatly for what I believe to be not very much benefit.
+
+#### Allow both to be set but prefer one or the other
+
+The last reasonable option would be to allow both options to be enabled in the ProtoTypeAdapter. When encountering a field for serialization or deserialization that features both annotations, we should prefer either:
+
+* the `json_name` annotation: This annotation exists as a first-class concept in the FieldDescriptor, so it might make sense to prefer this instead of treating it with the same priority as an arbitrary field option.
+* the custom serialized name annotation: This annotation would be explicitly set by the user and may be more domain-specific, meaning that it might make sense to give it a higher priority. This is especially true if we ever change the default behavior to respect the `json_name` annotation by default, in which case ProtoTypeAdapter would be reading the `json_name` annotation implicitly and reading the custom annotation explicitly. **I believe this is the option that we should go with.**
+
+</problem_statement>
+
+Do not stop until you have made code changes that resolve the problem statement. Do not ask for clarifications.
+
+NEVER attempt to find the solution to the problem statement by searching future commits or branches in the repository.
+========================================================================================================================
+AGENT:
+Starting to analyze the problem statement and explore the workspace to understand the codebase structure for implementing the `json_name` field option support in ProtoTypeAdapter.
+========================================================================================================================
+AGENT:
+STEP 1: EXPLORE THE WORKSPACE
+
+<thinking>
+Let me understand the problem statement:
+
+1. The issue is about adding support for reading `json_name` from protobuf field annotations for serialization and deserialization in the `ProtoTypeAdapter` class.
+
+2. Key requirements:
+   - Add a new boolean flag `shouldUseJsonNameFieldOption` to the ProtoTypeAdapter and its Builder
+   - This should NOT be enabled by default (backwards compatibility)
+   - When enabled, ignore field name serialization format configuration (use the json_name as-is)
+   - When both custom serialized name extensions and json_name are present on a field, prefer the custom serialized name annotation over json_name
+
+Let me first look at the ProtoTypeAdapter class to understand its current implementation.
+</thinking>
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java:\n\n````java\n   0 /*\n...\n  72 public class ProtoTypeAdapter implements JsonSerializer<Message>, JsonDeserializer<Message> {\n  73   /** Determines how enum <u>values</u> should be serialized. */\n  74   public enum EnumSerialization {\n...\n  85   public static class Builder {\n...\n  92     private Builder(\n...\n 102     @CanIgnoreReturnValue\n 103     public Builder setEnumSerialization(EnumSerializati...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+I can see the ProtoTypeAdapter class has been opened but it's collapsed. Let me expand the entire file to see all the code.
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
+line_ranges:
+- - 0
+  - -1
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java:
+
+````java
+   0 /*
+   1  * Copyright (C) 2010 Google Inc.
+   2  *
+   3  * Licensed under the Apache License, Version 2.0 (the "License");
+   4  * you may not use this file except in compliance with the License.
+   5  * You may obtain a copy of the License at
+   6  *
+   7  * http://www.apache.org/licenses/LICENSE-2.0
+   8  *
+   9  * Unless required by applicable law or agreed to in writing, sof...
+```
+========================================================================================================================
+AGENT:
+STEP 2: ANALYZE THE CODE AND PLAN CHANGES
+
+<thinking>
+Now I have a complete view of the ProtoTypeAdapter class. Let me understand the key parts:
+
+1. **Builder class** (lines 85-183):
+   - Has `serializedNameExtensions` - a set of extensions for custom field names
+   - Has `serializedEnumValueExtensions` - a set of extensions for custom enum values
+   - Has `enumSerialization`, `protoFormat`, `jsonFormat` fields
+   - Methods: `setEnumSerialization`, `setFieldNameSerializationFormat`, `addSerializedNameExtension`, `addSerializedEnumValueExtension`, `build`
+
+2. **ProtoTypeAdapter class** (lines 72-406):
+   - Private constructor that takes all the configuration from Builder
+   - `serialize` method (lines 219-249): Serializes a Message to JsonElement
+   - `deserialize` method (lines 251-316): Deserializes JsonElement to Message
+   - `getCustSerializedName` method (lines 322-329): Gets custom serialized name from field options or applies case format conversion
+
+3. **Key method to modify - `getCustSerializedName`** (lines 322-329):
+   - Currently iterates through `serializedNameExtensions` to find a custom name
+   - If no custom name found, applies case format conversion using `protoFormat.to(jsonFormat, defaultName)`
+
+Based on the problem statement, I need to:
+
+1. **Add a new boolean field `shouldUseJsonNameFieldOption`** to both Builder and ProtoTypeAdapter
+2. **Add a setter method `setShouldUseJsonNameFieldOption(boolean)`** in the Builder class
+3. **Modify the `getCustSerializedName` method** to:
+   - First check for custom serialized name extensions (these take priority)
+   - If `shouldUseJsonNameFieldOption` is true and no custom extension found, check if the field has a `json_name` annotation and use it (without case format conversion)
+   - Otherwise, apply the case format conversion as before
+
+4. **Modify the `serialize` method** to pass the FieldDescriptor instead of just FieldOptions, so we can access the `json_name` field
+5. **Modify the `deserialize` method** similarly
+
+Wait, looking at the code more carefully:
+- In `serialize` (line 226): `getCustSerializedName(desc.getOptions(), desc.getName())`
+- In `deserialize` (line 274-275): `getCustSerializedName(fieldDescriptor.getOptions(), fieldDescriptor.getName())`
+
+The `getCustSerializedName` method takes `FieldOptions` and `defaultName`. To access `json_name`, I need to access the `FieldDescriptor` directly because `json_name` is a first-class field in the FieldDescriptor, not in FieldOptions.
+
+Let me check the protobuf API. According to the problem statement:
+- `json_name` is set as its own first-class field in the field descriptor (not in field options)
+- The FieldDescriptor has a method `getJsonName()` that returns the json_name value
+
+So I need to modify `getCustSerializedName` to take the `FieldDescriptor` instead of just `FieldOptions`, so I can call `fieldDescriptor.getJsonName()`.
+
+Let me also check if there's a way to determine if `json_name` was explicitly set vs. auto-generated. Looking at the protobuf documentation, the `json_name` field always has a value (either explicitly set or auto-generated from the field name). However, there's a method `hasJsonName()` that returns true only if it was explicitly set.
+
+Actually, looking at the protobuf Java API, `FieldDescriptor` has:
+- `getJsonName()` - returns the JSON name (either explicitly set or auto-generated)
+- `toProto().hasJsonName()` - can be used to check if json_name was explicitly set
+
+Wait, I need to be careful here. The problem statement says we should add a flag to enable reading `json_name`. When this flag is enabled:
+1. Custom serialized name extensions should still take priority
+2. If no custom extension is found, use `json_name` (without case format conversion)
+3. If `json_name` is not set or the flag is disabled, fall back to case format conversion
+
+Let me re-read the problem statement to make sure I understand the requirements:
+
+From the problem statement:
+- "I propose that we should ignore the field name serialization format configuration when reading the json_name field option"
+- "I believe that we should add a new boolean flag named something like `shouldUseJsonNameFieldOption`"
+- "Allow both to be set but prefer one or the other... the custom serialized name annotation: This annotation would be explicitly set by the user and may be more domain-specific... I believe this is the option that we should go with."
+
+So the priority order should be:
+1. Custom serialized name extensions (highest priority)
+2. `json_name` field (if `shouldUseJsonNameFieldOption` is true)
+3. Case format conversion (lowest priority)
+
+Now let me also think about whether we should only use `json_name` when it's explicitly set, or always use it when the flag is enabled. Looking at the protobuf documentation, `json_name` always has a value - if not explicitly set, it's auto-generated from the field name using camelCase conversion.
+
+I think the safest approach is to always use `json_name` when the flag is enabled, because:
+1. This matches the behavior of protobuf's JsonFormat
+2. The auto-generated value is predictable (camelCase conversion of field name)
+3. Users who enable this flag expect protobuf-compatible JSON serialization
+
+Let me now implement the changes:
+
+1. Add `shouldUseJsonNameFieldOption` boolean field to Builder (default: false)
+2. Add `setShouldUseJsonNameFieldOption(boolean)` method to Builder
+3. Add `shouldUseJsonNameFieldOption` boolean field to ProtoTypeAdapter
+4. Modify constructor to accept the new field
+5. Modify `build()` method to pass the new field
+6. Modify `getCustSerializedName` to take `FieldDescriptor` instead of `FieldOptions`
+7. Update the logic in `getCustSerializedName` to check `json_name` when the flag is enabled
+8. Update calls to `getCustSerializedName` in `serialize` and `deserialize` methods
+
+Let me also look at the test files to understand how to test this:
+</thinking>
+
+Let me look at the existing tests for ProtoTypeAdapter to understand the testing patterns:
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- proto/src/test/java/com/google/gson/protobuf/functional/ProtosWithAnnotationsTest.java
+- proto/src/test/proto/annotations.proto
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened proto/src/test/java/com/google/gson/protobuf/functional/ProtosWithAnnotationsTest.java:\n\n````java\n   0 /*\n...\n  39 public class ProtosWithAnnotationsTest {\n  40   private Gson gson;\n...\n  44   @Before\n  45   public void setUp() throws Exception {\n...\n  72   @Test\n  73   public void testProtoWithAnnotations_deserialize() {\n...\n 157   @Test\n 158   public void testProtoWithAnnotations_deserializeUnknownEnumValue() {\n...\n 164   @Test\n 165   public void testPro...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Let me expand the test file to see the full test cases:
+</thinking>
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: proto/src/test/java/com/google/gson/protobuf/functional/ProtosWithAnnotationsTest.java
+line_ranges:
+- - 0
+  - -1
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in proto/src/test/java/com/google/gson/protobuf/functional/ProtosWithAnnotationsTest.java:
+
+````java
+   0 /*
+   1  * Copyright (C) 2010 Google Inc.
+   2  *
+   3  * Licensed under the Apache License, Version 2.0 (the "License");
+   4  * you may not use this file except in compliance with the License.
+   5  * You may obtain a copy of the License at
+   6  *
+   7  * http://www.apache.org/licenses/LICENSE-2.0
+   8  *
+   9  * Unless required by applicable law or agree...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Now I have a good understanding of the test patterns. Let me also look at the bag.proto file to see the proto definitions:
+</thinking>
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- proto/src/test/proto/bag.proto
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened proto/src/test/proto/bag.proto:\n\n````protobuf\n   0 //\n   1 // Copyright (C) 2010 Google Inc.\n   2 //\n   3 // Licensed under the Apache License, Version 2.0 (the "License");\n   4 // you may not use this file except in compliance with the License.\n   5 // You may obtain a copy of the License at\n   6 //\n   7 // http://www.apache.org/licenses/LICENSE-2.0\n   8 //\n   9 // Unless required by applicable law or agreed to in writing, software\n  10 // distributed under th...
+```
+========================================================================================================================
+AGENT:
+STEP 3: IMPLEMENT THE CHANGES
+
+<thinking>
+Now I have a complete understanding of the codebase. Let me implement the changes:
+
+1. Add `shouldUseJsonNameFieldOption` boolean field to Builder (default: false)
+2. Add `setShouldUseJsonNameFieldOption(boolean)` method to Builder
+3. Add `shouldUseJsonNameFieldOption` boolean field to ProtoTypeAdapter
+4. Modify constructor to accept the new field
+5. Modify `build()` method to pass the new field
+6. Modify `getCustSerializedName` to take `FieldDescriptor` instead of `FieldOptions`
+7. Update the logic in `getCustSerializedName` to check `json_name` when the flag is enabled
+8. Update calls to `getCustSerializedName` in `serialize` and `deserialize` methods
+
+Let me start implementing:
+</thinking>
+========================================================================================================================
+AGENT:
+Now implementing the changes to ProtoTypeAdapter to support reading json_name from protobuf field annotations.
+========================================================================================================================
+AGENT:
+Let me start by adding the new field and setter to the Builder class:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
+find: "  /** Builder for {@link ProtoTypeAdapter}s. */\n  public static class Builder\
+  \ {\n    private final Set<Extension<FieldOptions, String>> serializedNameExtensions;\n\
+  \    private final Set<Extension<EnumValueOptions, String>> serializedEnumValueExtensions;\n\
+  \    private EnumSerialization enumSerialization;\n    private CaseFormat protoFormat;\n\
+  \    private CaseFormat jsonFormat;\n\n    private Builder(\n        EnumSerialization\
+  \ enumSerialization,\n        CaseFormat fromFieldNameFormat,\n        CaseFormat\
+  \ toFieldNameFormat) {\n      this.serializedNameExtensions = new HashSet<>();\n\
+  \      this.serializedEnumValueExtensions = new HashSet<>();\n      setEnumSerialization(enumSerialization);\n\
+  \      setFieldNameSerializationFormat(fromFieldNameFormat, toFieldNameFormat);\n\
+  \    }"
+replace: "  /** Builder for {@link ProtoTypeAdapter}s. */\n  public static class Builder\
+  \ {\n    private final Set<Extension<FieldOptions, String>> serializedNameExtensions;\n\
+  \    private final Set<Extension<EnumValueOptions, String>> serializedEnumValueExtensions;\n\
+  \    private EnumSerialization enumSerialization;\n    private CaseFormat protoFormat;\n\
+  \    private CaseFormat jsonFormat;\n    private boolean shouldUseJsonNameFieldOption;\n\
+  \n    private Builder(\n        EnumSerialization enumSerialization,\n        CaseFormat\
+  \ fromFieldNameFormat,\n        CaseFormat toFieldNameFormat) {\n      this.serializedNameExtensions\
+  \ = new HashSet<>();\n      this.serializedEnumValueExtensions = new HashSet<>();\n\
+  \      this.shouldUseJsonNameFieldOption = false;\n      setEnumSerialization(enumSerialization);\n\
+  \      setFieldNameSerializationFormat(fromFieldNameFormat, toFieldNameFormat);\n\
+  \    }"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java:
+
+--- proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
++++ proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
+@@ -89,6 +89,7 @@
+     private EnumSerialization enumSerialization;
+     private CaseFormat protoFormat;
+     private CaseFormat jsonFormat;
++    private boolean shouldUseJsonNameFieldOption;
+ 
+     private Builder(
+         EnumSerialization enumSerializatio...
+```
+========================================================================================================================
+AGENT:
+Now let me add the setter method for `shouldUseJsonNameFieldOption` in the Builder class. I'll add it after the `addSerializedEnumValueExtension` method:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
+find: "    @CanIgnoreReturnValue\n    public Builder addSerializedEnumValueExtension(\n\
+  \        Extension<EnumValueOptions, String> serializedEnumValueExtension) {\n \
+  \     serializedEnumValueExtensions.add(requireNonNull(serializedEnumValueExtension));\n\
+  \      return this;\n    }\n\n    public ProtoTypeAdapter build() {"
+replace: "    @CanIgnoreReturnValue\n    public Builder addSerializedEnumValueExtension(\n\
+  \        Extension<EnumValueOptions, String> serializedEnumValueExtension) {\n \
+  \     serializedEnumValueExtensions.add(requireNonNull(serializedEnumValueExtension));\n\
+  \      return this;\n    }\n\n    /**\n     * Sets whether the adapter should use\
+  \ the {@code json_name} field option from the proto field\n     * descriptor for\
+  \ serialization and deserialization. When enabled, the {@code json_name} value\n\
+  \     * will be used as the JSON field name without any case format conversion.\n\
+  \     *\n     * <p>Note that custom serialized name extensions added via {@link\n\
+  \     * #addSerializedNameExtension(Extension)} take precedence over the {@code\
+  \ json_name} option.\n     *\n     * <p>By default, this option is disabled ({@code\
+  \ false}).\n     *\n     * @param shouldUseJsonNameFieldOption whether to use the\
+  \ {@code json_name} field option\n     * @return a reference to this {@code Builder}\
+  \ object to fulfill the \"Builder\" pattern\n     */\n    @CanIgnoreReturnValue\n\
+  \    public Builder setShouldUseJsonNameFieldOption(boolean shouldUseJsonNameFieldOption)\
+  \ {\n      this.shouldUseJsonNameFieldOption = shouldUseJsonNameFieldOption;\n \
+  \     return this;\n    }\n\n    public ProtoTypeAdapter build() {"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java:
+
+--- proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
++++ proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
+@@ -173,6 +173,25 @@
+     public Builder addSerializedEnumValueExtension(
+         Extension<EnumValueOptions, String> serializedEnumValueExtension) {
+       serializedEnumValueExtensions.add(requireNonNull(serializedEnumValueExtension));
++      return this;
+...
+```
+========================================================================================================================
+AGENT:
+Now let me update the `build()` method to pass the new field to the constructor:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
+find: "    public ProtoTypeAdapter build() {\n      return new ProtoTypeAdapter(\n\
+  \          enumSerialization,\n          protoFormat,\n          jsonFormat,\n \
+  \         serializedNameExtensions,\n          serializedEnumValueExtensions);\n\
+  \    }"
+replace: "    public ProtoTypeAdapter build() {\n      return new ProtoTypeAdapter(\n\
+  \          enumSerialization,\n          protoFormat,\n          jsonFormat,\n \
+  \         serializedNameExtensions,\n          serializedEnumValueExtensions,\n\
+  \          shouldUseJsonNameFieldOption);\n    }"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java:
+
+--- proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
++++ proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
+@@ -201,7 +201,8 @@
+           protoFormat,
+           jsonFormat,
+           serializedNameExtensions,
+-          serializedEnumValueExtensions);
++          serializedEnumValueExtensions,
++          shouldUseJsonNameFieldOption);
+     }
+   }
+ 
+...
+```
+========================================================================================================================
+AGENT:
+Now let me add the field to the ProtoTypeAdapter class and update the constructor:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
+find: "  private final EnumSerialization enumSerialization;\n  private final CaseFormat\
+  \ protoFormat;\n  private final CaseFormat jsonFormat;\n  private final Set<Extension<FieldOptions,\
+  \ String>> serializedNameExtensions;\n  private final Set<Extension<EnumValueOptions,\
+  \ String>> serializedEnumValueExtensions;\n\n  private ProtoTypeAdapter(\n     \
+  \ EnumSerialization enumSerialization,\n      CaseFormat protoFormat,\n      CaseFormat\
+  \ jsonFormat,\n      Set<Extension<FieldOptions, String>> serializedNameExtensions,\n\
+  \      Set<Extension<EnumValueOptions, String>> serializedEnumValueExtensions) {\n\
+  \    this.enumSerialization = enumSerialization;\n    this.protoFormat = protoFormat;\n\
+  \    this.jsonFormat = jsonFormat;\n    this.serializedNameExtensions = serializedNameExtensions;\n\
+  \    this.serializedEnumValueExtensions = serializedEnumValueExtensions;\n  }"
+replace: "  private final EnumSerialization enumSerialization;\n  private final CaseFormat\
+  \ protoFormat;\n  private final CaseFormat jsonFormat;\n  private final Set<Extension<FieldOptions,\
+  \ String>> serializedNameExtensions;\n  private final Set<Extension<EnumValueOptions,\
+  \ String>> serializedEnumValueExtensions;\n  private final boolean shouldUseJsonNameFieldOption;\n\
+  \n  private ProtoTypeAdapter(\n      EnumSerialization enumSerialization,\n    \
+  \  CaseFormat protoFormat,\n      CaseFormat jsonFormat,\n      Set<Extension<FieldOptions,\
+  \ String>> serializedNameExtensions,\n      Set<Extension<EnumValueOptions, String>>\
+  \ serializedEnumValueExtensions,\n      boolean shouldUseJsonNameFieldOption) {\n\
+  \    this.enumSerialization = enumSerialization;\n    this.protoFormat = protoFormat;\n\
+  \    this.jsonFormat = jsonFormat;\n    this.serializedNameExtensions = serializedNameExtensions;\n\
+  \    this.serializedEnumValueExtensions = serializedEnumValueExtensions;\n    this.shouldUseJsonNameFieldOption\
+  \ = shouldUseJsonNameFieldOption;\n  }"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java:
+
+--- proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
++++ proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
+@@ -225,18 +225,21 @@
+   private final CaseFormat jsonFormat;
+   private final Set<Extension<FieldOptions, String>> serializedNameExtensions;
+   private final Set<Extension<EnumValueOptions, String>> serializedEnumValueExtensions;
++  private final boolean sho...
+```
+========================================================================================================================
+AGENT:
+Now let me update the `getCustSerializedName` method to take `FieldDescriptor` instead of `FieldOptions` and add the logic to check `json_name`:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
+find: "  /**\n   * Retrieves the custom field name from the given options, and if\
+  \ not found, returns the specified\n   * default name.\n   */\n  private String\
+  \ getCustSerializedName(FieldOptions options, String defaultName) {\n    for (Extension<FieldOptions,\
+  \ String> extension : serializedNameExtensions) {\n      if (options.hasExtension(extension))\
+  \ {\n        return options.getExtension(extension);\n      }\n    }\n    return\
+  \ protoFormat.to(jsonFormat, defaultName);\n  }"
+replace: "  /**\n   * Retrieves the custom field name from the given field descriptor.\
+  \ The name is determined in the\n   * following order of priority:\n   *\n   * <ol>\n\
+  \   *   <li>Custom serialized name extensions added via {@link\n   *       Builder#addSerializedNameExtension(Extension)}\n\
+  \   *   <li>The {@code json_name} field option (if {@link\n   *       Builder#setShouldUseJsonNameFieldOption(boolean)}\
+  \ is enabled)\n   *   <li>The default field name with case format conversion applied\n\
+  \   * </ol>\n   */\n  private String getCustSerializedName(FieldDescriptor fieldDescriptor)\
+  \ {\n    FieldOptions options = fieldDescriptor.getOptions();\n    for (Extension<FieldOptions,\
+  \ String> extension : serializedNameExtensions) {\n      if (options.hasExtension(extension))\
+  \ {\n        return options.getExtension(extension);\n      }\n    }\n    if (shouldUseJsonNameFieldOption)\
+  \ {\n      // Use the json_name from the field descriptor (no case format conversion)\n\
+  \      return fieldDescriptor.getJsonName();\n    }\n    return protoFormat.to(jsonFormat,\
+  \ fieldDescriptor.getName());\n  }"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java:
+
+--- proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
++++ proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
+@@ -342,16 +342,29 @@
+   }
+ 
+   /**
+-   * Retrieves the custom field name from the given options, and if not found, returns the specified
+-   * default name.
++   * Retrieves the custom field name from the given field descriptor. The name is determined in the
+...
+```
+========================================================================================================================
+AGENT:
+Now let me update the calls to `getCustSerializedName` in the `serialize` method:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
+find: "    for (Map.Entry<FieldDescriptor, Object> fieldPair : fields.entrySet())\
+  \ {\n      final FieldDescriptor desc = fieldPair.getKey();\n      String name =\
+  \ getCustSerializedName(desc.getOptions(), desc.getName());"
+replace: "    for (Map.Entry<FieldDescriptor, Object> fieldPair : fields.entrySet())\
+  \ {\n      final FieldDescriptor desc = fieldPair.getKey();\n      String name =\
+  \ getCustSerializedName(desc);"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java:
+
+--- proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
++++ proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
+@@ -249,7 +249,7 @@
+ 
+     for (Map.Entry<FieldDescriptor, Object> fieldPair : fields.entrySet()) {
+       final FieldDescriptor desc = fieldPair.getKey();
+-      String name = getCustSerializedName(desc.getOptions(), desc.getName());
++      String name = get...
+```
+========================================================================================================================
+AGENT:
+Now let me update the call to `getCustSerializedName` in the `deserialize` method:
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
+find: "      // Call setters on all of the available fields\n      for (FieldDescriptor\
+  \ fieldDescriptor : protoDescriptor.getFields()) {\n        String jsonFieldName\
+  \ =\n            getCustSerializedName(fieldDescriptor.getOptions(), fieldDescriptor.getName());"
+replace: "      // Call setters on all of the available fields\n      for (FieldDescriptor\
+  \ fieldDescriptor : protoDescriptor.getFields()) {\n        String jsonFieldName\
+  \ = getCustSerializedName(fieldDescriptor);"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java:
+
+--- proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
++++ proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
+@@ -297,8 +297,7 @@
+           (Descriptor) getCachedMethod(protoClass, "getDescriptor").invoke(null);
+       // Call setters on all of the available fields
+       for (FieldDescriptor fieldDescriptor : protoDescriptor.getFields()) {
+-        String jsonField...
+```
+========================================================================================================================
+AGENT:
+Now let me verify the changes by viewing the updated file:
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
+line_ranges:
+- - 0
+  - -1
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java:
+
+````java
+   0 /*
+   1  * Copyright (C) 2010 Google Inc.
+   2  *
+   3  * Licensed under the Apache License, Version 2.0 (the "License");
+   4  * you may not use this file except in compliance with the License.
+   5  * You may obtain a copy of the License at
+   6  *
+   7  * http://www.apache.org/licenses/LICENSE-2.0
+   8  *
+   9  * Unless required by applicable law or agreed to in writing, sof...
+```
+========================================================================================================================
+AGENT:
+STEP 4: BUILD AND TEST THE CHANGES
+
+<thinking>
+The code changes look good. Now let me try to build and test the changes. First, let me check if there's a way to run the tests for the proto module.
+</thinking>
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && ls -la && cat pom.xml | head -100
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+total 176
+drwxr-xr-x 24 root root   768 Dec 11 18:59 .
+drwxr-xr-x  1 root root  4096 Dec 11 19:03 ..
+drwxr-xr-x 14 root root   448 Dec 11 18:59 .git
+-rw-r--r--  1 root root   184 Dec 11 18:59 .git-blame-ignore-revs
+drwxr-xr-x  6 root root   192 Dec 11 18:59 .github
+-rw-r--r--  1 root root   201 Dec 11 18:59 .gitignore
+drwxr-xr-x  3 root root    96 Dec 11 18:59 .mvn
+-rw-r--r--  1 root root 23605 Dec 11 18:59 CHANGELOG.md
+-rw-r--r--  1 root root  6912 Dec 11 18:59 GsonDesignDocument.md
+-rw-r--r-- ...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+Let me try to compile the proto module to see if the changes compile correctly:
+</thinking>
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && mvn compile -pl proto -am -q 2>&1 | tail -50
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+tmp_code_28dd8288dce62683fc5a18e26ebf9dcae218929053bd0a5d62817d904c1b97fd.bash: line 1: mvn: command not found...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: which mvn || (apt-get update && apt-get install -y maven) 2>&1 | tail -20
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Setting up libwagon-http-shaded-java (3.5.3-1) ...
+Setting up libcdi-api-java (1.2-3) ...
+Setting up libwagon-provider-api-java (3.5.3-1) ...
+Setting up libmaven-parent-java (35-1) ...
+Setting up libcommons-parent-java (56-1) ...
+Setting up libsisu-inject-java (0.3.4-2) ...
+Setting up libplexus-cipher-java (2.0-1) ...
+Setting up libsisu-plexus-java (0.3.4-3) ...
+Setting up libcommons-lang3-java (3.14.0-1) ...
+Setting up libplexus-sec-dispatcher-java (2.0-3) ...
+Setting up libwagon-file...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && mvn compile -pl proto -am -q 2>&1 | tail -50
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+OpenJDK 64-Bit Server VM warning: Unable to get SVE vector length on this system. Disabling SVE. Specify -XX:UseSVE=0 to shun this warning.
+[[1;31mERROR[m] Failed to execute goal [32morg.apache.maven.plugins:maven-enforcer-plugin:3.5.0:enforce[m [1m(enforce-versions)[m on project [36mgson-parent[m: [1;31m[m
+[[1;31mERROR[m] [1;31mRule 1: org.apache.maven.enforcer.rules.version.RequireJavaVersion failed with message:[m
+[[1;31mERROR[m] [1;31mDetected JDK version 21.0.8 (JAVA_HOME=/...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+The build requires Java 11-17. Let me switch to Java 17:
+</thinking>
+========================================================================================================================
+TOOL CALL (bash)
+command: apt-get install -y openjdk-17-jdk && export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64
+  && java -version 2>&1
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  fonts-dejavu-extra libatk-wrapper-java libatk-wrapper-java-jni libice-dev
+  libice6 libsm-dev libsm6 libxaw7 libxcb-shape0 libxkbfile1 libxmu6 libxmuu1
+  libxpm4 libxt-dev libxt6t64 libxv1 libxxf86dga1 openjdk-17-jdk-headless
+  openjdk-17-jre openjdk-17-jre-headless x11-utils
+Suggested packages:
+  libice-doc libsm-doc libxt-doc openjdk-17-demo openjdk-17-source...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64 && export PATH=$JAVA_HOME/bin:$PATH
+  && java -version 2>&1
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+openjdk version "17.0.17" 2025-10-21
+OpenJDK Runtime Environment (build 17.0.17+10-Ubuntu-124.04)
+OpenJDK 64-Bit Server VM (build 17.0.17+10-Ubuntu-124.04, mixed mode, sharing)...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64 && export
+  PATH=$JAVA_HOME/bin:$PATH && mvn compile -pl proto -am -q 2>&1 | tail -50
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+...
+```
+========================================================================================================================
+AGENT:
+The code compiles successfully. Now let me run the existing tests to make sure the changes don't break anything:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64 && export
+  PATH=$JAVA_HOME/bin:$PATH && mvn test -pl proto -am -q 2>&1 | tail -100
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+ [proguard] ProGuard, version 7.5.0
+OpenJDK 64-Bit Server VM warning: Ignoring option --illegal-access=deny; support was removed in 17.0
+WARNING: A terminally deprecated method in java.lang.System has been called
+WARNING: System::setSecurityManager has been called by com.google.gson.functional.ReflectionAccessTest (file:/workspace/gson/target/test-classes/)
+WARNING: Please consider reporting this to the maintainers of com.google.gson.functional.ReflectionAccessTest
+WARNING: System::setSecurityMa...
+```
+========================================================================================================================
+AGENT:
+The tests passed. Now let me write a test to verify the new functionality. First, let me look at the proto file to see if there's a field with `json_name` annotation or if I need to add one:
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- proto/src/test/proto/bag.proto
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened proto/src/test/proto/bag.proto:\n\n````protobuf\n   0 //\n   1 // Copyright (C) 2010 Google Inc.\n   2 //\n   3 // Licensed under the Apache License, Version 2.0 (the "License");\n   4 // you may not use this file except in compliance with the License.\n   5 // You may obtain a copy of the License at\n   6 //\n   7 // http://www.apache.org/licenses/LICENSE-2.0\n   8 //\n   9 // Unless required by applicable law or agreed to in writing, software\n  10 // distributed under th...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+I need to add a proto message with `json_name` annotation to test the new functionality. Let me add a new message to the bag.proto file and then write a test for it.
+
+Let me add a new message that uses `json_name`:
+</thinking>
+========================================================================================================================
+TOOL CALL (find_and_replace_code)
+file_path: proto/src/test/proto/bag.proto
+find: "message ProtoWithAnnotations {\n  optional string id = 1;\n  optional OuterMessage\
+  \ outer_message = 2 [(serialized_name) = \"expiration_date\"];\n\n  message InnerMessage\
+  \ {\n    optional int32 n__id_ct = 1;\n\n    enum Type {\n      UNKNOWN = 0;\n \
+  \     TEXT = 1 [(serialized_value) = \"text/plain\"];\n      IMAGE = 2 [(serialized_value)\
+  \ = \"image/png\"];\n    }\n    optional Type content = 2;\n\n    message Data {\n\
+  \      optional string data = 1;\n      optional int32 width = 2;\n      optional\
+  \ int32 height = 3;\n    }\n    repeated Data data = 3 [(serialized_name) = \"$binary_data$\"\
+  ];\n  }\n  optional InnerMessage inner_message_1 = 3;\n  optional InnerMessage inner_message_2\
+  \ = 4;\n}"
+replace: "message ProtoWithAnnotations {\n  optional string id = 1;\n  optional OuterMessage\
+  \ outer_message = 2 [(serialized_name) = \"expiration_date\"];\n\n  message InnerMessage\
+  \ {\n    optional int32 n__id_ct = 1;\n\n    enum Type {\n      UNKNOWN = 0;\n \
+  \     TEXT = 1 [(serialized_value) = \"text/plain\"];\n      IMAGE = 2 [(serialized_value)\
+  \ = \"image/png\"];\n    }\n    optional Type content = 2;\n\n    message Data {\n\
+  \      optional string data = 1;\n      optional int32 width = 2;\n      optional\
+  \ int32 height = 3;\n    }\n    repeated Data data = 3 [(serialized_name) = \"$binary_data$\"\
+  ];\n  }\n  optional InnerMessage inner_message_1 = 3;\n  optional InnerMessage inner_message_2\
+  \ = 4;\n}\n\n// Message to test json_name field option\nmessage ProtoWithJsonName\
+  \ {\n  // Field with explicit json_name\n  optional string my_field = 1 [json_name\
+  \ = \"myCustomJsonName\"];\n  // Field without explicit json_name (will use auto-generated\
+  \ camelCase)\n  optional int32 another_field = 2;\n  // Field with both json_name\
+  \ and serialized_name (serialized_name should take precedence)\n  optional string\
+  \ field_with_both = 3 [json_name = \"jsonNameValue\", (serialized_name) = \"serializedNameValue\"\
+  ];\n}"
+
+========================================================================================================================
+TOOL RETURN (find_and_replace_code)
+```
+Successfully replaced code in proto/src/test/proto/bag.proto:
+
+--- proto/src/test/proto/bag.proto
++++ proto/src/test/proto/bag.proto
+@@ -69,4 +69,14 @@
+   }
+   optional InnerMessage inner_message_1 = 3;
+   optional InnerMessage inner_message_2 = 4;
++}
++
++// Message to test json_name field option
++message ProtoWithJsonName {
++  // Field with explicit json_name
++  optional string my_field = 1 [json_name = "myCustomJsonName"];
++  // Field without explicit json_name (will use auto-generated camelCas...
+```
+========================================================================================================================
+AGENT:
+Now let me regenerate the proto files and create a test:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64 && export
+  PATH=$JAVA_HOME/bin:$PATH && mvn compile -pl proto -am -q 2>&1 | tail -50
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+...
+```
+========================================================================================================================
+AGENT:
+Now let me create a test file for the new functionality:
+========================================================================================================================
+TOOL CALL (create_file)
+file_path: proto/src/test/java/com/google/gson/protobuf/functional/ProtosWithJsonNameTest.java
+initial_content: "/*\n * Copyright (C) 2010 Google Inc.\n *\n * Licensed under the\
+  \ Apache License, Version 2.0 (the \"License\");\n * you may not use this file except\
+  \ in compliance with the License.\n * You may obtain a copy of the License at\n\
+  \ *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable\
+  \ law or agreed to in writing, software\n * distributed under the License is distributed\
+  \ on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either\
+  \ express or implied.\n * See the License for the specific language governing permissions\
+  \ and\n * limitations under the License.\n */\npackage com.google.gson.protobuf.functional;\n\
+  \nimport static com.google.common.truth.Truth.assertThat;\n\nimport com.google.gson.Gson;\n\
+  import com.google.gson.GsonBuilder;\nimport com.google.gson.protobuf.ProtoTypeAdapter;\n\
+  import com.google.gson.protobuf.ProtoTypeAdapter.EnumSerialization;\nimport com.google.gson.protobuf.generated.Annotations;\n\
+  import com.google.gson.protobuf.generated.Bag.ProtoWithJsonName;\nimport com.google.protobuf.GeneratedMessage;\n\
+  import org.junit.Before;\nimport org.junit.Test;\n\n/**\n * Functional tests for\
+  \ protocol buffers using the json_name field option.\n */\npublic class ProtosWithJsonNameTest\
+  \ {\n  private Gson gsonWithJsonName;\n  private Gson gsonWithJsonNameAndSerializedName;\n\
+  \  private Gson gsonWithoutJsonName;\n\n  @Before\n  public void setUp() throws\
+  \ Exception {\n    // Adapter with json_name enabled but no serialized_name extension\n\
+  \    ProtoTypeAdapter adapterWithJsonName =\n        ProtoTypeAdapter.newBuilder()\n\
+  \            .setEnumSerialization(EnumSerialization.NAME)\n            .setShouldUseJsonNameFieldOption(true)\n\
+  \            .build();\n    gsonWithJsonName =\n        new GsonBuilder()\n    \
+  \        .registerTypeHierarchyAdapter(GeneratedMessage.class, adapterWithJsonName)\n\
+  \            .create();\n\n    // Adapter with both json_name and serialized_name\
+  \ extension enabled\n    ProtoTypeAdapter adapterWithBoth =\n        ProtoTypeAdapter.newBuilder()\n\
+  \            .setEnumSerialization(EnumSerialization.NAME)\n            .addSerializedNameExtension(Annotations.serializedName)\n\
+  \            .setShouldUseJsonNameFieldOption(true)\n            .build();\n   \
+  \ gsonWithJsonNameAndSerializedName =\n        new GsonBuilder()\n            .registerTypeHierarchyAdapter(GeneratedMessage.class,\
+  \ adapterWithBoth)\n            .create();\n\n    // Adapter without json_name (default\
+  \ behavior)\n    ProtoTypeAdapter adapterWithoutJsonName =\n        ProtoTypeAdapter.newBuilder()\n\
+  \            .setEnumSerialization(EnumSerialization.NAME)\n            .build();\n\
+  \    gsonWithoutJsonName =\n        new GsonBuilder()\n            .registerTypeHierarchyAdapter(GeneratedMessage.class,\
+  \ adapterWithoutJsonName)\n            .create();\n  }\n\n  @Test\n  public void\
+  \ testSerialize_withJsonNameEnabled() {\n    ProtoWithJsonName proto =\n       \
+  \ ProtoWithJsonName.newBuilder()\n            .setMyField(\"test value\")\n    \
+  \        .setAnotherField(42)\n            .build();\n\n    String json = gsonWithJsonName.toJson(proto);\n\
+  \    // json_name should be used: \"myCustomJsonName\" for my_field, \"anotherField\"\
+  \ for another_field\n    assertThat(json).isEqualTo(\"{\\\"myCustomJsonName\\\"\
+  :\\\"test value\\\",\\\"anotherField\\\":42}\");\n  }\n\n  @Test\n  public void\
+  \ testDeserialize_withJsonNameEnabled() {\n    String json = \"{\\\"myCustomJsonName\\\
+  \":\\\"test value\\\",\\\"anotherField\\\":42}\";\n    ProtoWithJsonName proto =\
+  \ gsonWithJsonName.fromJson(json, ProtoWithJsonName.class);\n\n    assertThat(proto.getMyField()).isEqualTo(\"\
+  test value\");\n    assertThat(proto.getAnotherField()).isEqualTo(42);\n  }\n\n\
+  \  @Test\n  public void testSerialize_withoutJsonName() {\n    ProtoWithJsonName\
+  \ proto =\n        ProtoWithJsonName.newBuilder()\n            .setMyField(\"test\
+  \ value\")\n            .setAnotherField(42)\n            .build();\n\n    String\
+  \ json = gsonWithoutJsonName.toJson(proto);\n    // Default case format conversion\
+  \ should be used: lower_underscore to lowerCamelCase\n    assertThat(json).isEqualTo(\"\
+  {\\\"myField\\\":\\\"test value\\\",\\\"anotherField\\\":42}\");\n  }\n\n  @Test\n\
+  \  public void testDeserialize_withoutJsonName() {\n    String json = \"{\\\"myField\\\
+  \":\\\"test value\\\",\\\"anotherField\\\":42}\";\n    ProtoWithJsonName proto =\
+  \ gsonWithoutJsonName.fromJson(json, ProtoWithJsonName.class);\n\n    assertThat(proto.getMyField()).isEqualTo(\"\
+  test value\");\n    assertThat(proto.getAnotherField()).isEqualTo(42);\n  }\n\n\
+  \  @Test\n  public void testSerialize_serializedNameTakesPrecedenceOverJsonName()\
+  \ {\n    ProtoWithJsonName proto =\n        ProtoWithJsonName.newBuilder()\n   \
+  \         .setFieldWithBoth(\"test value\")\n            .build();\n\n    String\
+  \ json = gsonWithJsonNameAndSerializedName.toJson(proto);\n    // serialized_name\
+  \ should take precedence over json_name\n    assertThat(json).isEqualTo(\"{\\\"\
+  serializedNameValue\\\":\\\"test value\\\"}\");\n  }\n\n  @Test\n  public void testDeserialize_serializedNameTakesPrecedenceOverJsonName()\
+  \ {\n    String json = \"{\\\"serializedNameValue\\\":\\\"test value\\\"}\";\n \
+  \   ProtoWithJsonName proto =\n        gsonWithJsonNameAndSerializedName.fromJson(json,\
+  \ ProtoWithJsonName.class);\n\n    assertThat(proto.getFieldWithBoth()).isEqualTo(\"\
+  test value\");\n  }\n\n  @Test\n  public void testRoundTrip_withJsonNameEnabled()\
+  \ {\n    ProtoWithJsonName original =\n        ProtoWithJsonName.newBuilder()\n\
+  \            .setMyField(\"round trip test\")\n            .setAnotherField(123)\n\
+  \            .build();\n\n    String json = gsonWithJsonName.toJson(original);\n\
+  \    ProtoWithJsonName deserialized = gsonWithJsonName.fromJson(json, ProtoWithJsonName.class);\n\
+  \n    assertThat(deserialized).isEqualTo(original);\n  }\n\n  @Test\n  public void\
+  \ testRoundTrip_withBothOptionsEnabled() {\n    ProtoWithJsonName original =\n \
+  \       ProtoWithJsonName.newBuilder()\n            .setMyField(\"test\")\n    \
+  \        .setAnotherField(456)\n            .setFieldWithBoth(\"both options\")\n\
+  \            .build();\n\n    String json = gsonWithJsonNameAndSerializedName.toJson(original);\n\
+  \    ProtoWithJsonName deserialized =\n        gsonWithJsonNameAndSerializedName.fromJson(json,\
+  \ ProtoWithJsonName.class);\n\n    assertThat(deserialized).isEqualTo(original);\n\
+  \  }\n}\n"
+
+========================================================================================================================
+TOOL RETURN (create_file)
+```
+Successfully created proto/src/test/java/com/google/gson/protobuf/functional/ProtosWithJsonNameTest.java....
+```
+========================================================================================================================
+AGENT:
+Now let me run the new test to verify the functionality:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64 && export
+  PATH=$JAVA_HOME/bin:$PATH && mvn test -pl proto -Dtest=ProtosWithJsonNameTest -q
+  2>&1 | tail -100
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+[[1;31mERROR[m] Failed to execute goal on project [36mproto[m: [1;31mCould not resolve dependencies for project com.google.code.gson:proto:jar:2.11.1-SNAPSHOT: Could not find artifact com.google.code.gson:gson:jar:2.11.1-SNAPSHOT[m -> [1m[Help 1][m
+[[1;31mERROR[m] 
+[[1;31mERROR[m] To see the full stack trace of the errors, re-run Maven with the [1m-e[m switch.
+[[1;31mERROR[m] Re-run Maven using the [1m-X[m switch to enable full debug logging.
+[[1;31mERROR[m] 
+[[1;31mERROR[m...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+I need to install the gson module first. Let me build the entire project:
+</thinking>
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64 && export
+  PATH=$JAVA_HOME/bin:$PATH && mvn install -DskipTests -q 2>&1 | tail -50
+timeout: 600
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+[[1;31mERROR[m] [1;31m        @@ -62,9 +60,7 @@[m
+[[1;31mERROR[m] [1;31m         [m
+[[1;31mERROR[m] [1;31m         ····//·Adapter·without·json_name·(default·behavior)[m
+[[1;31mERROR[m] [1;31m         ····ProtoTypeAdapter·adapterWithoutJsonName·=[m
+[[1;31mERROR[m] [1;31m        -········ProtoTypeAdapter.newBuilder()[m
+[[1;31mERROR[m] [1;31m        -············.setEnumSerialization(EnumSerialization.NAME)[m
+[[1;31mERROR[m] [1;31m        -············.build();[m
+[[1;31...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+There's a code formatting issue. Let me run spotless:apply to fix the formatting:
+</thinking>
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64 && export
+  PATH=$JAVA_HOME/bin:$PATH && mvn spotless:apply -q 2>&1 | tail -20
+timeout: 120
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+...
+```
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64 && export
+  PATH=$JAVA_HOME/bin:$PATH && mvn install -DskipTests -q 2>&1 | tail -50
+timeout: 600
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+ [proguard] ProGuard, version 7.5.0
+ [proguard] ProGuard, version 7.5.0
+ [proguard] Note: duplicate definition of resource file [META-INF/MANIFEST.MF]
+ [proguard] Note: duplicate definition of resource file [META-INF/MANIFEST.MF]
+ [proguard] Note: there were 2 duplicate class definitions.
+ [proguard]       (https://www.guardsquare.com/proguard/manual/troubleshooting#duplicateclass)
+ [proguard] Note: com.google.gson.internal.$Gson$Types calls 'Class.getDeclaringClass'
+ [proguard] Note: com.google...
+```
+========================================================================================================================
+AGENT:
+The build succeeded. Now let me run the tests:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64 && export
+  PATH=$JAVA_HOME/bin:$PATH && mvn test -pl proto -Dtest=ProtosWithJsonNameTest 2>&1
+  | tail -100
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+[[1;34mINFO[m] Scanning for projects...
+[[1;34mINFO[m] ------------------------------------------------------------------------
+[[1;34mINFO[m] Detecting the operating system and CPU architecture
+[[1;34mINFO[m] ------------------------------------------------------------------------
+[[1;34mINFO[m] os.detected.name: linux
+[[1;34mINFO[m] os.detected.arch: aarch_64
+[[1;34mINFO[m] os.detected.bitness: 64
+[[1;34mINFO[m] os.detected.version: 6.10
+[[1;34mINFO[m] os.detected.version.maj...
+```
+========================================================================================================================
+AGENT:
+All 8 tests passed. Now let me also run the existing tests to make sure the changes don't break anything:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64 && export
+  PATH=$JAVA_HOME/bin:$PATH && mvn test -pl proto 2>&1 | tail -50
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+[[1;34mINFO[m] [1m--------------------------------[ jar ]---------------------------------[m
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mmaven-enforcer-plugin:3.5.0:enforce[m [1m(enforce-versions)[m @ [36mproto[0;1m ---[m
+[[1;34mINFO[m] Rule 0: org.apache.maven.enforcer.rules.version.RequireMavenVersion passed
+[[1;34mINFO[m] Rule 1: org.apache.maven.enforcer.rules.version.RequireJavaVersion passed
+[[1;34mINFO[m] 
+[[1;34mINFO[m] [1m--- [0;32mmaven-resources-plugin:2.6:re...
+```
+========================================================================================================================
+AGENT:
+All 23 tests passed (8 new tests + 15 existing tests). Let me now review the changes I made to ensure they are correct and complete:
+========================================================================================================================
+AGENT:
+All tests pass. Now reviewing the changes to ensure they are correct and complete.
+========================================================================================================================
+AGENT:
+STEP 5: REVIEW CHANGES
+========================================================================================================================
+TOOL CALL (inspect_code)
+file_path: proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java
+line_ranges:
+- - 84
+  - 210
+
+========================================================================================================================
+TOOL RETURN (inspect_code)
+```
+Successfully expanded code chunks in proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java:
+
+````java
+   0 /*
+   1  * Copyright (C) 2010 Google Inc.
+   2  *
+   3  * Licensed under the Apache License, Version 2.0 (the "License");
+   4  * you may not use this file except in compliance with the License.
+   5  * You may obtain a copy of the License at
+   6  *
+   7  * http://www.apache.org/licenses/LICENSE-2.0
+   8  *
+   9  * Unless required by applicable law or agreed to in writing, sof...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+The changes look correct. Let me also review the test file and the proto file to make sure everything is in order:
+</thinking>
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- proto/src/test/java/com/google/gson/protobuf/functional/ProtosWithJsonNameTest.java
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened proto/src/test/java/com/google/gson/protobuf/functional/ProtosWithJsonNameTest.java:\n\n````java\n   0 /*\n   1  * Copyright (C) 2010 Google Inc.\n   2  *\n   3  * Licensed under the Apache License, Version 2.0 (the "License");\n   4  * you may not use this file except in compliance with the License.\n   5  * You may obtain a copy of the License at\n   6  *\n   7  * http://www.apache.org/licenses/LICENSE-2.0\n   8  *\n   9  * Unless required by applicable law or agreed to i...
+```
+========================================================================================================================
+TOOL CALL (open_files)
+file_paths:
+- proto/src/test/proto/bag.proto
+
+========================================================================================================================
+TOOL RETURN (open_files)
+```
+['Successfully opened proto/src/test/proto/bag.proto:\n\n````protobuf\n   0 //\n   1 // Copyright (C) 2010 Google Inc.\n   2 //\n   3 // Licensed under the Apache License, Version 2.0 (the "License");\n   4 // you may not use this file except in compliance with the License.\n   5 // You may obtain a copy of the License at\n   6 //\n   7 // http://www.apache.org/licenses/LICENSE-2.0\n   8 //\n   9 // Unless required by applicable law or agreed to in writing, software\n  10 // distributed under th...
+```
+========================================================================================================================
+AGENT:
+<thinking>
+The implementation looks complete and correct. Let me summarize the changes I made:
+
+## Summary of Changes
+
+### 1. ProtoTypeAdapter.java
+
+**Builder class changes:**
+- Added a new field `shouldUseJsonNameFieldOption` (boolean, default: false)
+- Added a new method `setShouldUseJsonNameFieldOption(boolean)` with proper Javadoc documentation
+- Updated the `build()` method to pass the new field to the constructor
+
+**ProtoTypeAdapter class changes:**
+- Added a new field `shouldUseJsonNameFieldOption` (boolean)
+- Updated the constructor to accept the new field
+- Modified the `getCustSerializedName` method to:
+  - Take `FieldDescriptor` instead of `FieldOptions` and `defaultName`
+  - First check for custom serialized name extensions (highest priority)
+  - If `shouldUseJsonNameFieldOption` is true and no custom extension found, use `json_name` from the field descriptor (without case format conversion)
+  - Otherwise, apply the case format conversion (lowest priority)
+- Updated calls to `getCustSerializedName` in both `serialize` and `deserialize` methods
+
+### 2. bag.proto
+
+Added a new message `ProtoWithJsonName` to test the new functionality:
+- `my_field` with explicit `json_name = "myCustomJsonName"`
+- `another_field` without explicit `json_name` (will use auto-generated camelCase)
+- `field_with_both` with both `json_name` and `serialized_name` to test precedence
+
+### 3. ProtosWithJsonNameTest.java (new file)
+
+Created a comprehensive test file with 8 test cases:
+- `testSerialize_withJsonNameEnabled`: Tests serialization with json_name enabled
+- `testDeserialize_withJsonNameEnabled`: Tests deserialization with json_name enabled
+- `testSerialize_withoutJsonName`: Tests serialization without json_name (default behavior)
+- `testDeserialize_withoutJsonName`: Tests deserialization without json_name (default behavior)
+- `testSerialize_serializedNameTakesPrecedenceOverJsonName`: Tests that serialized_name takes precedence over json_name
+- `testDeserialize_serializedNameTakesPrecedenceOverJsonName`: Tests that serialized_name takes precedence over json_name during deserialization
+- `testRoundTrip_withJsonNameEnabled`: Tests round-trip serialization/deserialization with json_name enabled
+- `testRoundTrip_withBothOptionsEnabled`: Tests round-trip with both options enabled
+
+All tests pass, and the implementation follows the design decisions outlined in the problem statement:
+1. The feature is NOT enabled by default (backwards compatibility)
+2. When enabled, the json_name is used as-is without case format conversion
+3. Custom serialized name extensions take precedence over json_name
+
+Let me run all the tests one more time to make sure everything is working correctly:
+</thinking>
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64 && export
+  PATH=$JAVA_HOME/bin:$PATH && mvn test -pl proto 2>&1 | grep -E "(Tests run|BUILD|FAILURE|ERROR)"
+  | tail -20
+timeout: 300
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+[[1;34mINFO[m] [1;32mTests run: [0;1;32m8[m, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.394 s -- in com.google.gson.protobuf.functional.[1mProtosWithJsonNameTest[m
+[[1;34mINFO[m] [1;32mTests run: [0;1;32m6[m, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s -- in com.google.gson.protobuf.functional.[1mProtosWithAnnotationsTest[m
+[[1;34mINFO[m] [1;32mTests run: [0;1;32m4[m, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s -- in com.google.gson.protobu...
+```
+========================================================================================================================
+AGENT:
+All 23 tests pass (8 new tests + 15 existing tests). Let me also verify that the entire project still builds correctly:
+========================================================================================================================
+TOOL CALL (bash)
+command: cd /workspace && export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-arm64 && export
+  PATH=$JAVA_HOME/bin:$PATH && mvn verify -DskipTests -q 2>&1 | tail -20
+timeout: 600
+
+========================================================================================================================
+TOOL RETURN (bash)
+```
+ [proguard] ProGuard, version 7.5.0
+ [proguard] ProGuard, version 7.5.0
+ [proguard] Note: duplicate definition of resource file [META-INF/MANIFEST.MF]
+ [proguard] Note: duplicate definition of resource file [META-INF/MANIFEST.MF]
+ [proguard] Note: there were 2 duplicate class definitions.
+ [proguard]       (https://www.guardsquare.com/proguard/manual/troubleshooting#duplicateclass)
+ [proguard] Note: com.google.gson.internal.$Gson$Types calls 'Class.getDeclaringClass'
+ [proguard] Note: com.google...
+```
+========================================================================================================================
+AGENT:
+The build succeeded. The warnings are from ProGuard and are not related to my changes. Let me provide a final summary of the implementation:
+========================================================================================================================
+AGENT:
+Successfully implemented support for reading `json_name` from protobuf field annotations for serialization and deserialization in the ProtoTypeAdapter class.
+
+## Summary of Changes
+
+### 1. ProtoTypeAdapter.java (proto/src/main/java/com/google/gson/protobuf/ProtoTypeAdapter.java)
+
+**Builder class changes:**
+- Added a new field `shouldUseJsonNameFieldOption` (boolean, default: false)
+- Added a new method `setShouldUseJsonNameFieldOption(boolean)` with proper Javadoc documentation explaining:
+  - When enabled, the `json_name` value is used as the JSON field name without case format conversion
+  - Custom serialized name extensions take precedence over `json_name`
+  - The option is disabled by default
+- Updated the `build()` method to pass the new field to the constructor
+
+**ProtoTypeAdapter class changes:**
+- Added a new field `shouldUseJsonNameFieldOption` (boolean)
+- Updated the constructor to accept the new field
+- Modified the `getCustSerializedName` method to:
+  - Take `FieldDescriptor` instead of `FieldOptions` and `defaultName`
+  - First check for custom serialized name extensions (highest priority)
+  - If `shouldUseJsonNameFieldOption` is true and no custom extension found, use `json_name` from the field descriptor (without case format conversion)
+  - Otherwise, apply the case format conversion (lowest priority)
+- Updated calls to `getCustSerializedName` in both `serialize` and `deserialize` methods
+
+### 2. bag.proto (proto/src/test/proto/bag.proto)
+
+Added a new message `ProtoWithJsonName` to test the new functionality:
+- `my_field` with explicit `json_name = "myCustomJsonName"`
+- `another_field` without explicit `json_name` (will use auto-generated camelCase)
+- `field_with_both` with both `json_name` and `serialized_name` to test precedence
+
+### 3. ProtosWithJsonNameTest.java (proto/src/test/java/com/google/gson/protobuf/functional/ProtosWithJsonNameTest.java) - NEW FILE
+
+Created a comprehensive test file with 8 test cases covering:
+- Serialization and deserialization with json_name enabled
+- Serialization and deserialization without json_name (default behavior)
+- Precedence of serialized_name over json_name
+- Round-trip serialization/deserialization
+
+## Design Decisions Implemented
+
+1. **Backwards compatibility**: The feature is NOT enabled by default (`shouldUseJsonNameFieldOption = false`)
+2. **No case format conversion**: When json_name is used, it's used as-is without any case format conversion
+3. **Priority order**: Custom serialized name extensions take precedence over json_name, which takes precedence over case format conversion
+
+All 23 tests pass (8 new + 15 existing), and the entire project builds successfully.
