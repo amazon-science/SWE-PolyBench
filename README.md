@@ -36,7 +36,14 @@ The main file to run is `src/poly_bench_evaluation/run_evaluation.py`. These are
 - `--node-metrics`: If you also want to compute node retrieval metrics (this will increase time of running evaluation)
 
 ## Docker images
-The dockerfiles have been tested on a `x86_64` Linux machine. Please create an issue if any of the dockerfile fails to build. After built, the docker images size varies, but it can take upto 5TB storage for all instances if `--delete-image` is omited. For `PB500` instances, the total docker image size is 1.2TB. No extra storage is necessary if delete-image is set to True as the docker images are deleted once the instance evaluation is done.
+We have frozen the instance level docker images and uploaded them to GHCR. Please only use the GHCR docker images (instance level). They are public and can be easily pulled separately. If you run the code as is, it will automatically pull from GHCR so you do not need to do anything else. If you need specific docker images for research purpose, they can be pulled like this:
+```sh
+docker pull ghcr.io/timesler/swe-polybench.eval.x86_64.<instance_id>:v1.1
+```
+Example:
+```sh
+docker pull ghcr.io/timesler/swe-polybench.eval.x86_64.google__gson-2337:v1.1
+```
 
 ## Steps to run
 Using a conda environment with python=3.11 is recommended.
@@ -63,11 +70,6 @@ python3 src/poly_bench_evaluation/run_evaluation.py --dataset-path AmazonScience
 The instance level results of each instance will be stored in `--result-path`. Instance level results include the list of passing tests and failing tests. The combined result will be outputted in the root directory `./result.json` file. In the terminal, the pass rate alongside the total number of "resolved" instances will also be printed.
 
 The test run logs of each instance will also be stored in `./run_logs_{language}` directory. The raw output from the test run can be found here.
-
-## Run time
-If you are building all images and they are not available locally, then please expect a long running time. As we use instance specific docker image, they take some time to build. If you have storage, please do not set `delete-image`. This will reduce the runtime drastically the next time you run.
-
-For running the sampled dataset, we expect the runtime to be ~7-8 hours (with 7-8 threads) if building images locally.
 
 ## Submission
 To make a submission to SWE-PolyBench leaderboard, please follow this [README](https://github.com/amazon-science/SWE-PolyBench/blob/submission/README.md).
