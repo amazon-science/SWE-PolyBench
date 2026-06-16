@@ -5,7 +5,7 @@ import argparse
 import importlib
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
-from typing import Union
+from typing import List, Optional, Union
 import json
 import sys
 import docker
@@ -44,6 +44,7 @@ def evaluate_instance(
     client: docker.DockerClient,
     retrieval_metrics_only: bool = False,
     node_retrieval_metrics: bool = False,
+    repair_native_packages: Optional[List[str]] = None,
 ):
     """Instance level evaluation function.
     Args:
@@ -55,6 +56,9 @@ def evaluate_instance(
         client: The docker client
         retrieval_metrics_only: Whether to only compute retrieval metrics.
         node_retrieval_metrics: Whether to compute compute-heavy node retrieval metrics.
+        repair_native_packages: Python packages to rebuild from source inside
+            the container if they fail to import (e.g. AVX-512 wheels on a
+            host without AVX-512). ``None`` disables the repair step.
     Raises:
         ValueError: if the docker build fails
     """
@@ -166,6 +170,9 @@ def evaluate_instance(
 
     # Create a docker container and run the image
     docker_manager.create_container()
+
+    if repair_native_packages:
+        docker_manager.repair_native_imports(packages=repair_native_packages)
 
     # Apply the test patch
     try:
@@ -283,6 +290,7 @@ def evaluate_predictions(
     skip_existing: bool,
     retrieval_metrics_only: bool = False,
     node_retrieval_metrics: bool = False,
+    repair_native_packages: Optional[List[str]] = None,
 ):
     """Predictions file evaluation function.
     Args:
@@ -296,6 +304,10 @@ def evaluate_predictions(
         skip_existing: Whether to skip the existing evaluations in result_path.
         retrieval_metrics_only: Whether to only compute retrieval metrics.
         node_retrieval_metrics: Whether to compute compute-heavy node retrieval metrics.
+        repair_native_packages: Python packages to rebuild from source inside
+            each container if they fail to import. Use this when running on a
+            host whose CPU does not support instructions the pre-built wheels
+            were compiled with (e.g. AVX-512).
     Raises:
         ValueError: If the predictions file is not in the correct format.
     """
@@ -364,6 +376,7 @@ def evaluate_predictions(
                 client=client,
                 retrieval_metrics_only=retrieval_metrics_only,
                 node_retrieval_metrics=node_retrieval_metrics,
+                repair_native_packages=repair_native_packages,
             )
 
         data_gen = dataset_generator(dataset)
@@ -399,8 +412,29 @@ if __name__ == "__main__":
         default=False,
         help="If set, node retrieval metrics will be computed.",
     )
+    parser.add_argument(
+        "--repair-native-imports",
+        nargs="*",
+        default=None,
+        metavar="PACKAGE",
+        help=(
+            "Python packages to rebuild from source inside each container if "
+            "they fail to import. Enable this when pre-built images ship "
+            "CPU-specific wheels that SIGILL on this host (e.g. AVX-512 "
+            "hnswlib on a non-AVX-512 CPU). Pass with no arguments to use the "
+            "default list (hnswlib, chroma-hnswlib), or specify packages "
+            "explicitly: --repair-native-imports hnswlib faiss-cpu."
+        ),
+    )
 
     args = parser.parse_args()
+
+    repair_packages: Optional[List[str]] = None
+    if args.repair_native_imports is not None:
+        repair_packages = args.repair_native_imports or [
+            "hnswlib",
+            "chroma-hnswlib",
+        ]
 
     evaluate_predictions(
         dataset_path=args.dataset_path,
@@ -413,4 +447,5 @@ if __name__ == "__main__":
         skip_existing=args.skip_existing,
         retrieval_metrics_only=args.metrics_only,
         node_retrieval_metrics=args.node_metrics,
+        repair_native_packages=repair_packages,
     )
