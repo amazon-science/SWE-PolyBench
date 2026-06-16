@@ -34,6 +34,7 @@ The main file to run is `src/poly_bench_evaluation/run_evaluation.py`. These are
 - `--skip-existing`: Whether to skip existing evaluations in `result-path`. If set to true, the instances that are available in result-path already will be skipped.
 - `--metrics-only` : This flag, when set will only compute the file retrieval metrics and the pass rate will not be computed. Typically this flag may be used after the pass rates are computed.
 - `--node-metrics`: If you also want to compute node retrieval metrics (this will increase time of running evaluation)
+- `--repair-native-imports [PACKAGE ...]`: Rebuild listed Python packages from source inside each container if they fail to import. Use this when the pre-built images ship CPU-specific wheels that crash with `Illegal instruction` on your host (e.g. AVX-512 `hnswlib` on a non-AVX-512 CPU). Pass with no arguments to use the default list (`hnswlib`, `chroma-hnswlib`) or specify packages explicitly, e.g. `--repair-native-imports hnswlib faiss-cpu`.
 
 ## Docker images
 We have frozen the instance level docker images and uploaded them to GHCR. Please only use the GHCR docker images (instance level). They are public and can be easily pulled separately. If you run the code as is, it will automatically pull from GHCR so you do not need to do anything else. If you need specific docker images for research purpose, they can be pulled like this:

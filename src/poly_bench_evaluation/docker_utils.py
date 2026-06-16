@@ -131,6 +131,52 @@ class DockerManager:
         assert self.container is not None, "Container not created"
         self.container.start()
 
+    def repair_native_imports(self, packages: List[str]) -> None:
+        """Rebuild native Python wheels that fail to import on this host.
+
+        Pre-built images may ship CPU-specific wheels (e.g. an AVX-512
+        ``hnswlib``) that ``SIGILL`` on hosts without those instructions. For
+        each package in ``packages`` that is installed in the container, probe
+        the import and reinstall from source if it fails.
+        """
+        assert self.container is not None, "Container not created"
+
+        broken: List[str] = []
+        for pkg in packages:
+            installed = self.container.exec_run(
+                ["bash", "-c", f"pip show {pkg} >/dev/null 2>&1"], user="root"
+            )
+            if installed.exit_code != 0:
+                continue
+            import_name = pkg.replace("-", "_")
+            probe = self.container.exec_run(
+                ["bash", "-c", f"python -c 'import {import_name}'"], user="root"
+            )
+            if probe.exit_code != 0:
+                broken.append(pkg)
+
+        if not broken:
+            return
+
+        no_binary = ",".join(broken)
+        targets = " ".join(broken)
+        logger.info(f"Rebuilding native packages from source: {broken}")
+        result = self.container.exec_run(
+            [
+                "bash",
+                "-c",
+                f"pip install --no-binary={no_binary} --force-reinstall --quiet {targets}",
+            ],
+            user="root",
+        )
+        if result.exit_code != 0:
+            logger.warning(
+                f"Failed to rebuild native packages {broken}: "
+                f"{result.output.decode(errors='replace')[-500:]}"
+            )
+        else:
+            self.run_logs.append(f"Rebuilt native packages from source: {broken}")
+
     def copy_file_to_container(
         self, content: str, container_filename: str, target_path: str
     ) -> bool:
