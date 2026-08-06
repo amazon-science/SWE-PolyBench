@@ -1,8 +1,8 @@
-# MigBot
+# HMigBot
 
 ## Overview
 
-MigBot is a single autonomous software-engineering agent running on
+HMigBot is a single autonomous software-engineering agent running on
 Claude Opus 4.8. The agent works directly in the repository with file search,
 file viewing, patch editing, shell execution, persistent scratchpad state,
 task-intent routing, and automated compile/test feedback.
@@ -14,13 +14,13 @@ additional guidance for selected feature patterns.
 
 ## SWE-PolyBench Verified Result
 
-**195/382 resolved (51.05%)**
+**196/382 resolved (51.31%)**
 
 ### By Language
 
 | Language | Resolved | Rate |
 |---|---:|---:|
-| Python | 69/113 | 61.06% |
+| Python | 70/113 | 61.95% |
 | TypeScript | 53/100 | 53.00% |
 | JavaScript | 43/100 | 43.00% |
 | Java | 30/69 | 43.48% |
@@ -30,7 +30,7 @@ additional guidance for selected feature patterns.
 | Category | Resolved | Rate |
 |---|---:|---:|
 | Bug Fix | 156/299 | 52.17% |
-| Feature | 34/70 | 48.57% |
+| Feature | 35/70 | 50.00% |
 | Refactoring | 5/13 | 38.46% |
 
 ## Evaluation Configuration
@@ -98,9 +98,12 @@ evaluation feedback to the agent and without rerun or best-of selection.
 | `serverless__serverless-3799` | failed | failed |
 | `microsoft__vscode-177084` | failed | resolved |
 
-The five-case subtotal remains 2/5. The full result therefore remains
-**195/382 (51.05%)**, with the resolved set changing from
-`sveltejs__svelte-3702` to `microsoft__vscode-177084`.
+The five-case subtotal remains 2/5, so the temporal-isolation replacement did
+not change the submission's solved count. The frozen prediction set was then
+re-evaluated with the official evaluator after resolving native/model-loading
+compatibility in the evaluation environment. The unchanged patch for
+`langchain-ai__langchain-5450` passed its one F2P and four P2P tests, bringing
+the verified result to **196/382 (51.31%)**.
 
 ## Submitted Artifacts
 
