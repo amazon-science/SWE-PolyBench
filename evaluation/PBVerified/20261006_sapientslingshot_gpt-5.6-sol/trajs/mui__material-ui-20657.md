@@ -1,0 +1,7679 @@
+# SWE-material-ui-20657 Trajectory
+
+---
+
+**Exported:** 2026-09-25T00:06:39.058Z
+
+---
+
+## SWE Benchmark Metadata
+
+- **instanceId:** mui__material-ui-20657
+- **repo:** mui/material-ui
+- **baseCommit:** 72a477f3ca678afd1c2d03cb05df4d20089c85cf
+- **taskIndex:** 32
+- **status:** completed
+
+---
+
+## Execution Metrics
+| Metric | Value |
+|---|---:|
+| Prompt tokens | 0 |
+| Completion tokens | 0 |
+| Total tokens | 5518023 |
+| Credits consumed | 1.667424 |
+| Total execution time | 3m 16s |
+
+---
+
+## Complete Raw Conversation
+
+# Chat Session Export
+
+**Exported:** 2026-09-25T00:06:39.040Z
+
+## 👤 **User**
+
+The current working directory is already provisioned by the benchmark host at exactly the task base commit, with one reachable commit and no Git remotes. Work only in this isolated local source tree.
+
+Do not add Git remotes, clone, fetch, or pull. Do not access GitHub, GitHub APIs, upstream pull requests, commits, patches, or issue solutions. Do not use curl/wget or web-search tools. The benchmark runtime blocks outbound tools and commands.
+
+Fix the issue using only the problem statement and the isolated local source tree. Generate mui__material-ui-20657.patch from the git diff,verify that git diff mui__material-ui-20657.patch contains only implementation or production files and no test files or test artifacts and then place it at this exact path: /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/swe-results/mui__material-ui-20657.patch.
+
+Repository: mui/material-ui
+Base Commit: 72a477f3ca678afd1c2d03cb05df4d20089c85cf
+Problem: [TreeView] Expand/collapse node only when clicking on expand/collapse icon
+- [x] I have searched the [issues](https://github.com/mui-org/material-ui/issues) of this repository and believe that this is not a duplicate.
+
+## Summary 💡
+
+When I click on a tree item that has children, the node expands, wherever I click on the line. While this behavior might be ok for most users, I would like to have the possibility to expand/collapse only when I click on the expand/collapse icon - not on the label.
+
+## Motivation 🔦
+
+In my project, I have a tree and I'd like to display a panel with information about a node when I click on it.
+When my node does not have children, it is very easy to achieve this behavior. But when my node has children, it expends at the same time its information are displayed, which is not the behavior I want. So I lack a way to have a different behavior when I click on the label (display node info) and when I click on the expand/collapse icon (expand/collapse the node).
+
+---
+
+## 🤖 **Slingshot**
+
+*9/24/2026, 7:03:24 PM*
+
+## Agent Execution Steps
+
+1. **Tool call: register_tools**
+Input:
+```json
+{
+  "tool_names": [
+    "get_agent_memory",
+    "get_skill_details",
+    "get_enriched_prompt",
+    "get_workspace_files_list",
+    "find_files",
+    "grep",
+    "read_file",
+    "edit_file",
+    "run_terminal_command",
+    "add_agent_memory"
+  ],
+  "toolPurpose": "- I want to inspect the isolated repository and required attached context, load relevant accessibility/framework guidance, implement the TreeView behavior fix, validate it locally, and generate the requested patch artifact."
+}
+```
+Output:
+```
+Tools [get_agent_memory, get_skill_details, get_enriched_prompt, get_workspace_files_list, find_files, grep, read_file, edit_file, run_terminal_command, add_agent_memory] are now registered and immediately available for usage.
+```
+
+2. **Tool call: get_agent_memory**
+Input:
+```json
+{
+  "toolPurpose": "- I want to read prior execution context and persistent workspace learnings before changing the isolated source tree, so I avoid duplicate work and preserve established conventions."
+}
+```
+Output:
+```
+Successfully read agent memory content:
+Learnings from previous agent sessions: Successfully loaded 250 memory entries. Use these to inform your work and avoid creating duplicate memories when calling `add_agent_memory` tool.
+Loaded memories:
+* Gson JsonReader reports malformed Unicode escapes through syntaxError, yielding MalformedJsonException with line, column, and JSON path context.
+* Gson Excluder handles anonymous/non-static local classes directionally: serialization delegates normally, while deserialization remains excluded.
+* RocketMQ consumer lag, inflight, and available-message aggregates must iterate TopicConfig read queues to match consumer progress semantics.
+* Dubbo's MulticastRegistry.java uses CRLF; validate its diffs with Git core.whitespace=cr-at-eol to avoid false trailing-whitespace failures.
+* Gson tests on JDK 26 need -Pjdk15, release 8, ProGuard skipped, and ReflectionAccessTest excluded due removed SecurityManager support.
+* Apollo namespace validation rejects URI-reserved names `.` and `..` while allowing ordinary dotted names.
+* Gson production links to repository documentation should use the `main` branch in GitHub blob URLs.
+* Gson ISO8601Utils uses a separate date-only GregorianCalendar path; it must disable leniency just like the date-time path to reject impossible dates.
+* Apollo Portal password fragments are configured by apollo.portal.auth.password-checker.commonly-used-passwords-file and re-read on each check.
+* Gson JsonWriter.name must immediately reject calls outside EMPTY_OBJECT or NONEMPTY_OBJECT with IllegalStateException("Nesting problem.").
+* Dubbo RpcUtils priority is method-specific invocation attachment, generic attachment, URL method config, then URL global config.
+* Gson ConstructorConstructor special-cases EnumMap, constructing it from a parameterized Class key and rejecting invalid raw/non-Class key types.
+* Gson's unsafe opt-out API is disableJdkUnsafe(); its state must survive Gson.newBuilder() and fail lazily with JsonIOException when no constructor exists.
+* Gson's JsonAdapter annotation factory must precede collection and map factories so unregistered annotation factories can obtain those delegates.
+* Gson Streams.AppendableWriter.CurrentWrite must override toString() to return its full backing char array for CharSequence-compliant Appendables.
+* Gson FormattingStyle separator spacing uses withSpaceAfterSeparators(boolean) and usesSpaceAfterSeparators(); commas are spaced only when newline is empty.
+* Dubbo ClassHelper.convertPrimitive returns null for null or empty string input before primitive parsing.
+* Gson Maven on JDK 26 fails -Werror on $Gson$Types dangling doc comments; direct javac --release 8 can validate production compilation locally.
+* Gson serializes LazilyParsedNumber via an exact built-in adapter registered before reflective fallback, preserving its numeric lexeme.
+* Guava concurrency production changes often require mirrored edits in guava/src and android/guava/src.
+* Gson JsonObject backs members with LinkedTreeMap configured to reject Java null values, including through Map.Entry.setValue.
+* Gson ProtoTypeAdapter supports opt-in explicit protobuf json_name via setShouldUseJsonNameFieldOption; custom serialized-name extensions take precedence.
+* Apollo Portal forbids creating a private AppNamespace when the same name is already a globally public AppNamespace.
+* Gson primitive numeric adapters must call the matching Number conversion method before serialization, including float/double and long-string policy wrappers.
+* Dubbo compatibility tests on JDK 26 need JaCoCo skipped and java.lang opened; full tests may still fail when sandbox socket binding is denied.
+* RocketMQ broker send ingress must strip PROPERTY_POP_CK so forwarded POP messages receive a fresh destination-broker receipt handle.
+* Guava TopKSelector's trim fallback sorts an inclusive [left, right] range, so Arrays.sort must receive right + 1 as its exclusive bound.
+* Gson DefaultDateTypeAdapter must restore each cached DateFormat timezone in a finally block after every parse attempt.
+* Dubbo MockInvoker caches must include the service interface in the key; shorthand mock values like true/default are shared across references.
+* At Gson base fe30b85, Gson.newJsonWriter must call setHtmlSafe(htmlSafe) so adapter-driven integrations inherit default or disabled HTML escaping.
+* Gson's Troubleshooting.md uses CRLF; run Git whitespace checks with core.whitespace=cr-at-eol.
+* Apollo Portal local user administration uses a super-admin /users/admin endpoint and UserInfo.enabled; edits preserve blank passwords and persist enabled status.
+* RocketMQ POP retry topic v2 uses `%RETRY%group+topic`; `+` is forbidden in topic/group names, while v1 uses `_`.
+* Dubbo CompatibleTypeUtils parses LocalDateTime as yyyy-MM-dd HH:mm:ss, LocalDate as yyyy-MM-dd, and LocalTime as HH:mm:ss.
+* Dubbo Bytes char[] Base64 decoding must decrement full quartets and set remainder to 2/3 when the final quartet contains padding.
+* Dubbo Triple Connection must assign the successful ChannelFuture channel in ConnectionListener before immediate availability checks.
+* This Dubbo base contains multiple CRLF Java files; use git -c core.whitespace=cr-at-eol diff --check for rename-only patches.
+* RocketMQ TieredFlatFile LOWER time lookup selects earliest segment with maxTimestamp >= target; UPPER selects latest with minTimestamp  instances, from shadowing it.
+* Three.js Quaternion and Euler rotation-matrix conversion uses a 3-column stride for Matrix3 and 4-column stride for Matrix4 column-major elements.
+* Svelte 1.17 static each-else teardown must set the destroyed else block reference to null so later empty states recreate it.
+* Svelte v1 input value generation may tolerate dynamic type attributes, while binding semantics still require a compile-time static input type.
+* At Svelte 1.14.1 base ec543cf, missing expected data properties are emitted by src/generators/dom/index.js as dev-only generated constructor diagnostics.
+* Svelte v1 CSS attribute-presence selectors must return true once the attribute exists, before looking up a matcher operator.
+* Svelte v1 component binding observers in keyed each blocks must reconstruct used contextual values from the child component's current _context before setting parent state.
+* Svelte 1.27 CSS preprocessing is centralized in Stylesheet.apply for both DOM and SSR native elements, before selector matching and code generation.
+* Svelte v1 Generator.parseJs must preserve node.async when lifting function expressions and arrow functions into named declarations.
+* RocketMQ QueueOffsetAssigner uses get-before-computeIfAbsent fast paths to avoid Java 8 JDK-8161372 contention for established queue keys.
+* Dubbo AbstractConfig metadata must prefer getX over duplicate isX accessors because Class.getMethods order is unspecified.
+* Trino AddLocalExchanges should propagate parent stream preferences through identity projects to avoid redundant local repartition/gather exchanges around pruning.
+* This benchmark workspace has no locally installed Java runtime, so Maven tests cannot run.
+* In this Trino base, ProjectNode.isIdentity also identifies symbol-preserving pruning because Assignments checks only retained output assignments.
+* Svelte v1 SSR must initialize a component-defined store inside `_render`, because nested components bypass the public `render` wrapper.
+* Svelte v1 event handlers must serialize await contexts directly; each contexts instead serialize list/index pairs for reconstruction.
+* Svelte v1 SVG attribute casing warnings are implemented in src/validate/html/validateElement.ts and scoped to SVG elements, descendants, and SVG namespace builds.
+* Svelte v1 oncreate callbacks use unshift registration with LIFO callAll draining to preserve component/template preorder.
+* Svelte v1 CSS scoping must merge the generated scope class into static and dynamic class values across DOM, innerHTML, and SSR output.
+* Svelte v1 await then/catch context aliases must use Block.getUniqueName so names like children cannot shadow hydration helpers.
+* Svelte v1 static innerHTML attribute serialization must join all text chunks so appended scoped CSS classes are not dropped on nested elements.
+* Svelte v1 CSS DCE must treat Spread attributes as potential sources of any missing class, ID, or attribute during selector matching.
+* Svelte v2 custom DOM event handlers must rewrite a direct `this.method()` callee to the associated element variable; native events retain runtime `this` binding.
+* Svelte v3 alpha native element binding handlers emitted in component.partly_hoisted must use component.getUniqueName, not block.getUniqueName.
+* Svelte v3 alpha rewrite_props must add a semicolon when exported prop declarations rely on ASI, while preserving an existing declaration semicolon.
+* Svelte assignment instrumentation must ignore member roots that are not Identifiers; ThisExpression roots otherwise emit $$invalidate('undefined', undefined).
+* Svelte v3 file-input bindings should listen to `change`, not `input`, because Safari does not reliably emit `input` when files are selected.
+* Svelte v3 Expression.render must prefix hoisted object-method replacements with `: ` when the parent Property has method=true.
+* Svelte v3 SSR inline-component attributes must use quote_name_if_necessary in both direct props and Object.assign spread fragments.
+* Svelte mutation tracking must classify UpdateExpression member targets as mutated, not reassigned, in scripts and inline template functions.
+* Svelte v3 Element namespace inference must stop at InlineComponent boundaries so slotted SVG tags do not inherit an outer HTML element namespace.
+* Svelte inline !important styles are compiled by stripping the priority token and passing true as set_style's optional fourth argument.
+* Svelte DebugTag DOM generation must omit its update block when expression dependencies are empty, or it emits invalid `if ()` code.
+* Svelte v3 reassigned function declarations must remain unhoisted and count as dynamic reactive dependencies via Var.reassigned.
+* In Svelte 3.9.1, reactive extraction and DOM dirty-check filtering must both include reassigned bindings; reassigned functions must not be hoisted.
+* At Svelte base 64c56edd, reassigned function declarations must not hoist and must be included in reactive dependency and DOM dirty filters.
+* Svelte v3 outro-capable compound if blocks must avoid changed([]); cached call conditions without dependencies use only a null initialization guard.
+* Svelte 3.14 add_resize_listener creates an object resize sensor; set aria-hidden=true so this implementation detail is excluded from the accessibility tree.
+* Svelte hydration must iterate a live NamedNodeMap backwards when removing unexpected attributes, or forward deletion skips alternating entries.
+* Svelte CSS matching must distinguish unknown dynamic attributes from definite matches so leading :global descendants are not spuriously scoped.
+* Svelte 3 keyed each updates must reassign the outer each_block_value so {:else} observes the current list length.
+* Svelte v3 dev unknown-prop allowlists must include all instance exports, not only writable exports, because exported functions participate in component bindings.
+* Svelte store-first destructuring must pass tail invalidations as extra set_store_value arguments so all store setters are evaluated while preserving the assignment result.
+* Svelte await outros must clear info.blocks[i] only if the slot still references the outgoing block, so delayed callbacks cannot erase newer branches.
+* Svelte v3 actions are repeatable directives; parser uniqueness checks exempt both EventHandler and Action while retaining other directive checks.
+* Svelte 3 slot spreads require ordered Object.assign slot data and a wildcard dirty flag so arbitrary added, changed, or removed slot props update consumers.
+* Svelte v3 SSR bound attributes must use boolean_attributes metadata; hard-coding boolean=true causes bind:value={0} to be omitted.
+* Svelte hydratable builds map append, insert, and HtmlTag to hydration-specific helpers so plain bundles tree-shake hydration reordering.
+* Svelte slot revival after an outro must pass an all-dirty mask to slot helpers; overflow contexts need one -1 per 31-member group.
+* Svelte 3 await shorthand supports omitted resolve context by closing `then` with `}`, leaving the parsed await value null while activating the then branch.
+* Svelte component initialization must prefer explicit options.context over ambient parent context, while cloning the selected map.
+* Svelte text-like input update guards must include type=search in Attribute, Binding, and spread-attribute Element compiler paths.
+* Prettier HTML embedded parsing depends on isScriptLikeTag; SVG script elements use fullName "svg:script" and must be included alongside "svg:style".
+* Svelte 3 KeyBlock DOM wrappers must register key expression dependencies on the containing Block so slot-owned keyed fragments receive dirty updates.
+* Prettier's TypeScript TSEnumMember printer must wrap `id` with brackets when `node.computed` is true.
+* Prettier CLI directory globs must reuse an existing trailing slash; adding another slash causes fast-glob to return no supported files.
+* Prettier SCSS @use/@forward `with (` spacing is handled in the value-comma_group branch of src/language-css/printer-postcss.js.
+* Prettier ignored-node printing preserves relative indentation by comparing the node's leading whitespace with its nearest leading comment.
+* Prettier ignored-node raw printing must mark only comments within the node range; file-wide prettier-ignore exemptions hide unrelated dropped comments.
+* Prettier nested TSParenthesizedType keeps one pair in TSConditionalType check/extends and TSIndexedAccessType object positions.
+* Prettier babel-ts must rethrow selected Babel recovered errors inside tryCombinations so invalid AST nodes do not reach the printer and fallback still runs.
+* Prettier Markdown footnote definitions must flatten the initial paragraph with removeLines so long content remains attached to the `[^id]:` marker.
+* Prettier config resolves string plugins and pluginSearchDirs relative to the discovered config file, including selected override options.
+* Prettier's PostCSS root printer must return an empty string when css-root.nodes is empty; hardline is only for non-empty CSS/SCSS/Less roots.
+* Prettier base 69f6ee7 is provisioned without node_modules; local CLI/tests fail on missing minimist unless dependencies are supplied.
+* Prettier v1 CLI write status is emitted in src/cli-util.js formatFiles; silent loglevel must gate TTY progress, duration lines, and separators.
+* Prettier 0.16 JSX opening tags keep `>` with the final prop by using an empty doc after non-self-closing attributes; self-closing tags retain `line` before `/>`.
+* This Prettier 0.16 workspace lacks node_modules; full formatter and Jest tests are blocked by missing babel-code-frame and jest.
+* Prettier 0.16 stabilizes standalone ternary boundary comments by attaching them as trailing comments to the preceding conditional child.
+* Prettier v0.11 prints ClassProperty, ClassMethod, and MethodDefinition decorators with spaces; class decorators remain line-separated.
+* Prettier 0.0.10 must print ExportDefaultSpecifier and ExportNamespaceSpecifier outside braces to preserve export-extension semantics.
+* This Prettier workspace has no node_modules; Jest and formatter smoke tests are blocked by missing local dependencies.
+* Serverless API Gateway custom request templates use null values to remove matching default content-type templates during compilation.
+* Serverless v1.68 REST API http event properties pass through validation; AWS::ApiGateway::Method properties are built in apiGateway/lib/method/index.js.
+* Serverless `.serverlessrc` may be symlinked; file detection must follow valid symlinks to avoid recreating the config and resetting tracking preferences.
+* This Serverless workspace is provisioned without node_modules, so Mocha and ESLint quality gates cannot run locally.
+* Serverless AWS info resource counts must paginate listStackResources via NextToken and accumulate StackResourceSummaries across all pages.
+* SNS redrive queue policies need Fn::GetAtt for the queue ARN and Ref for the queue URL; the config may identify the queue by logical resource name.
+* This Serverless benchmark tree has no installed npm dependencies, so unit tests and lint are blocked; Node syntax checks remain available.
+* Serverless provisioned concurrency should live on a `provisioned` Lambda alias targeting the content-hashed version; API Gateway must invoke and permit that alias ARN.
+* Serverless v1.54 IAM statements are validated in mergeIamTemplates.js and then concatenated unchanged into the generated execution-role policy.
+* Serverless REST API logging treats exact SSM string "false" as disabled at stage compilation and post-deploy stage updates.
+* Serverless CloudWatch Logs events need indexed Lambda permission IDs and each permission SourceArn scoped to its event's exact log group.
+* Serverless IAM logging adds the service-stage wildcard only when a resolved function name uses that canonical prefix; manual-only services get exact log ARNs.
+* Serverless AWS package cleanup must not spawn aws:common:validate; deploy's before:deploy:deploy hook retains credential validation.
+* Serverless service plugins beginning with ./ or ../ resolve from serverless.config.servicePath; package names retain normal Node resolution.
+* Serverless SNS existing-topic subscriptions derive CloudFormation Region from literal topic ARN segment 3; dynamic ARN intrinsics leave Region unset.
+* Serverless v1.38 Lambda function compilation maps function-level `tracing` to CloudFormation `TracingConfig.Mode`.
+* Serverless variable fallback cleaning must recognize both single- and double-quoted literals so embedded spaces are preserved.
+* Serverless v1.39 default variableSyntax is synchronized across Service.js, print.js, and Utils.js telemetry comparison.
+* Serverless v1.37 SSM variable resolution should parse valid JSON values while preserving non-JSON parameter values as strings.
+* Serverless v1.34 Variables.cleanVariable removes whitespace outside quotes but preserves whitespace inside single- or double-quoted fallback literals.
+* Serverless v1.21 maps top-level `deploy` plus `-f` or `--function` to the existing `deploy function` lifecycle in CLI.processInput.
+* Serverless Cognito user pools must depend on invoke permissions; permissions use SourceAccount to avoid a circular dependency on the pool ARN.
+* Serverless v1.15 supports SSE deployment buckets by normalizing object config and forwarding S3 PutObject encryption fields; KMS requires signature v4.
+* Serverless stream event mappings must depend on custom IAM role logical IDs, not the absent generated IamRoleLambdaExecution resource.
+* Serverless v1.12 API Gateway HTTP proxies use `integration: http-proxy` with a non-empty `request.uri`, compiled as CloudFormation `HTTP_PROXY`.
+* Serverless API Gateway authorizer claim fragments must use join('') because implicit array coercion inserts extra commas into mapping templates.
+* Serverless v1.3 deployment validation warnings are emitted through this.serverless.cli.log from compiler modules.
+* Serverless v1 stream IAM permissions should group all event-source ARNs by DynamoDB/Kinesis into one policy statement per type.
+* Serverless monitorStack must guard null stackStatus before suffix checks because an event page may contain no in-range AWS::CloudFormation::Stack event.
+* Serverless v1.2 custom Resources may be an array of maps; entries merge left-to-right before merging into the compiled CloudFormation template.
+* Serverless v1.1 function event validation must allow whole-property unresolved variables while still rejecting direct non-array event values.
+* Serverless same-path API Gateway CORS aggregation unions methods, origins, and headers before generating one OPTIONS response.
+* Serverless create --name explicitly overrides the generated service name; when absent, --path basename remains the naming fallback.
+* VS Code snippet placeholder transforms use replace semantics so adjacent inactive tab-stop decorations honor edge stickiness and do not absorb transformed text.
+* This VS Code benchmark tree has no node_modules; focused Mocha tests and Gulp compilation are unavailable without dependencies.
+* VS Code language-specific configurationDefaults must shallow-merge by override key so later extensions do not erase built-in editor defaults.
+* This VS Code benchmark tree has no node_modules or local tsc/eslint, so offline build, lint, and unit tests are unavailable.
+* This VS Code benchmark tree has no node_modules or global tsc, so Mocha, lint, and TypeScript compilation cannot run locally.
+* VS Code multi-word completions must preserve normalized edit ranges when providers are retriggered after a space.
+* VS Code fuzzy completion highlighting treats '` elements** for triggers (not `
+
+💭 **Agent Thoughts:**
+> ` or ``)
+> 2. **`aria-expanded` attribute** to communicate expanded/collapsed state
+> 3. **`aria-controls` attribute** to link button to its panel
+> 4. **`role="region"` and `aria-labelledby`** for significant content sections
+> 5. **Keyboard navigation** including Enter/Space and optional arrow keys
+> 6. **Visual state indicators** that don't rely solely on color
+> 
+> ## Types of Accordions
+> 
+> ### Single-Panel Accordion
+> Only one panel can be open at a time. Best for:
+> - FAQ sections where answers are mutually exclusive
+> - Settings panels with distinct categories
+> - Navigation menus with single-selection behavior
+> 
+> ### Multi-Panel Accordion
+> Multiple panels can be open simultaneously. Best for:
+> - Content exploration where users compare sections
+> - Forms with independent fieldsets
+> - Documentation with related but separate topics
+> 
+> ## HTML Markup Patterns
+> 
+> ### Basic Accordion Item
+> 
+> ```html
+> 
+>   
+>   
+>     
+>       First Section Title
+>       ▼
+>     
+>     
+>       
+>         
+>         This is the expandable content for the first section.
+>       
+>     
+>   
+> 
+>   
+>   
+>     
+>       Second Section Title
+>       ▼
+>     
+>     
+>       
+>         This is the expandable content for the second section.
+>       
+>     
+>   
+> 
+> ```
+> 
+> ## JavaScript Implementation
+> 
+> The accordion script handles:
+> 
+> 1. **Initialization**: Set up event listeners on accordion buttons
+> 2. **Event listeners**: Click, keyboard events
+> 3. **Toggle logic**: Update `aria-expanded` and show/hide panels
+> 4. **Keyboard support**: Enter/Space to toggle, optional arrow key navigation
+> 5. **Panel management**: Support single-panel or multi-panel modes
+> 
+> ### Core Methods
+> 
+> - `init()`: Set up event listeners on all accordion buttons
+> - `toggleAccordion(button)`: Toggle expanded state and panel visibility
+> - `setupKeyboardNavigation()`: Enable arrow key navigation (optional)
+> 
+> ### Key Features
+> 
+> **Basic toggle function:**
+> 
+> ```javascript
+> function toggleAccordion(button) {
+>   const expanded = button.getAttribute('aria-expanded') === 'true';
+>   const panelId = button.getAttribute('aria-controls');
+>   const panel = document.getElementById(panelId);
+>   
+>   // Toggle state
+>   button.setAttribute('aria-expanded', !expanded);
+>   
+>   // Show/hide panel
+>   if (!expanded) {
+>     panel.removeAttribute('hidden');
+>   } else {
+>     panel.setAttribute('hidden', '');
+>   }
+> }
+> 
+> // Attach to all accordion buttons
+> document.querySelectorAll('.accordion-button').forEach(button => {
+>   button.addEventListener('click', () => toggleAccordion(button));
+> });
+> ```
+> 
+> **For "allow only one open" behavior:**
+> 
+> ```javascript
+> function toggleAccordion(button, accordionContainer) {
+>   const expanded = button.getAttribute('aria-expanded') === 'true';
+>   const panelId = button.getAttribute('aria-controls');
+>   const panel = document.getElementById(panelId);
+>   
+>   // Close all other panels in this accordion
+>   accordionContainer.querySelectorAll('.accordion-button').forEach(otherButton => {
+>     if (otherButton !== button) {
+>       otherButton.setAttribute('aria-expanded', 'false');
+>       const otherPanelId = otherButton.getAttribute('aria-controls');
+>       const otherPanel = document.getElementById(otherPanelId);
+>       otherPanel.setAttribute('hidden', '');
+>     }
+>   });
+>   
+>   // Toggle current panel
+>   button.setAttribute('aria-expanded', !expanded);
+>   if (!expanded) {
+>     panel.removeAttribute('hidden');
+>   } else {
+>     panel.setAttribute('hidden', '');
+>   }
+> }
+> ```
+> 
+> **Keyboard navigation (optional, for arrow key support):**
+> 
+> ```javascript
+> function setupKeyboardNavigation(accordionContainer) {
+>   const buttons = Array.from(accordionContainer.querySelectorAll('.accordion-button'));
+>   
+>   buttons.forEach((button, index) => {
+>     button.addEventListener('keydown', (e) => {
+>       let targetIndex;
+>       
+>       switch(e.key) {
+>         case 'ArrowDown':
+>           e.preventDefault();
+>           targetIndex = (index + 1) % buttons.length;
+>           buttons[targetIndex].focus();
+>           break;
+>         case 'ArrowUp':
+>           e.preventDefault();
+>           targetIndex = (index - 1 + buttons.length) % buttons.length;
+>           buttons[targetIndex].focus();
+>           break;
+>         case 'Home':
+>           e.preventDefault();
+>           buttons[0].focus();
+>           break;
+>         case 'End':
+>           e.preventDefault();
+>           buttons[buttons.length - 1].focus();
+>           break;
+>       }
+>     });
+>   });
+> }
+> ```
+> 
+> ## CSS Styling Guidelines
+> 
+> ### Functional Styling (Required)
+> 
+> Provide minimal CSS for functionality:
+> 
+> ```css
+> /* Hide collapsed panels */
+> .accordion-panel[hidden] {
+>   display: none;
+> }
+> 
+> /* Button base styles */
+> .accordion-button {
+>   width: 100%;
+>   text-align: left;
+>   background: transparent;
+>   border: 1px solid #ccc;
+>   padding: 1rem;
+>   cursor: pointer;
+>   display: flex;
+>   justify-content: space-between;
+>   align-items: center;
+> }
+> 
+> /* Focus indicator (WCAG 2.2 requirement) */
+> .accordion-button:focus-visible {
+>   outline: 2px solid #005fcc;
+>   outline-offset: 2px;
+> }
+> 
+> /* Icon rotation based on state */
+> .accordion-button[aria-expanded="true"] .accordion-icon {
+>   transform: rotate(180deg);
+> }
+> 
+> .accordion-icon {
+>   transition: transform 0.2s ease;
+>   font-size: 0.875rem;
+> }
+> 
+> /* Panel content padding */
+> .accordion-content {
+>   padding: 1rem;
+> }
+> 
+> /* Smooth expand/collapse (optional) */
+> .accordion-panel {
+>   overflow: hidden;
+> }
+> ```
+> 
+> ### User Customization
+> 
+> Allow users to customize:
+> - Colors (background, text, border)
+> - Typography (font-family, font-size, line-height)
+> - Spacing (padding, margin)
+> - Border styles and radius
+> - Icon styles and animations
+> - Transitions and animations
+> 
+> Provide placeholder CSS variables or comments indicating customization points:
+> 
+> ```css
+> .accordion-button {
+>   /* Customize these properties */
+>   background: white;    /* Change button background */
+>   color: black;         /* Change text color */
+>   border: 1px solid #ccc; /* Adjust border */
+>   padding: 1rem;        /* Adjust padding */
+>   font-size: 1rem;      /* Adjust font size */
+> }
+> 
+> .accordion-button[aria-expanded="true"] {
+>   background: #f0f0f0;  /* Change expanded state background */
+> }
+> ```
+> 
+> ## Accessibility Requirements (WCAG 2.2 Level AA)
+> 
+> ### Keyboard Support
+> - ✅ Enter/Space toggles accordion panel
+> - ✅ Tab moves focus between buttons and other elements
+> - ✅ Arrow keys navigate between accordion buttons (optional)
+> - ✅ Home/End keys jump to first/last button (optional)
+> - ✅ Focus remains on button after toggling
+> 
+> ### Screen Reader Support
+> - ✅ `role="region"` identifies significant content sections
+> - ✅ `aria-expanded` communicates panel state
+> - ✅ `aria-controls` links button to panel
+> - ✅ `aria-labelledby` provides accessible name for regions
+> - ✅ Button text is descriptive and meaningful
+> 
+> ### Visual Requirements
+> - ✅ Visible focus indicators on buttons
+> - ✅ State indicators don't rely solely on color
+> - ✅ Sufficient color contrast (4.5:1 for text, 3:1 for UI components)
+> - ✅ Clear visual distinction between expanded/collapsed states
+> 
+> ### Touch Support
+> - ✅ Adequate touch target size (minimum 44×44px for buttons)
+> - ✅ Touch events work consistently with click events
+> 
+> ## Why Not Use Native ``/``?
+> 
+> Avoid the native HTML5 `` and `` elements for accordions because:
+> 
+> - ❌ Known accessibility bugs across browser/screen reader combinations
+> - ❌ Inconsistent behavior in Safari + VoiceOver
+> - ❌ Limited styling control
+> - ❌ Cannot implement single-panel mode (only one open at a time)
+> - ❌ Less control over keyboard navigation patterns
+> 
+> **Exception**: `` may be appropriate for:
+> - Simple, standalone disclosure widgets
+> - Progressive enhancement scenarios where JavaScript may not be available
+> - Cases where browser inconsistencies are acceptable
+> 
+> ## Code Generation Workflow
+> 
+> When generating accordion code:
+> 
+> 1. **Understand the context**: Single-panel or multi-panel? How many items?
+> 
+> 2. **Generate HTML**: Use appropriate markup pattern with proper ARIA attributes
+> 
+> 3. **Include JavaScript**: Provide toggle logic and optional keyboard navigation
+> 
+> 4. **Provide functional CSS**: Include required styles for state management and focus
+> 
+> 5. **Add customization guidance**: Comment CSS to show what users can safely customize
+> 
+> 6. **Include initialization**: Show how to set up event listeners when DOM is ready
+> 
+> 7. **Explain ARIA**: Document why each ARIA attribute is used
+> 
+> ## Testing Checklist
+> 
+> Ensure generated accordions meet these criteria:
+> 
+> - [ ] Buttons have `aria-expanded` attribute
+> - [ ] Buttons have `aria-controls` pointing to panel IDs
+> - [ ] Panels have unique IDs
+> - [ ] Significant panels have `role="region"` and `aria-labelledby`
+> - [ ] Enter/Space keys toggle panels
+> - [ ] Focus remains on button after toggling
+> - [ ] Visual state indicators are clear
+> - [ ] Focus indicators are visible
+> - [ ] Screen reader announces state correctly
+> - [ ] Arrow key navigation works (if implemented)
+> - [ ] No JavaScript errors in console
+> 
+> ## Reference Implementation
+> 
+> For complete reference code, see:
+> - W3C ARIA Authoring Practices Guide - Accordion Pattern
+> - Enable Project: Dropdowns/Drawers/Expandos (https://www.useragentman.com/enable/dropdown.php)
+> 
+> These resources contain proven implementations that can be adapted or used directly.
+> 
+> ## Common Pitfalls to Avoid
+> 
+> ❌ **Don't** use `` or `` as accordion triggers (use ``)
+> 
+> ❌ **Don't** move focus into the panel after toggling (keep on button)
+> 
+> ❌ **Don't** use `role="region"` on every panel (only for significant sections)
+> 
+> ❌ **Don't** rely on color alone for state indication
+> 
+> ❌ **Don't** forget `aria-controls` attribute
+> 
+> ❌ **Don't** use native ``/`` for production accordions
+> 
+> ❌ **Don't** nest accordions deeply without careful consideration
+> 
+> ✅ **Do** use semantic `` elements for triggers
+> 
+> ✅ **Do** keep button text descriptive and meaningful
+> 
+> ✅ **Do** maintain focus on button after toggling
+> 
+> ✅ **Do** test with keyboard, screen reader, and high contrast mode
+> 
+> ✅ **Do** provide clear visual state indicators
+> 
+> ✅ **Do** respect `prefers-reduced-motion` for animations
+> 
+> ## Example Usage Scenarios
+> 
+> **FAQ section**:
+> ```html
+> 
+>   Frequently Asked Questions
+>   
+>     
+>       
+>         What is an accessible accordion?
+>         ▼
+>       
+>       
+>         
+>           An accessible accordion is a collapsible component that follows WCAG guidelines...
+>         
+>       
+>     
+>   
+> 
+> ```
+> 
+> **Settings panel**:
+> ```html
+> 
+>   
+>     Advanced Settings
+>     ▼
+>   
+>   
+>     
+>       
+>     
+>   
+> 
+> ```
+> 
+> ## Summary
+> 
+> When building accessible accordions:
+> 
+> 1. Use `` elements with `aria-expanded` and `aria-controls`
+> 2. Toggle `aria-expanded` between `"true"` and `"false"` with JavaScript
+> 3. Use the `hidden` attribute to show/hide panels
+> 4. Ensure keyboard support (Enter/Space to toggle, optional arrow keys)
+> 5. Provide clear focus indicators and visual state changes
+> 6. Test with multiple screen readers and keyboard-only navigation
+> 7. Keep styling minimal and functional - let users customize appearance
+> 8. Follow WCAG 2.2 Level AA requirements for contrast, focus, and semantics
+> 
+> By following this pattern, you'll create accordions that work reliably across all browsers, screen readers, and input methods while meeting accessibility standards.
+> ```
+> 
+> 4. **Tool call: get_enriched_prompt**
+> Input:
+> ```json
+> {
+>   "programming_language": "javascript",
+>   "framework": "react",
+>   "platform": "",
+>   "toolPurpose": "I want framework-specific React code-generation guidance so the TreeView production change follows established accessibility, maintainability, and event-handling best practices."
+> }
+> ```
+> Output:
+> ```
+> 
+>       **While we have below best practices, you must also enhance them based on your expertise**:
+>       - Use modern JavaScript (ES6+) features.
+> - Prefer functional programming principles where appropriate: favor pure functions, immutability, and avoid unnecessary side effects.
+> - Follow DRY (Don't Repeat Yourself), KISS (Keep It Simple), and YAGNI (You Aren't Gonna Need It) principles to maintain clarity and reduce complexity.
+> - Write modular, reusable, and testable code with single-responsibility functions and clear module boundaries.
+> - Implement comprehensive error handling using try/catch for both synchronous and asynchronous code; never silently ignore errors.
+> - Validate and sanitize all external inputs (e.g., user data, API payloads, URL parameters) to prevent runtime errors and security vulnerabilities like XSS or injection attacks.
+> - Never hardcode secrets or sensitive configuration—always use environment variables and ensure they are excluded from version control.
+> - Prevent memory leaks by cleaning up event listeners, timers (setTimeout/setInterval), DOM references, and framework-specific resources (e.g., useEffect cleanup in React).
+> - Use proper asynchronous patterns: prefer async/await over callbacks, always handle promise rejections, and avoid unhandled 'fire-and-forget' promises.
+> - Apply design patterns (e.g., Observer, Factory, Module) only when they solve a real problem—avoid over-engineering.
+> - Ensure compatibility across target environments (browsers or Node.js versions); use transpilation or polyfills if necessary.
+> - Write self-documenting code with clear naming conventions; supplement with JSDoc comments for public APIs or complex logic.
+> - Enforce consistent code style and formatting using tools like Prettier and ESLint (e.g., Airbnb or StandardJS conventions).
+> - Avoid polluting the global scope—encapsulate state within modules or classes.
+> - Optimize performance thoughtfully: avoid redundant computations, debounce/throttle expensive operations, and profile bottlenecks when needed.
+> - Adopt security-by-default practices: use HTTPS, set secure HTTP headers (e.g., CSP), validate CORS origins, and follow OWASP guidelines.
+> - Include structured logging for observability in production, but never log sensitive data like passwords, tokens, or PII.
+> - Ensure all interactive UI elements built with JavaScript are accessible: support keyboard navigation, focus management, ARIA roles/states, and screen reader announcements where needed.
+> - Design code to be testable: minimize side effects, use dependency injection where practical, and structure logic to support unit/integration tests.
+> - Favor component composition over inheritance; build small, focused, single-responsibility components.
+> - Minimize component re-renders by memoizing props with React.memo, useMemo, and useCallback where performance bottlenecks exist.
+> - Derive UI state from minimal source of truth; avoid duplicating or mirroring state unnecessarily.
+> - Clean up side effects properly in useEffect: return cleanup functions for subscriptions, timers, or event listeners to prevent memory leaks.
+> - Validate and sanitize all dynamic content rendered in JSX to prevent XSS—never dangerously set innerHTML unless explicitly escaped/sanitized.
+> - Treat props as immutable; never mutate received props or state directly—always use state setters or reducer actions.
+> - Structure state logic outside components when complex or reusable (e.g., custom hooks), keeping components declarative and testable.
+> - Avoid prop drilling by lifting shared state to the nearest common ancestor or using a scalable state propagation strategy—but only when necessary.
+> - Use environment variables for configuration (API endpoints, feature flags) and never embed secrets or environment-specific values in source code.
+> - Handle loading, error, and empty states explicitly in UI to improve resilience and user experience.
+> - Ensure accessibility (a11y) by using semantic HTML, proper ARIA attributes, and keyboard navigability—even when using agnostic UI primitives.
+> - Write components that are testable in isolation: avoid tight coupling to global state, side effects, or external services without abstraction.
+> - Prevent unnecessary client-side data fetching or computation—fetch only required data at appropriate component levels.
+> - Secure client-side routing: validate route parameters and implement authorization checks before rendering protected views.
+> - Optimize bundle size by code-splitting routes and heavy components using React.lazy and Suspense.
+> - Avoid inline function or object definitions in render if they break referential equality and cause unwanted re-renders.
+>       
+> ```
+> 
+> 5. **Tool call: read_file**
+> Input:
+> ```json
+> {
+>   "fileNames": [
+>     {
+>       "fileName": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657/trajs/angular__angular-37561.md",
+>       "startLine": 1,
+>       "endLine": 316239
+>     }
+>   ],
+>   "toolPurpose": "- I want to read the exact user-attached file and mandated line range before analyzing or modifying the repository."
+> }
+> ```
+> Output:
+> ```
+> 
+> File successfully read, file name angular__angular-37561.md with file path: enc_file_sovfhn/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/trajs/angular__angular-37561.md
+> 
+> **File Read Information:**
+> - Lines read: 1 to 3000 (3000 lines)
+> - Total lines in file: 316239
+> - Remaining lines: 313239
+> 
+> **IMPORTANT:**
+>  - In case the required context is not found in below content, then only read next set of lines using startLine: 3001
+> 
+> 
+> Content:
+> # SWE-angular-37561 Trajectory
+> 
+> ---
+> 
+> **Exported:** 2026-09-24T18:43:57.578Z
+> 
+> ---
+> 
+> ## SWE Benchmark Metadata
+> 
+> - **instanceId:** angular__angular-37561
+> - **repo:** angular/angular
+> - **baseCommit:** f7997256fc23e202e08df39997afd360d202f9f1
+> - **taskIndex:** 41
+> - **status:** completed
+> 
+> ---
+> 
+> ## Execution Metrics
+> | Metric | Value |
+> |---|---:|
+> | Prompt tokens | 0 |
+> | Completion tokens | 0 |
+> | Total tokens | 2266666 |
+> | Credits consumed | 1.828719 |
+> | Total execution time | 5m 32s |
+> 
+> ---
+> 
+> ## Complete Raw Conversation
+> 
+> # Chat Session Export
+> 
+> **Exported:** 2026-09-24T18:43:57.375Z
+> 
+> ## 👤 **User**
+> 
+> The current working directory is already provisioned by the benchmark host at exactly the task base commit, with one reachable commit and no Git remotes. Work only in this isolated local source tree.
+> 
+> Do not add Git remotes, clone, fetch, or pull. Do not access GitHub, GitHub APIs, upstream pull requests, commits, patches, or issue solutions. Do not use curl/wget or web-search tools. The benchmark runtime blocks outbound tools and commands.
+> 
+> Fix the issue using only the problem statement and the isolated local source tree. Generate angular__angular-37561.patch from the git diff,verify that git diff angular__angular-37561.patch contains only implementation or production files and no test files or test artifacts and then place it at this exact path: /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/swe-results/angular__angular-37561.patch.
+> 
+> Repository: angular/angular
+> Base Commit: f7997256fc23e202e08df39997afd360d202f9f1
+> Problem: Too much recursion because of @Injectable conflicts with other decorators
+> 
+> # 🐞 bug report
+> 
+> ### Affected Package
+> Looks like `@angular/core`
+> 
+> ### Is this a regression?
+> Yes, the versions before 9 work correct (https://stackblitz.com/edit/angular-3sutb9 - works, because stackblitz is not provided Ivy-rendering)
+> 
+> ### Description
+> `@injectable` conflicts with other decorators in this example:
+> ```
+> @Injectable()
+> export class TestServiceA {}
+> 
+> @Injectable()
+> @testDecorator()
+> export class TestServiceB extends TestServiceA {}
+> 
+> @Injectable()
+> export class TestService extends TestServiceB {}
+> 
+> @Component({
+>   selector: 'my-app',
+>   templateUrl: './app.component.html',
+>   providers: [TestService]
+> })
+> export class AppComponent  {
+>   constructor(private testService: TestService) {}
+> }
+> ```
+> 
+> ## 🔬 Minimal Reproduction
+> You can just clone the repo and run locally (stackblitz doesn't work with last versions of Angular)
+> https://github.com/tamtakoe/angular-max-call-stack-size
+> 
+> ## 🔥 Exception or Error
+> 
+> ```
+> `core.js:3866 ERROR RangeError: Maximum call stack size exceeded
+>     at TestServiceB_Factory (app.component.ts:30) ...
+> 
+> or  ERROR InternalError: "too much recursion" ... in Firefox etc.
+> `
+> ```
+> 
+> ## 🌍  Your Environment
+> 
+> **Angular Version:**
+> 
+> ```
+> `Angular CLI: 9.0.3
+> Node: 12.4.0
+> OS: darwin x64
+> 
+> Angular: 9.0.4
+> ... common, compiler, compiler-cli, core, forms
+> ... language-service, localize, platform-browser
+> ... platform-browser-dynamic, router
+> Ivy Workspace: Yes
+> 
+> Package                           Version
+> -----------------------------------------------------------
+> @angular-devkit/architect         0.900.3
+> @angular-devkit/build-angular     0.900.3
+> @angular-devkit/build-optimizer   0.900.3
+> @angular-devkit/build-webpack     0.900.3
+> @angular-devkit/core              9.0.3
+> @angular-devkit/schematics        9.0.3
+> @angular/cli                      9.0.3
+> @ngtools/webpack                  9.0.3
+> @schematics/angular               9.0.3
+> @schematics/update                0.900.3
+> rxjs                              6.5.4
+> typescript                        3.7.5
+> webpack                           4.41.2
+> `
+> ```
+> 
+> ---
+> 
+> ## 🤖 **Slingshot**
+> 
+> *9/24/2026, 1:38:24 PM*
+> 
+> ## Agent Execution Steps
+> 
+> 1. **Tool call: register_tools**
+> Input:
+> ```json
+> {
+>   "tool_names": [
+>     "get_agent_memory",
+>     "get_enriched_prompt",
+>     "read_file",
+>     "get_workspace_files_list",
+>     "grep",
+>     "find_files",
+>     "run_terminal_command",
+>     "edit_file",
+>     "write_file",
+>     "add_agent_memory"
+>   ],
+>   "toolPurpose": "- Retrieve prior workspace context and Angular/TypeScript coding guidance.\n- Inspect the required attached patch and isolated repository.\n- Search and analyze the relevant compiler/runtime implementation and tests.\n- Implement and validate the production-only fix, then generate the requested patch artifact."
+> }
+> ```
+> Output:
+> ```
+> Tools [get_agent_memory, get_enriched_prompt, read_file, get_workspace_files_list, grep, find_files, run_terminal_command, edit_file, write_file, add_agent_memory] are now registered and immediately available for usage.
+> ```
+> 
+> 2. **Tool call: get_agent_memory**
+> Input:
+> ```json
+> {
+>   "toolPurpose": "- I want to read the memory to understand what previous agents have accomplished and review persistent workspace learnings, so I can avoid duplicate work and build on existing analysis."
+> }
+> ```
+> Output:
+> ```
+> Successfully read agent memory content:
+> Learnings from previous agent sessions: Successfully loaded 206 memory entries. Use these to inform your work and avoid creating duplicate memories when calling `add_agent_memory` tool.
+> Loaded memories:
+> * Gson JsonReader reports malformed Unicode escapes through syntaxError, yielding MalformedJsonException with line, column, and JSON path context.
+> * Gson Excluder handles anonymous/non-static local classes directionally: serialization delegates normally, while deserialization remains excluded.
+> * RocketMQ consumer lag, inflight, and available-message aggregates must iterate TopicConfig read queues to match consumer progress semantics.
+> * Dubbo's MulticastRegistry.java uses CRLF; validate its diffs with Git core.whitespace=cr-at-eol to avoid false trailing-whitespace failures.
+> * Gson tests on JDK 26 need -Pjdk15, release 8, ProGuard skipped, and ReflectionAccessTest excluded due removed SecurityManager support.
+> * Apollo namespace validation rejects URI-reserved names `.` and `..` while allowing ordinary dotted names.
+> * Gson production links to repository documentation should use the `main` branch in GitHub blob URLs.
+> * Gson ISO8601Utils uses a separate date-only GregorianCalendar path; it must disable leniency just like the date-time path to reject impossible dates.
+> * Apollo Portal password fragments are configured by apollo.portal.auth.password-checker.commonly-used-passwords-file and re-read on each check.
+> * Gson JsonWriter.name must immediately reject calls outside EMPTY_OBJECT or NONEMPTY_OBJECT with IllegalStateException("Nesting problem.").
+> * Dubbo RpcUtils priority is method-specific invocation attachment, generic attachment, URL method config, then URL global config.
+> * Gson ConstructorConstructor special-cases EnumMap, constructing it from a parameterized Class key and rejecting invalid raw/non-Class key types.
+> * Gson's unsafe opt-out API is disableJdkUnsafe(); its state must survive Gson.newBuilder() and fail lazily with JsonIOException when no constructor exists.
+> * Gson's JsonAdapter annotation factory must precede collection and map factories so unregistered annotation factories can obtain those delegates.
+> * Gson Streams.AppendableWriter.CurrentWrite must override toString() to return its full backing char array for CharSequence-compliant Appendables.
+> * Gson FormattingStyle separator spacing uses withSpaceAfterSeparators(boolean) and usesSpaceAfterSeparators(); commas are spaced only when newline is empty.
+> * Dubbo ClassHelper.convertPrimitive returns null for null or empty string input before primitive parsing.
+> * Gson Maven on JDK 26 fails -Werror on $Gson$Types dangling doc comments; direct javac --release 8 can validate production compilation locally.
+> * Gson serializes LazilyParsedNumber via an exact built-in adapter registered before reflective fallback, preserving its numeric lexeme.
+> * Guava concurrency production changes often require mirrored edits in guava/src and android/guava/src.
+> * Gson JsonObject backs members with LinkedTreeMap configured to reject Java null values, including through Map.Entry.setValue.
+> * Gson ProtoTypeAdapter supports opt-in explicit protobuf json_name via setShouldUseJsonNameFieldOption; custom serialized-name extensions take precedence.
+> * Apollo Portal forbids creating a private AppNamespace when the same name is already a globally public AppNamespace.
+> * Gson primitive numeric adapters must call the matching Number conversion method before serialization, including float/double and long-string policy wrappers.
+> * Dubbo compatibility tests on JDK 26 need JaCoCo skipped and java.lang opened; full tests may still fail when sandbox socket binding is denied.
+> * RocketMQ broker send ingress must strip PROPERTY_POP_CK so forwarded POP messages receive a fresh destination-broker receipt handle.
+> * Guava TopKSelector's trim fallback sorts an inclusive [left, right] range, so Arrays.sort must receive right + 1 as its exclusive bound.
+> * Gson DefaultDateTypeAdapter must restore each cached DateFormat timezone in a finally block after every parse attempt.
+> * Dubbo MockInvoker caches must include the service interface in the key; shorthand mock values like true/default are shared across references.
+> * At Gson base fe30b85, Gson.newJsonWriter must call setHtmlSafe(htmlSafe) so adapter-driven integrations inherit default or disabled HTML escaping.
+> * Gson's Troubleshooting.md uses CRLF; run Git whitespace checks with core.whitespace=cr-at-eol.
+> * Apollo Portal local user administration uses a super-admin /users/admin endpoint and UserInfo.enabled; edits preserve blank passwords and persist enabled status.
+> * RocketMQ POP retry topic v2 uses `%RETRY%group+topic`; `+` is forbidden in topic/group names, while v1 uses `_`.
+> * Dubbo CompatibleTypeUtils parses LocalDateTime as yyyy-MM-dd HH:mm:ss, LocalDate as yyyy-MM-dd, and LocalTime as HH:mm:ss.
+> * Dubbo Bytes char[] Base64 decoding must decrement full quartets and set remainder to 2/3 when the final quartet contains padding.
+> * Dubbo Triple Connection must assign the successful ChannelFuture channel in ConnectionListener before immediate availability checks.
+> * This Dubbo base contains multiple CRLF Java files; use git -c core.whitespace=cr-at-eol diff --check for rename-only patches.
+> * RocketMQ TieredFlatFile LOWER time lookup selects earliest segment with maxTimestamp >= target; UPPER selects latest with minTimestamp  instances, from shadowing it.
+> * Three.js Quaternion and Euler rotation-matrix conversion uses a 3-column stride for Matrix3 and 4-column stride for Matrix4 column-major elements.
+> * Svelte 1.17 static each-else teardown must set the destroyed else block reference to null so later empty states recreate it.
+> * Svelte v1 input value generation may tolerate dynamic type attributes, while binding semantics still require a compile-time static input type.
+> * At Svelte 1.14.1 base ec543cf, missing expected data properties are emitted by src/generators/dom/index.js as dev-only generated constructor diagnostics.
+> * Svelte v1 CSS attribute-presence selectors must return true once the attribute exists, before looking up a matcher operator.
+> * Svelte v1 component binding observers in keyed each blocks must reconstruct used contextual values from the child component's current _context before setting parent state.
+> * Svelte 1.27 CSS preprocessing is centralized in Stylesheet.apply for both DOM and SSR native elements, before selector matching and code generation.
+> * Svelte v1 Generator.parseJs must preserve node.async when lifting function expressions and arrow functions into named declarations.
+> * RocketMQ QueueOffsetAssigner uses get-before-computeIfAbsent fast paths to avoid Java 8 JDK-8161372 contention for established queue keys.
+> * Dubbo AbstractConfig metadata must prefer getX over duplicate isX accessors because Class.getMethods order is unspecified.
+> * Trino AddLocalExchanges should propagate parent stream preferences through identity projects to avoid redundant local repartition/gather exchanges around pruning.
+> * This benchmark workspace has no locally installed Java runtime, so Maven tests cannot run.
+> * In this Trino base, ProjectNode.isIdentity also identifies symbol-preserving pruning because Assignments checks only retained output assignments.
+> * Svelte v1 SSR must initialize a component-defined store inside `_render`, because nested components bypass the public `render` wrapper.
+> * Svelte v1 event handlers must serialize await contexts directly; each contexts instead serialize list/index pairs for reconstruction.
+> * Svelte v1 SVG attribute casing warnings are implemented in src/validate/html/validateElement.ts and scoped to SVG elements, descendants, and SVG namespace builds.
+> * Svelte v1 oncreate callbacks use unshift registration with LIFO callAll draining to preserve component/template preorder.
+> * Svelte v1 CSS scoping must merge the generated scope class into static and dynamic class values across DOM, innerHTML, and SSR output.
+> * Svelte v1 await then/catch context aliases must use Block.getUniqueName so names like children cannot shadow hydration helpers.
+> * Svelte v1 static innerHTML attribute serialization must join all text chunks so appended scoped CSS classes are not dropped on nested elements.
+> * Svelte v1 CSS DCE must treat Spread attributes as potential sources of any missing class, ID, or attribute during selector matching.
+> * Svelte v2 custom DOM event handlers must rewrite a direct `this.method()` callee to the associated element variable; native events retain runtime `this` binding.
+> * Svelte v3 alpha native element binding handlers emitted in component.partly_hoisted must use component.getUniqueName, not block.getUniqueName.
+> * Svelte v3 alpha rewrite_props must add a semicolon when exported prop declarations rely on ASI, while preserving an existing declaration semicolon.
+> * Svelte assignment instrumentation must ignore member roots that are not Identifiers; ThisExpression roots otherwise emit $$invalidate('undefined', undefined).
+> * Svelte v3 file-input bindings should listen to `change`, not `input`, because Safari does not reliably emit `input` when files are selected.
+> * Svelte v3 Expression.render must prefix hoisted object-method replacements with `: ` when the parent Property has method=true.
+> * Svelte v3 SSR inline-component attributes must use quote_name_if_necessary in both direct props and Object.assign spread fragments.
+> * Svelte mutation tracking must classify UpdateExpression member targets as mutated, not reassigned, in scripts and inline template functions.
+> * Svelte v3 Element namespace inference must stop at InlineComponent boundaries so slotted SVG tags do not inherit an outer HTML element namespace.
+> * Svelte inline !important styles are compiled by stripping the priority token and passing true as set_style's optional fourth argument.
+> * Svelte DebugTag DOM generation must omit its update block when expression dependencies are empty, or it emits invalid `if ()` code.
+> * Svelte v3 reassigned function declarations must remain unhoisted and count as dynamic reactive dependencies via Var.reassigned.
+> * In Svelte 3.9.1, reactive extraction and DOM dirty-check filtering must both include reassigned bindings; reassigned functions must not be hoisted.
+> * At Svelte base 64c56edd, reassigned function declarations must not hoist and must be included in reactive dependency and DOM dirty filters.
+> * Svelte v3 outro-capable compound if blocks must avoid changed([]); cached call conditions without dependencies use only a null initialization guard.
+> * Svelte 3.14 add_resize_listener creates an object resize sensor; set aria-hidden=true so this implementation detail is excluded from the accessibility tree.
+> * Svelte hydration must iterate a live NamedNodeMap backwards when removing unexpected attributes, or forward deletion skips alternating entries.
+> * Svelte CSS matching must distinguish unknown dynamic attributes from definite matches so leading :global descendants are not spuriously scoped.
+> * Svelte 3 keyed each updates must reassign the outer each_block_value so {:else} observes the current list length.
+> * Svelte v3 dev unknown-prop allowlists must include all instance exports, not only writable exports, because exported functions participate in component bindings.
+> * Svelte store-first destructuring must pass tail invalidations as extra set_store_value arguments so all store setters are evaluated while preserving the assignment result.
+> * Svelte await outros must clear info.blocks[i] only if the slot still references the outgoing block, so delayed callbacks cannot erase newer branches.
+> * Svelte v3 actions are repeatable directives; parser uniqueness checks exempt both EventHandler and Action while retaining other directive checks.
+> * Svelte 3 slot spreads require ordered Object.assign slot data and a wildcard dirty flag so arbitrary added, changed, or removed slot props update consumers.
+> * Svelte v3 SSR bound attributes must use boolean_attributes metadata; hard-coding boolean=true causes bind:value={0} to be omitted.
+> * Svelte hydratable builds map append, insert, and HtmlTag to hydration-specific helpers so plain bundles tree-shake hydration reordering.
+> * Svelte slot revival after an outro must pass an all-dirty mask to slot helpers; overflow contexts need one -1 per 31-member group.
+> * Svelte 3 await shorthand supports omitted resolve context by closing `then` with `}`, leaving the parsed await value null while activating the then branch.
+> * Svelte component initialization must prefer explicit options.context over ambient parent context, while cloning the selected map.
+> * Svelte text-like input update guards must include type=search in Attribute, Binding, and spread-attribute Element compiler paths.
+> * Prettier HTML embedded parsing depends on isScriptLikeTag; SVG script elements use fullName "svg:script" and must be included alongside "svg:style".
+> * Svelte 3 KeyBlock DOM wrappers must register key expression dependencies on the containing Block so slot-owned keyed fragments receive dirty updates.
+> * Prettier's TypeScript TSEnumMember printer must wrap `id` with brackets when `node.computed` is true.
+> * Prettier CLI directory globs must reuse an existing trailing slash; adding another slash causes fast-glob to return no supported files.
+> * Prettier SCSS @use/@forward `with (` spacing is handled in the value-comma_group branch of src/language-css/printer-postcss.js.
+> * Prettier ignored-node printing preserves relative indentation by comparing the node's leading whitespace with its nearest leading comment.
+> * Prettier ignored-node raw printing must mark only comments within the node range; file-wide prettier-ignore exemptions hide unrelated dropped comments.
+> * Prettier nested TSParenthesizedType keeps one pair in TSConditionalType check/extends and TSIndexedAccessType object positions.
+> * Prettier babel-ts must rethrow selected Babel recovered errors inside tryCombinations so invalid AST nodes do not reach the printer and fallback still runs.
+> * Prettier Markdown footnote definitions must flatten the initial paragraph with removeLines so long content remains attached to the `[^id]:` marker.
+> * Prettier config resolves string plugins and pluginSearchDirs relative to the discovered config file, including selected override options.
+> * Prettier's PostCSS root printer must return an empty string when css-root.nodes is empty; hardline is only for non-empty CSS/SCSS/Less roots.
+> * Prettier base 69f6ee7 is provisioned without node_modules; local CLI/tests fail on missing minimist unless dependencies are supplied.
+> * Prettier v1 CLI write status is emitted in src/cli-util.js formatFiles; silent loglevel must gate TTY progress, duration lines, and separators.
+> * Prettier 0.16 JSX opening tags keep `>` with the final prop by using an empty doc after non-self-closing attributes; self-closing tags retain `line` before `/>`.
+> * This Prettier 0.16 workspace lacks node_modules; full formatter and Jest tests are blocked by missing babel-code-frame and jest.
+> * Prettier 0.16 stabilizes standalone ternary boundary comments by attaching them as trailing comments to the preceding conditional child.
+> * Prettier v0.11 prints ClassProperty, ClassMethod, and MethodDefinition decorators with spaces; class decorators remain line-separated.
+> * Prettier 0.0.10 must print ExportDefaultSpecifier and ExportNamespaceSpecifier outside braces to preserve export-extension semantics.
+> * This Prettier workspace has no node_modules; Jest and formatter smoke tests are blocked by missing local dependencies.
+> * Serverless API Gateway custom request templates use null values to remove matching default content-type templates during compilation.
+> * Serverless v1.68 REST API http event properties pass through validation; AWS::ApiGateway::Method properties are built in apiGateway/lib/method/index.js.
+> * Serverless `.serverlessrc` may be symlinked; file detection must follow valid symlinks to avoid recreating the config and resetting tracking preferences.
+> * This Serverless workspace is provisioned without node_modules, so Mocha and ESLint quality gates cannot run locally.
+> * Serverless AWS info resource counts must paginate listStackResources via NextToken and accumulate StackResourceSummaries across all pages.
+> * SNS redrive queue policies need Fn::GetAtt for the queue ARN and Ref for the queue URL; the config may identify the queue by logical resource name.
+> * This Serverless benchmark tree has no installed npm dependencies, so unit tests and lint are blocked; Node syntax checks remain available.
+> * Serverless provisioned concurrency should live on a `provisioned` Lambda alias targeting the content-hashed version; API Gateway must invoke and permit that alias ARN.
+> * Serverless v1.54 IAM statements are validated in mergeIamTemplates.js and then concatenated unchanged into the generated execution-role policy.
+> * Serverless REST API logging treats exact SSM string "false" as disabled at stage compilation and post-deploy stage updates.
+> * Serverless CloudWatch Logs events need indexed Lambda permission IDs and each permission SourceArn scoped to its event's exact log group.
+> * Serverless IAM logging adds the service-stage wildcard only when a resolved function name uses that canonical prefix; manual-only services get exact log ARNs.
+> * Serverless AWS package cleanup must not spawn aws:common:validate; deploy's before:deploy:deploy hook retains credential validation.
+> * Serverless service plugins beginning with ./ or ../ resolve from serverless.config.servicePath; package names retain normal Node resolution.
+> * Serverless SNS existing-topic subscriptions derive CloudFormation Region from literal topic ARN segment 3; dynamic ARN intrinsics leave Region unset.
+> * Serverless v1.38 Lambda function compilation maps function-level `tracing` to CloudFormation `TracingConfig.Mode`.
+> * Serverless variable fallback cleaning must recognize both single- and double-quoted literals so embedded spaces are preserved.
+> * Serverless v1.39 default variableSyntax is synchronized across Service.js, print.js, and Utils.js telemetry comparison.
+> * Serverless v1.37 SSM variable resolution should parse valid JSON values while preserving non-JSON parameter values as strings.
+> * Serverless v1.34 Variables.cleanVariable removes whitespace outside quotes but preserves whitespace inside single- or double-quoted fallback literals.
+> * Serverless v1.21 maps top-level `deploy` plus `-f` or `--function` to the existing `deploy function` lifecycle in CLI.processInput.
+> * Serverless Cognito user pools must depend on invoke permissions; permissions use SourceAccount to avoid a circular dependency on the pool ARN.
+> * Serverless v1.15 supports SSE deployment buckets by normalizing object config and forwarding S3 PutObject encryption fields; KMS requires signature v4.
+> * Serverless stream event mappings must depend on custom IAM role logical IDs, not the absent generated IamRoleLambdaExecution resource.
+> * Serverless v1.12 API Gateway HTTP proxies use `integration: http-proxy` with a non-empty `request.uri`, compiled as CloudFormation `HTTP_PROXY`.
+> * Serverless API Gateway authorizer claim fragments must use join('') because implicit array coercion inserts extra commas into mapping templates.
+> * Serverless v1.3 deployment validation warnings are emitted through this.serverless.cli.log from compiler modules.
+> * Serverless v1 stream IAM permissions should group all event-source ARNs by DynamoDB/Kinesis into one policy statement per type.
+> * Serverless monitorStack must guard null stackStatus before suffix checks because an event page may contain no in-range AWS::CloudFormation::Stack event.
+> * Serverless v1.2 custom Resources may be an array of maps; entries merge left-to-right before merging into the compiled CloudFormation template.
+> * Serverless v1.1 function event validation must allow whole-property unresolved variables while still rejecting direct non-array event values.
+> * Serverless same-path API Gateway CORS aggregation unions methods, origins, and headers before generating one OPTIONS response.
+> * Serverless create --name explicitly overrides the generated service name; when absent, --path basename remains the naming fallback.
+> * VS Code snippet placeholder transforms use replace semantics so adjacent inactive tab-stop decorations honor edge stickiness and do not absorb transformed text.
+> * This VS Code benchmark tree has no node_modules; focused Mocha tests and Gulp compilation are unavailable without dependencies.
+> * VS Code language-specific configurationDefaults must shallow-merge by override key so later extensions do not erase built-in editor defaults.
+> * This VS Code benchmark tree has no node_modules or local tsc/eslint, so offline build, lint, and unit tests are unavailable.
+> * This VS Code benchmark tree has no node_modules or global tsc, so Mocha, lint, and TypeScript compilation cannot run locally.
+> * VS Code multi-word completions must preserve normalized edit ranges when providers are retriggered after a space.
+> * VS Code fuzzy completion highlighting treats ' {
+> -        const missing = ['Effect', 'Action', 'Resource'].filter(
+> -          prop => statement[prop] === undefined
+> -        );
+> +        const missing = ['Effect'].filter(prop => statement[prop] === undefined);
+> +        if (statement.Action === undefined && statement.NotAction === undefined) {
+> +          missing.push('Action/NotAction');
+> +        }
+> +        if (statement.Resource === undefined && statement.NotResource === undefined) {
+> +          missing.push('Resource/NotResource');
+> +        }
+>          return missing.length === 0
+>            ? null
+>            : `statement ${i} is missing the following properties: ${missing.join(', ')}`;
+> @@ -208,7 +212,7 @@ module.exports = {
+>      if (violationsFound) {
+>        const errorMessage = [
+>          'iamRoleStatements should be an array of objects,',
+> -        ' where each object has Effect, Action, Resource fields.',
+> +        ' where each object has Effect, Action/NotAction, Resource/NotResource fields.',
+>          ` Specifically, ${violationsFound}`,
+>        ].join('');
+>        throw new this.serverless.classes.Error(errorMessage);
+> __CMD_FINISHED__ 0
+> --- End of Full Output ---
+> ═════════════════════════════════════════════════════════════════════════
+> 
+> ╔══════════════════════════════════════════════════════════════════════╗
+> ║ COMMAND 2 of 4                                                        ║
+> ╚══════════════════════════════════════════════════════════════════════╝
+> Command: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '/Users/sankanum1/.slingshot/bin/rtk git --no-pager status --short --branch'
+> Status: SUCCESS
+> ─────────────────────────────────────────────────────────────────────────
+> Output:
+> Command success.
+> 
+> --- Full Output ---
+> ## HEAD (no branch)
+> 
+> __CMD_FINISHED__ 0
+> --- End of Full Output ---
+> ═════════════════════════════════════════════════════════════════════════
+> 
+> ╔══════════════════════════════════════════════════════════════════════╗
+> ║ COMMAND 3 of 4                                                        ║
+> ╚══════════════════════════════════════════════════════════════════════╝
+> Command: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '/Users/sankanum1/.slingshot/bin/rtk git --no-pager log -1 --oneline'
+> Status: SUCCESS
+> ─────────────────────────────────────────────────────────────────────────
+> Output:
+> Command success.
+> 
+> --- Full Output ---
+> f799725 release: cut the v9.1.11 release
+> __CMD_FINISHED__ 0
+> --- End of Full Output ---
+> ═════════════════════════════════════════════════════════════════════════
+> 
+> ╔══════════════════════════════════════════════════════════════════════╗
+> ║ COMMAND 4 of 4                                                        ║
+> ╚══════════════════════════════════════════════════════════════════════╝
+> Command: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '/Users/sankanum1/.slingshot/bin/rtk ls'
+> Status: SUCCESS
+> ─────────────────────────────────────────────────────────────────────────
+> Output:
+> Command success.
+> 
+> --- Full Output ---
+> aio/
+> dev-infra/
+> docs/
+> goldens/
+> integration/
+> modules/
+> packages/
+> scripts/
+> third_party/
+> tools/
+> BUILD.bazel  1.7K
+> CHANGELOG.md  665.2K
+> CODE_OF_CONDUCT.md  1.1K
+> CONTRIBUTING.md  13.5K
+> LICENSE  1.1K
+> README.md  1.2K
+> WORKSPACE  4.3K
+> browser-providers.conf.js  10.8K
+> gulpfile.js  1.2K
+> karma-js.conf.js  7.6K
+> package.json  8.0K
+> protractor-perf.conf.js  1.0K
+> shims_for_IE.js  117.0K
+> test-events.js  260B
+> test-main.js  11.4K
+> tslint.json  2.2K
+> yarn.lock  608.5K
+> yarn.lock.readme.md  1.3K
+> __CMD_FINISHED__ 0
+> --- End of Full Output ---
+> ═════════════════════════════════════════════════════════════════════════
+> 
+> ```
+> 
+> 8. **Tool call: run_parallel_agents**
+> Input:
+> ```json
+> {
+>   "tasks": [
+>     {
+>       "subagentId": "worker-di-runtime",
+>       "role": "worker",
+>       "task": "In the isolated Angular repository at base f799725, investigate the runtime DI code paths that resolve injectable/factory definitions through class inheritance. Focus on why a decorated class returned by another decorator might inherit an Injectable definition/factory and recurse. Identify exact production files, relevant functions, likely fix, and existing tests that describe intended own-vs-inherited definition behavior. Do not modify files or access network."
+>     },
+>     {
+>       "subagentId": "worker-compiler-injectable",
+>       "role": "worker",
+>       "task": "In the isolated Angular repository at base f799725, inspect compiler/compiler-cli code generation for @Injectable factories and interactions with class decorators that replace a class by a subclass. Trace the minimal reproduction and identify exact production files/functions and likely fix. Inspect relevant tests only as contract; do not modify files or access network."
+>     }
+>   ]
+> }
+> ```
+> 
+> 9. **Sub-agent event: parallel_start**
+> Input:
+> ```json
+> {
+>   "type": "parallel_start",
+>   "tasks": [
+>     {
+>       "subagentId": "worker-di-runtime",
+>       "role": "worker",
+>       "task": "In the isolated Angular repository at base f799725, investigate the runtime DI code paths that resolve injectable/factory definitions through class inheritance. Focus on why a decorated class returned by another decorator might inherit an Injectable definition/factory and recurse. Identify exact production files, relevant functions, likely fix, and existing tests that describe intended own-vs-inherited definition behavior. Do not modify files or access network."
+>     },
+>     {
+>       "subagentId": "worker-compiler-injectable",
+>       "role": "worker",
+>       "task": "In the isolated Angular repository at base f799725, inspect compiler/compiler-cli code generation for @Injectable factories and interactions with class decorators that replace a class by a subclass. Trace the minimal reproduction and identify exact production files/functions and likely fix. Inspect relevant tests only as contract; do not modify files or access network."
+>     }
+>   ],
+>   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+>   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d"
+> }
+> ```
+> 
+> 10. **Sub-agent event: agent_start**
+> worker-di-runtime
+> Input:
+> ```json
+> {
+>   "type": "agent_start",
+>   "subagentId": "worker-di-runtime",
+>   "role": "worker",
+>   "baseSubagentId": "worker-di-runtime",
+>   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+>   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+>   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+>   "startedAt": 1790275134809
+> }
+> ```
+> 
+> 11. **Sub-agent event: agent_start**
+> worker-compiler-injectable
+> Input:
+> ```json
+> {
+>   "type": "agent_start",
+>   "subagentId": "worker-compiler-injectable",
+>   "role": "worker",
+>   "baseSubagentId": "worker-compiler-injectable",
+>   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+>   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+>   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+>   "startedAt": 1790275134810
+> }
+> ```
+> 
+> 12. **Sub-agent event: tool_call**
+> worker-di-runtime
+> Input:
+> ```json
+> {
+>   "type": "tool_call",
+>   "subagentId": "worker-di-runtime",
+>   "role": "worker",
+>   "baseSubagentId": "worker-di-runtime",
+>   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+>   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+>   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+>   "toolName": "run_terminal_command",
+>   "toolCallId": "call_HQJg6WAVCuMSSy3Ud2MlXCzC|fc_045b4203620df0b4016ab56e42e8a887d1927b173de146cf5e",
+>   "input": {
+>     "commands": [
+>       {
+>         "command": "enc_file_sovfhn/.slingshot/bin/rtk git status --short --branch",
+>         "cwd": ".",
+>         "profileName": "bash",
+>         "readTerminalFullOutput": true,
+>         "timeoutMs": 30000,
+>         "isInteractive": false
+>       },
+>       {
+>         "command": "enc_file_sovfhn/.slingshot/bin/rtk git --no-pager show --stat --oneline --decorate --no-renames f799725",
+>         "cwd": ".",
+>         "profileName": "bash",
+>         "readTerminalFullOutput": true,
+>         "timeoutMs": 30000,
+>         "isInteractive": false
+>       }
+>     ],
+>     "toolPurpose": "- I want to inspect the repository state and identify the requested base commit `f799725` without modifying files."
+>   },
+>   "toolIcon": "
+> 
+> 💭 **Agent Thoughts:**
+> > ",
+> >   "toolLabel": "Executing Command",
+> >   "isPillTool": false,
+> >   "toolPurpose": "- I want to inspect the repository state and identify the requested base commit `f799725` without modifying files."
+> > }
+> > ```
+> > 
+> > 13. **Sub-agent event: tool_call**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_call",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "grep",
+> >   "toolCallId": "call_Hsz3BwEr81V3d5rA8BPeKAeq|fc_045b4203620df0b4016ab56e42e8c087d1ba0842567d27c7a6",
+> >   "input": {
+> >     "pattern": "getInheritedInjectableDef|getInjectableDef|getFactoryDef|NG_PROV_DEF|ɵprov|own.*inject",
+> >     "searchPath": "/",
+> >     "caseInsensitive": false,
+> >     "context": 2,
+> >     "glob": [
+> >       "**/*.ts"
+> >     ],
+> >     "outputMode": "files",
+> >     "headLimit": 200,
+> >     "toolPurpose": "- I need to locate Angular runtime DI production and test files that handle injectable definitions, factory definitions, and inheritance."
+> >   },
+> >   "toolIcon": "\n      \n      \n",
+> >   "toolLabel": "Searching",
+> >   "isPillTool": false,
+> >   "toolPurpose": "- I need to locate Angular runtime DI production and test files that handle injectable definitions, factory definitions, and inheritance."
+> > }
+> > ```
+> > 
+> > 14. **Sub-agent event: tool_output**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_output",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "run_terminal_command",
+> >   "toolCallId": "call_HQJg6WAVCuMSSy3Ud2MlXCzC|fc_045b4203620df0b4016ab56e42e8a887d1927b173de146cf5e",
+> >   "isError": false,
+> >   "output": "{\"status\":\"error\",\"message\":\"I ran all provided commands and below are the outcomes for each command with their status. Please analyze each output carefully and run the commands again for which you see errors to get their output by correcting the command and other parameters.\\n\\n=== EXECUTION SUMMARY ===\\nTotal Commands: 2\\nNumber of Successful Commands: 0\\nNumber of Failed Commands: 2\\nNumber of Timed Out Commands: 0\\n========================\\n\\n╔══════════════════════════════════════════════════════════════════════╗\\n║ COMMAND 1 of 2                                                        ║\\n╚══════════════════════════════════════════════════════════════════════╝\\nCommand: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc 'enc_file_sovfhn/.slingshot/bin/rtk git status --short --branch'\\nStatus: ERROR\\n─────────────────────────────────────────────────────────────────────────\\nOutput:\\nCommand execution failed: Security Error: File operation not allowed outside the designated working directory.\\nWorking Directory: /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561\\nAttempted Path: .\\nAccess to files outside the working directory is restricted for security reasons.\\n═════════════════════════════════════════════════════════════════════════\\n\\n╔══════════════════════════════════════════════════════════════════════╗\\n║ COMMAND 2 of 2                                                        ║\\n╚══════════════════════════════════════════════════════════════════════╝\\nCommand: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc 'enc_file_sovfhn/.slingshot/bin/rtk git --no-pager show --stat --oneline --decorate --no-renames f799725'\\nStatus: ERROR\\n─────────────────────────────────────────────────────────────────────────\\nOutput:\\nCommand execution failed: Security Error: File operation not allowed outside the designated working directory.\\nWorking Directory: /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561\\nAttempted Path: .\\nAccess to files outside the working directory is restricted for security reasons.\\n═════════════════════════════════════════════════════════════════════════\\n\\n\"}"
+> > }
+> > ```
+> > 
+> > 15. **Sub-agent event: tool_output**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_output",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "grep",
+> >   "toolCallId": "call_Hsz3BwEr81V3d5rA8BPeKAeq|fc_045b4203620df0b4016ab56e42e8c087d1ba0842567d27c7a6",
+> >   "isError": false,
+> >   "output": "{\"status\":\"success\",\"message\":\"{\\\"success\\\":true,\\\"mode\\\":\\\"files\\\",\\\"files\\\":[{\\\"file\\\":\\\"packages/core/src/metadata/ng_module.ts\\\",\\\"size\\\":11906,\\\"mtime\\\":1790275097082},{\\\"file\\\":\\\"packages/core/src/sanitization/sanitizer.ts\\\",\\\"size\\\":667,\\\"mtime\\\":1790275097102},{\\\"file\\\":\\\"packages/compiler/src/core.ts\\\",\\\"size\\\":15275,\\\"mtime\\\":1790275096983},{\\\"file\\\":\\\"packages/examples/core/di/ts/injector_spec.ts\\\",\\\"size\\\":2714,\\\"mtime\\\":1790275097166},{\\\"file\\\":\\\"packages/compiler/src/injectable_compiler.ts\\\",\\\"size\\\":4966,\\\"mtime\\\":1790275096988},{\\\"file\\\":\\\"aio/content/examples/upgrade-phonecat-2-hybrid/app/core/phone/phone.service.ts\\\",\\\"size\\\":1105,\\\"mtime\\\":1790275096147},{\\\"file\\\":\\\"packages/core/src/render3/di.ts\\\",\\\"size\\\":27756,\\\"mtime\\\":1790275097086},{\\\"file\\\":\\\"packages/core/src/render3/definition.ts\\\",\\\"size\\\":25684,\\\"mtime\\\":1790275097086},{\\\"file\\\":\\\"packages/core/src/render3/pipe.ts\\\",\\\"size\\\":8348,\\\"mtime\\\":1790275097097},{\\\"file\\\":\\\"packages/core/src/render3/instructions/shared.ts\\\",\\\"size\\\":88192,\\\"mtime\\\":1790275097092},{\\\"file\\\":\\\"packages/examples/upgrade/static/ts/lite-multi-shared/module.ts\\\",\\\"size\\\":5182,\\\"mtime\\\":1790275097185},{\\\"file\\\":\\\"packages/examples/upgrade/static/ts/lite-multi/module.ts\\\",\\\"size\\\":3996,\\\"mtime\\\":1790275097186},{\\\"file\\\":\\\"packages/core/src/view/services.ts\\\",\\\"size\\\":31309,\\\"mtime\\\":1790275097107},{\\\"file\\\":\\\"packages/examples/upgrade/static/ts/full/module.ts\\\",\\\"size\\\":6945,\\\"mtime\\\":1790275097184},{\\\"file\\\":\\\"packages/core/src/view/ng_module.ts\\\",\\\"size\\\":8343,\\\"mtime\\\":1790275097107},{\\\"file\\\":\\\"packages/core/src/core_render3_private_export.ts\\\",\\\"size\\\":9317,\\\"mtime\\\":1790275097071},{\\\"file\\\":\\\"packages/core/src/core_private_export.ts\\\",\\\"size\\\":3654,\\\"mtime\\\":1790275097071},{\\\"file\\\":\\\"packages/core/src/linker/compiler.ts\\\",\\\"size\\\":6095,\\\"mtime\\\":1790275097080},{\\\"file\\\":\\\"packages/bazel/test/ng_package/core_package.spec.ts\\\",\\\"size\\\":12710,\\\"mtime\\\":1790275096576},{\\\"file\\\":\\\"packages/core/src/change_detection/differs/iterable_differs.ts\\\",\\\"size\\\":7215,\\\"mtime\\\":1790275097069},{\\\"file\\\":\\\"packages/core/src/change_detection/differs/keyvalue_differs.ts\\\",\\\"size\\\":5357,\\\"mtime\\\":1790275097069},{\\\"file\\\":\\\"packages/core/src/di/injectable.ts\\\",\\\"size\\\":3799,\\\"mtime\\\":1790275097073},{\\\"file\\\":\\\"packages/core/src/di/injector_compatibility.ts\\\",\\\"size\\\":10226,\\\"mtime\\\":1790275097073},{\\\"file\\\":\\\"packages/core/src/di/jit/injectable.ts\\\",\\\"size\\\":5232,\\\"mtime\\\":1790275097075},{\\\"file\\\":\\\"packages/core/src/di/jit/environment.ts\\\",\\\"size\\\":1424,\\\"mtime\\\":1790275097075},{\\\"file\\\":\\\"packages/core/src/di/injection_token.ts\\\",\\\"size\\\":2906,\\\"mtime\\\":1790275097073},{\\\"file\\\":\\\"packages/core/src/di/injector.ts\\\",\\\"size\\\":14845,\\\"mtime\\\":1790275097073},{\\\"file\\\":\\\"packages/core/src/di/r3_injector.ts\\\",\\\"size\\\":22156,\\\"mtime\\\":1790275097076},{\\\"file\\\":\\\"packages/core/src/di/interface/defs.ts\\\",\\\"size\\\":11113,\\\"mtime\\\":1790275097074},{\\\"file\\\":\\\"aio/content/examples/testing/src/app/hero/hero-detail.component.spec.ts\\\",\\\"size\\\":12768,\\\"mtime\\\":1790275096086},{\\\"file\\\":\\\"packages/common/src/viewport_scroller.ts\\\",\\\"size\\\":6064,\\\"mtime\\\":1790275096858},{\\\"file\\\":\\\"goldens/public-api/common/common.d.ts\\\",\\\"size\\\":15306,\\\"mtime\\\":1790275096418},{\\\"file\\\":\\\"goldens/public-api/core/core.d.ts\\\",\\\"size\\\":56201,\\\"mtime\\\":1790275096420},{\\\"file\\\":\\\"packages/core/testing/src/r3_test_bed_compiler.ts\\\",\\\"size\\\":35685,\\\"mtime\\\":1790275097154},{\\\"file\\\":\\\"packages/core/testing/src/test_bed.ts\\\",\\\"size\\\":27108,\\\"mtime\\\":1790275097154},{\\\"file\\\":\\\"packages/core/test/bundling/injection/usage.ts\\\",\\\"size\\\":986,\\\"mtime\\\":1790275097124},{\\\"file\\\":\\\"packages/core/test/render3/component_spec.ts\\\",\\\"size\\\":6721,\\\"mtime\\\":1790275097136},{\\\"file\\\":\\\"packages/core/test/view/ng_module_spec.ts\\\",\\\"size\\\":9550,\\\"mtime\\\":1790275097150},{\\\"file\\\":\\\"packages/core/test/linker/ng_module_integration_spec.ts\\\",\\\"size\\\":52445,\\\"mtime\\\":1790275097133},{\\\"file\\\":\\\"packages/compiler-cli/src/metadata/bundler.ts\\\",\\\"size\\\":25735,\\\"mtime\\\":1790275096919},{\\\"file\\\":\\\"packages/core/test/render3/providers_spec.ts\\\",\\\"size\\\":50275,\\\"mtime\\\":1790275097145},{\\\"file\\\":\\\"packages/core/test/render3/ivy/jit_spec.ts\\\",\\\"size\\\":11445,\\\"mtime\\\":1790275097138},{\\\"file\\\":\\\"packages/core/test/render3/pipe_spec.ts\\\",\\\"size\\\":4184,\\\"mtime\\\":1790275097144},{\\\"file\\\":\\\"packages/compiler-cli/src/transformers/node_emitter.ts\\\",\\\"size\\\":31868,\\\"mtime\\\":1790275096963},{\\\"file\\\":\\\"packages/core/test/di/r3_injector_spec.ts\\\",\\\"size\\\":14294,\\\"mtime\\\":1790275097130},{\\\"file\\\":\\\"packages/compiler-cli/src/ngtsc/annotations/src/injectable.ts\\\",\\\"size\\\":12009,\\\"mtime\\\":1790275096921},{\\\"file\\\":\\\"packages/compiler-cli/src/ngtsc/annotations/src/diagnostics.ts\\\",\\\"size\\\":5677,\\\"mtime\\\":1790275096921},{\\\"file\\\":\\\"packages/upgrade/src/common/src/util.ts\\\",\\\"size\\\":5530,\\\"mtime\\\":1790275097298},{\\\"file\\\":\\\"packages/upgrade/src/common/src/downgrade_component.ts\\\",\\\"size\\\":11973,\\\"mtime\\\":1790275097297},{\\\"file\\\":\\\"packages/upgrade/src/common/src/downgrade_injectable.ts\\\",\\\"size\\\":3629,\\\"mtime\\\":1790275097297},{\\\"file\\\":\\\"packages/upgrade/src/common/test/downgrade_injectable_spec.ts\\\",\\\"size\\\":2180,\\\"mtime\\\":1790275097299},{\\\"file\\\":\\\"packages/upgrade/src/dynamic/src/upgrade_adapter.ts\\\",\\\"size\\\":26451,\\\"mtime\\\":1790275097300},{\\\"file\\\":\\\"packages/compiler-cli/integrationtest/bazel/injectable_def/app/test/app_spec.ts\\\",\\\"size\\\":6269,\\\"mtime\\\":1790275096869},{\\\"file\\\":\\\"packages/upgrade/static/src/downgrade_module.ts\\\",\\\"size\\\":8460,\\\"mtime\\\":1790275097301},{\\\"file\\\":\\\"packages/compiler-cli/src/ngtsc/metadata/src/util.ts\\\",\\\"size\\\":6145,\\\"mtime\\\":1790275096940},{\\\"file\\\":\\\"packages/upgrade/static/public_api.ts\\\",\\\"size\\\":768,\\\"mtime\\\":1790275097301},{\\\"file\\\":\\\"packages/compiler-cli/src/ngtsc/annotations/test/injectable_spec.ts\\\",\\\"size\\\":3932,\\\"mtime\\\":1790275096923},{\\\"file\\\":\\\"packages/compiler-cli/src/ngtsc/transform/src/transform.ts\\\",\\\"size\\\":12432,\\\"mtime\\\":1790275096954},{\\\"file\\\":\\\"packages/compiler-cli/src/ngtsc/diagnostics/src/error_code.ts\\\",\\\"size\\\":3676,\\\"mtime\\\":1790275096927},{\\\"file\\\":\\\"packages/compiler-cli/test/metadata/bundler_spec.ts\\\",\\\"size\\\":17970,\\\"mtime\\\":1790275096971},{\\\"file\\\":\\\"packages/compiler-cli/test/ngtsc/ngtsc_spec.ts\\\",\\\"size\\\":227348,\\\"mtime\\\":1790275096974},{\\\"file\\\":\\\"packages/compiler-cli/ngcc/test/rendering/renderer_spec.ts\\\",\\\"size\\\":32523,\\\"mtime\\\":1790275096915},{\\\"file\\\":\\\"packages/compiler-cli/test/compliance/r3_view_compiler_di_spec.ts\\\",\\\"size\\\":11777,\\\"mtime\\\":1790275096967},{\\\"file\\\":\\\"packages/compiler-cli/test/ngc_spec.ts\\\",\\\"size\\\":78548,\\\"mtime\\\":1790275096972},{\\\"file\\\":\\\"packages/compiler-cli/ngcc/test/integration/ngcc_spec.ts\\\",\\\"size\\\":83194,\\\"mtime\\\":1790275096911},{\\\"file\\\":\\\"packages/compiler-cli/ngcc/test/migrations/undecorated_parent_migration_spec.ts\\\",\\\"size\\\":11173,\\\"mtime\\\":1790275096913}],\\\"numFiles\\\":66,\\\"pagination\\\":{\\\"offset\\\":0,\\\"limit\\\":200,\\\"returned\\\":66,\\\"total\\\":66,\\\"hasMore\\\":false}}\"}"
+> > }
+> > ```
+> > 
+> > 16. **Sub-agent event: token_usage**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "token_usage",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "tokenUsage": {
+> >     "inputTokens": 87,
+> >     "outputTokens": 328,
+> >     "totalTokens": 10102,
+> >     "cost": {
+> >       "total": 0.006631679999999999
+> >     }
+> >   },
+> >   "cumulativeTokenUsage": {
+> >     "inputTokens": 87,
+> >     "outputTokens": 328,
+> >     "totalTokens": 10102,
+> >     "cost": {
+> >       "total": 0.006631679999999999
+> >     }
+> >   },
+> >   "status": "running"
+> > }
+> > ```
+> > 
+> > 17. **Sub-agent event: tool_call**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_call",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "run_terminal_command",
+> >   "toolCallId": "call_6v3IBexW5fpSjZqEiEy1Uc3R|fc_032f22962d24028b016ab56e43758c87d1867f38d3c49a2b69",
+> >   "input": {
+> >     "commands": [
+> >       {
+> >         "command": "enc_file_sovfhn/.slingshot/bin/rtk git --no-pager status --short --branch",
+> >         "cwd": ".",
+> >         "profileName": "bash",
+> >         "readTerminalFullOutput": true,
+> >         "timeoutMs": 30000,
+> >         "isInteractive": false
+> >       },
+> >       {
+> >         "command": "enc_file_sovfhn/.slingshot/bin/rtk git --no-pager show --stat --oneline --decorate --no-renames f799725",
+> >         "cwd": ".",
+> >         "profileName": "bash",
+> >         "readTerminalFullOutput": true,
+> >         "timeoutMs": 30000,
+> >         "isInteractive": false
+> >       }
+> >     ],
+> >     "toolPurpose": "I want to inspect repository state and identify the requested base revision before tracing Angular compiler code generation, without making changes."
+> >   },
+> >   "toolIcon": "",
+> >   "toolLabel": "Executing Command",
+> >   "isPillTool": false,
+> >   "toolPurpose": "I want to inspect repository state and identify the requested base revision before tracing Angular compiler code generation, without making changes."
+> > }
+> > ```
+> > 
+> > 18. **Sub-agent event: tool_call**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_call",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "grep",
+> >   "toolCallId": "call_rl39djsdE6bGerLYe4YA1GzR|fc_032f22962d24028b016ab56e4375a087d18ec06164283231e5",
+> >   "input": {
+> >     "pattern": "compileInjectable|Injectable.*factory|ɵfac|FactoryTarget",
+> >     "searchPath": "/packages/compiler",
+> >     "glob": [
+> >       "**/*.ts"
+> >     ],
+> >     "outputMode": "files",
+> >     "headLimit": 100,
+> >     "toolPurpose": "I need to locate production compiler files involved in `@Injectable` factory code generation."
+> >   },
+> >   "toolIcon": "\n      \n      \n",
+> >   "toolLabel": "Searching",
+> >   "isPillTool": false,
+> >   "toolPurpose": "I need to locate production compiler files involved in `@Injectable` factory code generation."
+> > }
+> > ```
+> > 
+> > 19. **Sub-agent event: tool_call**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_call",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "grep",
+> >   "toolCallId": "call_KOKxRzJApYBEn7Bj9Z2FlfFR|fc_032f22962d24028b016ab56e4375ac87d192739e77f29e6267",
+> >   "input": {
+> >     "pattern": "compileInjectable|Injectable.*factory|ɵfac|FactoryTarget",
+> >     "searchPath": "/packages/compiler-cli",
+> >     "glob": [
+> >       "**/*.ts"
+> >     ],
+> >     "outputMode": "files",
+> >     "headLimit": 100,
+> >     "toolPurpose": "I need to locate compiler-cli files and tests involved in `@Injectable` factory generation and decorator transforms."
+> >   },
+> >   "toolIcon": "\n      \n      \n",
+> >   "toolLabel": "Searching",
+> >   "isPillTool": false,
+> >   "toolPurpose": "I need to locate compiler-cli files and tests involved in `@Injectable` factory generation and decorator transforms."
+> > }
+> > ```
+> > 
+> > 20. **Sub-agent event: tool_output**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_output",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "run_terminal_command",
+> >   "toolCallId": "call_6v3IBexW5fpSjZqEiEy1Uc3R|fc_032f22962d24028b016ab56e43758c87d1867f38d3c49a2b69",
+> >   "isError": false,
+> >   "output": "{\"status\":\"error\",\"message\":\"I ran all provided commands and below are the outcomes for each command with their status. Please analyze each output carefully and run the commands again for which you see errors to get their output by correcting the command and other parameters.\\n\\n=== EXECUTION SUMMARY ===\\nTotal Commands: 2\\nNumber of Successful Commands: 0\\nNumber of Failed Commands: 2\\nNumber of Timed Out Commands: 0\\n========================\\n\\n╔══════════════════════════════════════════════════════════════════════╗\\n║ COMMAND 1 of 2                                                        ║\\n╚══════════════════════════════════════════════════════════════════════╝\\nCommand: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc 'enc_file_sovfhn/.slingshot/bin/rtk git --no-pager status --short --branch'\\nStatus: ERROR\\n─────────────────────────────────────────────────────────────────────────\\nOutput:\\nCommand execution failed: Security Error: File operation not allowed outside the designated working directory.\\nWorking Directory: /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561\\nAttempted Path: .\\nAccess to files outside the working directory is restricted for security reasons.\\n═════════════════════════════════════════════════════════════════════════\\n\\n╔══════════════════════════════════════════════════════════════════════╗\\n║ COMMAND 2 of 2                                                        ║\\n╚══════════════════════════════════════════════════════════════════════╝\\nCommand: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc 'enc_file_sovfhn/.slingshot/bin/rtk git --no-pager show --stat --oneline --decorate --no-renames f799725'\\nStatus: ERROR\\n─────────────────────────────────────────────────────────────────────────\\nOutput:\\nCommand execution failed: Security Error: File operation not allowed outside the designated working directory.\\nWorking Directory: /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561\\nAttempted Path: .\\nAccess to files outside the working directory is restricted for security reasons.\\n═════════════════════════════════════════════════════════════════════════\\n\\n\"}"
+> > }
+> > ```
+> > 
+> > 21. **Sub-agent event: tool_output**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_output",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "grep",
+> >   "toolCallId": "call_rl39djsdE6bGerLYe4YA1GzR|fc_032f22962d24028b016ab56e4375a087d18ec06164283231e5",
+> >   "isError": false,
+> >   "output": "{\"status\":\"error\",\"message\":\"{\\\"success\\\":false,\\\"error\\\":\\\"Permission denied\\\",\\\"details\\\":\\\"Path does not exist: /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/packages/compiler\\\",\\\"path\\\":\\\"/packages/compiler\\\",\\\"suggestion\\\":\\\"Path '/packages/compiler' not found. Did you mean '/usr/bin/osacompile'?\\\",\\\"code\\\":\\\"ENOENT\\\",\\\"context\\\":\\\"Attempted to search in: /packages/compiler\\\"}\"}"
+> > }
+> > ```
+> > 
+> > 22. **Sub-agent event: tool_output**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_output",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "grep",
+> >   "toolCallId": "call_KOKxRzJApYBEn7Bj9Z2FlfFR|fc_032f22962d24028b016ab56e4375ac87d192739e77f29e6267",
+> >   "isError": false,
+> >   "output": "{\"status\":\"error\",\"message\":\"{\\\"success\\\":false,\\\"error\\\":\\\"Permission denied\\\",\\\"details\\\":\\\"Path does not exist: /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/packages/compiler-cli\\\",\\\"path\\\":\\\"/packages/compiler-cli\\\",\\\"suggestion\\\":\\\"Path '/packages/compiler-cli' not found.\\\",\\\"code\\\":\\\"ENOENT\\\",\\\"context\\\":\\\"Attempted to search in: /packages/compiler-cli\\\"}\"}"
+> > }
+> > ```
+> > 
+> > 23. **Sub-agent event: token_usage**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "token_usage",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "tokenUsage": {
+> >     "inputTokens": 71,
+> >     "outputTokens": 411,
+> >     "totalTokens": 10169,
+> >     "cost": {
+> >       "total": 0.008163839999999999
+> >     }
+> >   },
+> >   "cumulativeTokenUsage": {
+> >     "inputTokens": 71,
+> >     "outputTokens": 411,
+> >     "totalTokens": 10169,
+> >     "cost": {
+> >       "total": 0.008163839999999999
+> >     }
+> >   },
+> >   "status": "running"
+> > }
+> > ```
+> > 
+> > 24. **Sub-agent event: tool_call**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_call",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "get_workspace_files_list",
+> >   "toolCallId": "call_RBTLoiqlnRE3x3SURN3asPSh|fc_032f22962d24028b016ab56e45c38c87d1abbeefa05b977291",
+> >   "input": {
+> >     "folderPaths": [
+> >       "/"
+> >     ],
+> >     "maxTokens": 3000,
+> >     "toolPurpose": "I want to retrieve the workspace's top-level structure so I can identify the isolated Angular repository's exact relative path and inspect only that repository."
+> >   },
+> >   "toolIcon": "\n",
+> >   "toolLabel": "Exploring Workspace",
+> >   "isPillTool": true,
+> >   "toolPurpose": "I want to retrieve the workspace's top-level structure so I can identify the isolated Angular repository's exact relative path and inspect only that repository."
+> > }
+> > ```
+> > 
+> > 25. **Sub-agent event: tool_output**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_output",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "get_workspace_files_list",
+> >   "toolCallId": "call_RBTLoiqlnRE3x3SURN3asPSh|fc_032f22962d24028b016ab56e45c38c87d1abbeefa05b977291",
+> >   "isError": false,
+> >   "output": "{\"status\":\"success\",\"message\":\"The workspace folder structure was very large so it has been truncated to reduce the context length. If you need further information about any missing files/folders use the get_filenames_using_content_search tool to perform a semantic search that searches workspace based on a search query.\\nHere is the folder structure for '/':\\n- angular__angular-37561\\n  - .bazelignore\\n  - .bazelrc\\n  - .bazelversion\\n  - .circleci\\n    - README.md\\n    - bazel.common.rc\\n    - bazel.linux.rc\\n    - bazel.windows.rc\\n    - config.yml\\n    - env-helpers.inc.sh\\n    - env.sh\\n    - gcp_token\\n    - github_token\\n    - setup_cache.sh\\n    - trigger-webhook.js\\n    - windows-env.ps1\\n  - .clang-format\\n  - .devcontainer\\n    - README.md\\n    - recommended-Dockerfile\\n    - recommended-devcontainer.json\\n  - .editorconfig\\n  - .github\\n    - ISSUE_TEMPLATE\\n      - 1-bug-report.md\\n      - 2-feature-request.md\\n      - 3-docs-bug.md\\n      - 4-security-issue-disclosure.md\\n      - 5-support-request.md\\n      - 6-angular-cli.md\\n      - 7-angular-components.md\\n    - ISSUE_TEMPLATE.md\\n    - PULL_REQUEST_TEMPLATE.md\\n    - angular-robot.yml\\n    - workflows\\n      - lock-closed.yml\\n  - .mailmap\\n  - .ng-dev-config.ts\\n  - .nvmrc\\n  - .pullapprove.yml\\n  - .yarn\\n    - README.md\\n    - releases\\n      - yarn-1.22.4.js\\n  - .yarnrc\\n  - BUILD.bazel\\n  - CHANGELOG.md\\n  - CODE_OF_CONDUCT.md\\n  - CONTRIBUTING.md\\n  - LICENSE\\n  - README.md\\n  - WORKSPACE\\n  - aio\\n    - .browserslistrc\\n    - README.md\\n    - aio-builds-setup\\n      - dockerbuild\\n        - .dockerignore\\n        - Dockerfile\\n        - cronjobs\\n          - aio-builds-cleanup\\n        - dnsmasq\\n          - dnsmasq.conf\\n        - logrotate\\n          - aio-misc\\n          - aio-nginx\\n          - aio-preview-server\\n        - nginx\\n          - aio-builds.conf\\n          - create-selfsigned-cert.sh\\n        - scripts-js\\n          - lib\\n            - clean-up\\n              - build-cleaner.ts\\n              - index.ts\\n            - common\\n              - circle-ci-api.ts\\n              - constants.ts\\n              - env-variables.ts\\n              - github-api.ts\\n              - github-pull-requests.ts\\n              - github-teams.ts\\n              - run-tests.ts\\n              - utils.ts\\n            - preview-server\\n              - build-creator.ts\\n              - build-events.ts\\n              - build-retriever.ts\\n              - build-verifier.ts\\n              - index.ts\\n              - preview-error.ts\\n              - preview-server-factory.ts\\n              - utils.ts\\n            - verify-setup\\n              - constants.ts\\n              - delete-empty.d.ts\\n              - helper.ts\\n              - index.ts\\n              - jasmine-custom-matchers-types.d.ts\\n              - jasmine-custom-matchers.ts\\n              - mock-external-apis.ts\\n              - nginx.e2e.ts\\n              - preview-server.e2e.ts\\n              - server-integration.e2e.ts\\n              - start-test-preview-server.ts\\n              - tar-stream.d.ts\\n          - package.json\\n          - test\\n            - clean-up\\n              - build-cleaner.spec.ts\\n            - common\\n              - circleci-api.spec.ts\\n              - github-api.spec.ts\\n              - github-pull-requests.spec.ts\\n              - github-teams.spec.ts\\n              - utils.spec.ts\\n            - index.ts\\n            - preview-server\\n              - build-creator.spec.ts\\n              - build-events.spec.ts\\n              - build-retriever.spec.ts\\n              - build-verifier.spec.ts\\n              - jasmine-custom-async-matchers-types.d.ts\\n              - jasmine-custom-async-matchers.ts\\n              - preview-error.spec.ts\\n              - preview-server-factory.spec.ts\\n              - utils.spec.ts\\n          - tsconfig.json\\n          - tslint.json\\n        - scripts-sh\\n          - clean-up.sh\\n          - dev-mode.sh\\n          - health-check.sh\\n          - init.sh\\n          - preview-server-prod.sh\\n          - preview-server-test.sh\\n          - test-env.sh\\n          - verify-setup-and-log.sh\\n          - verify-setup.sh\\n      - docs\\n        - _TOC.md\\n        - image-config--environment-variables.md\\n        - misc--debug-docker-container.md\\n        - misc--integrate-with-ci.md\\n        - overview--general.md\\n        - overview--http-status-codes.md\\n        - overview--scripts-and-commands.md\\n        - overview--security-model.md\\n        - vm-setup--attach-persistent-disk.md\\n        - vm-setup--create-docker-image.md\\n        - vm-setup--create-host-dirs-and-files.md\\n        - vm-setup--set-up-docker.md\\n        - vm-setup--set-up-secrets.md\\n        - vm-setup--start-docker-container.md\\n        - vm-setup--update-docker-container.md\\n      - scripts\\n        - _env.sh\\n        - create-image.sh\\n        - test.sh\\n        - update-preview-server.sh\\n    - angular.json\\n    - content\\n      - cli\\n        - index.md\\n        - usage-analytics-gathering.md\\n      - cli-src\\n      - examples\\n        - accessibility\\n          - e2e\\n            - src\\n              - app.e2e-spec.ts\\n          - example-config.json\\n          - src\\n            - app\\n              - app.component.css\\n              - app.component.html\\n              - app.component.ts\\n              - app.module.ts\\n              - progress-bar.component.css\\n              - progress-bar.component.ts\\n            - index.html\\n            - main.ts\\n          - stackblitz.json\\n        - ajs-quick-reference\\n          - .angular-cli.1.json\\n          - e2e\\n            - src\\n              - app.e2e-spec.ts\\n          - example-config.json\\n          - src\\n            - app\\n              - app-routing.module.ts\\n              - app.component.css\\n              - app.component.html\\n              - app.component.ts\\n              - app.module.1.ts\\n              - app.module.ts\\n              - movie-list.component.css\\n              - movie-list.component.html\\n              - movie-list.component.ts\\n              - movie.service.ts\\n              - movie.ts\\n            - assets\\n              - images\\n                - hero.png\\n                - ng-logo.png\\n                - villain.png\\n            - index.html\\n            - main.ts\\n          - stackblitz.json\\n        - animations\\n          - e2e\\n            - src\\n              - app.e2e-spec.ts\\n              - auto.po.ts\\n              - enter-leave.po.ts\\n              - filter-stagger.po.ts\\n              - hero-groups.ts\\n              - open-close.po.ts\\n              - status-slider.po.ts\\n              - toggle.po.ts\\n              - util.ts\\n          - example-config.json\\n          - src\\n            - app\\n              - about.component.css\\n              - about.component.html\\n              - about.component.ts\\n              - animations.1.ts\\n              - animations.ts\\n              - app.component.1.ts\\n              - app.component.css\\n              - app.component.html\\n              - app.component.ts\\n              - app.module.1.ts\\n              - app.module.ts\\n              - hero-list-auto-page.component.ts\\n              - hero-list-auto.component.html\\n              - hero-list-auto.component.ts\\n              - hero-list-enter-leave-page.component.ts\\n              - hero-list-enter-leave.component.ts\\n              - hero-list-group-page.component.ts\\n              - hero-list-groups.component.ts\\n              - hero-list-page.component.css\\n              - hero-list-page.component.html\\n              - hero-list-page.component.ts\\n              - hero-list.component.css\\n              - hero.ts\\n              - home.component.css\\n              - home.component.html\\n              - home.component.ts\\n              - insert-remove.component.css\\n              - insert-remove.component.html\\n              - insert-remove.component.ts\\n              - mock-heroes.ts\\n              - open-close-page.component.ts\\n              - open-close.component.1.html\\n              - open-close.component.1.ts\\n              - open-close.component.2.html\\n              - open-close.component.2.ts\\n              - open-close.component.3.html\\n              - open-close.component.3.ts\\n              - open-close.component.4.html\\n              - open-close.component.4.ts\\n              - open-close.component.css\\n              - open-close.component.html\\n              - open-close.component.ts\\n              - status-slider-page.component.ts\\n              - status-slider.component.css\\n              - status-slider.component.html\\n              - status-slider.component.ts\\n              - toggle-animations-page.component.ts\\n            - index.html\\n            - main.ts\\n          - stackblitz.json\\n        - architecture\\n          - e2e\\n            - src\\n              - app.e2e-spec.ts\\n          - example-config.json\\n          - src\\n            - app\\n              - app.component.ts\\n              - app.module.ts\\n              - backend.service.ts\\n              - hero-detail.component.html\\n              - hero-detail.component.ts\\n              - hero-list.component.1.html\\n              - hero-list.component.html\\n              - hero-list.component.ts\\n              - hero.service.ts\\n              - hero.ts\\n              - logger.service.ts\\n              - mini-app.ts\\n              - sales-tax.component.ts\\n              - sales-tax.service.ts\\n              - tax-rate.service.ts\\n            - index.html\\n            - main.ts\\n          - stackblitz.json\\n        - attribute-binding\\n          - e2e\\n            - src\\n              - app.e2e-spec.ts\\n          - example-config.json\\n          - src\\n            - app\\n              - app.component.css\\n              - app.component.html\\n              - app.component.ts\\n              - app.module.ts\\n              - comp-with-host-binding.component.ts\\n            - index.html\\n            - main.ts\\n          - stackblitz.json\\n        - attribute-directives\\n          - e2e\\n            - src\\n              - app.e2e-spec.ts\\n          - example-config.json\\n          - src\\n            - app\\n              - app.component.1.html\\n              - app.component.1.ts\\n              - app.component.avoid.html\\n              - app.component.html\\n              - app.component.ts\\n              - app.module.ts\\n              - dummy.module.1.ts\\n              - highlight.directive.0.ts\\n              - highlight.directive.1.ts\\n              - highlight.directive.2.ts\\n              - highlight.directive.3.ts\\n              - highlight.directive.ts\\n            - index.html\\n            - main.ts\\n          - stackblitz.json\\n        - binding-syntax\\n          - e2e\\n            - src\\n              - app.e2e-spec.ts\\n          - example-config.json\\n          - src\\n            - app\\n              - app.component.css\\n              - app.component.html\\n              - app.component.ts\\n              - app.module.ts\\n            - index.html\\n            - main.ts\\n          - stackblitz.json\\n        - bootstrapping\\n          - bs-config.1.json\\n          - e2e\\n            - src\\n              - app.e2e-spec.ts\\n          - example-config.json\\n          - src\\n            - app\\n              - app.component.css\\n              - app.component.html\\n              - app.component.ts\\n              - app.module.ts\\n              - item.directive.ts\\n            - index.html\\n            - main.ts\\n          - stackblitz.json\\n        - built-in-directives\\n          - e2e\\n            - src\\n              - app.e2e-spec.ts\\n          - example-config.json\\n          - src\\n            - app\\n              - app.component.css\\n              - app.component.html\\n              - app.component.ts\\n              - app.module.ts\\n              - item-detail\\n                - item-detail.component.css\\n                - item-detail.component.html\\n                - item-detail.component.ts\\n              - item-switch.component.ts\\n              - item.ts\\n            - index.html\\n            - main.ts\\n          - stackblitz.json\\n        - built-in-template-functions\\n          - e2e\\n            - src\\n              - app.e2e-spec.ts\\n          - example-config.json\\n          - src\\n            - app\\n              - app.component.css\\n              - app.component.html\\n              - app.component.ts\\n              - app.module.ts\\n            - index.html\\n            - main.ts\\n          - stackblitz.json\\n        - cli-builder\\n          - src\\n            - my-builder.spec.ts\\n            - my-builder.ts\\n        - comparing-observables\\n          - src\\n            - observables.ts\\n            - promi\\n\\n\"}"
+> > }
+> > ```
+> > 
+> > 26. **Sub-agent event: token_usage**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "token_usage",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "tokenUsage": {
+> >     "inputTokens": 1142,
+> >     "outputTokens": 86,
+> >     "totalTokens": 10983,
+> >     "cost": {
+> >       "total": 0.006036480000000001
+> >     }
+> >   },
+> >   "cumulativeTokenUsage": {
+> >     "inputTokens": 1213,
+> >     "outputTokens": 497,
+> >     "totalTokens": 21152,
+> >     "cost": {
+> >       "total": 0.014200319999999999
+> >     }
+> >   },
+> >   "status": "running"
+> > }
+> > ```
+> > 
+> > 27. **Sub-agent event: tool_call**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_call",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "read_file",
+> >   "toolCallId": "call_L2Mx2pCBeAHDM92nvI9bVQjM|fc_045b4203620df0b4016ab56e47990887d1b892d221ec96f376",
+> >   "input": {
+> >     "fileNames": [
+> >       {
+> >         "fileName": "packages/core/src/di/interface/defs.ts",
+> >         "startLine": 1
+> >       },
+> >       {
+> >         "fileName": "packages/core/src/di/r3_injector.ts",
+> >         "startLine": 1
+> >       },
+> >       {
+> >         "fileName": "packages/core/src/di/jit/injectable.ts",
+> >         "startLine": 1
+> >       },
+> >       {
+> >         "fileName": "packages/core/src/di/injectable.ts",
+> >         "startLine": 1
+> >       }
+> >     ],
+> >     "toolPurpose": "- I want to read the core DI definition accessors, injector resolution path, and JIT injectable compilation logic to trace inheritance and recursion."
+> >   },
+> >   "toolIcon": "\n",
+> >   "toolLabel": "Reading",
+> >   "isPillTool": true,
+> >   "toolPurpose": "- I want to read the core DI definition accessors, injector resolution path, and JIT injectable compilation logic to trace inheritance and recursion."
+> > }
+> > ```
+> > 
+> > 28. **Sub-agent event: tool_call**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_call",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "grep",
+> >   "toolCallId": "call_CfPk7piXtiIkJLWhclmIOBIq|fc_045b4203620df0b4016ab56e47991887d1b3f0e344ce0ff1d7",
+> >   "input": {
+> >     "pattern": "getInheritedInjectableDef|getInjectableDef|getFactoryDef|hasOwnProperty|inherited|own definition|own.*def",
+> >     "searchPath": "/packages/core/test",
+> >     "caseInsensitive": true,
+> >     "context": 5,
+> >     "glob": [
+> >       "**/*.ts"
+> >     ],
+> >     "outputMode": "grouped",
+> >     "headLimit": 300,
+> >     "toolPurpose": "- I need to identify existing Angular core tests that establish intended own-versus-inherited injectable and factory definition behavior."
+> >   },
+> >   "toolIcon": "\n      \n      \n",
+> >   "toolLabel": "Searching",
+> >   "isPillTool": false,
+> >   "toolPurpose": "- I need to identify existing Angular core tests that establish intended own-versus-inherited injectable and factory definition behavior."
+> > }
+> > ```
+> > 
+> > 29. **Sub-agent event: tool_call**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_call",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "run_terminal_command",
+> >   "toolCallId": "call_IC2kLg8zgofAXegFy0IUq81T|fc_045b4203620df0b4016ab56e47992087d184a76bbaeba411d9",
+> >   "input": {
+> >     "commands": [
+> >       {
+> >         "command": "enc_file_sovfhn/.slingshot/bin/rtk git status --short --branch",
+> >         "profileName": "bash",
+> >         "readTerminalFullOutput": true,
+> >         "timeoutMs": 30000,
+> >         "isInteractive": false
+> >       },
+> >       {
+> >         "command": "enc_file_sovfhn/.slingshot/bin/rtk git --no-pager show --stat --oneline --decorate --no-renames f799725",
+> >         "profileName": "bash",
+> >         "readTerminalFullOutput": true,
+> >         "timeoutMs": 30000,
+> >         "isInteractive": false
+> >       }
+> >     ],
+> >     "toolPurpose": "- I want to verify repository state and inspect the requested base commit without changing the working tree."
+> >   },
+> >   "toolIcon": "",
+> >   "toolLabel": "Executing Command",
+> >   "isPillTool": false,
+> >   "toolPurpose": "- I want to verify repository state and inspect the requested base commit without changing the working tree."
+> > }
+> > ```
+> > 
+> > 30. **Sub-agent event: tool_output**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_output",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "grep",
+> >   "toolCallId": "call_CfPk7piXtiIkJLWhclmIOBIq|fc_045b4203620df0b4016ab56e47991887d1b3f0e344ce0ff1d7",
+> >   "isError": false,
+> >   "output": "{\"status\":\"error\",\"message\":\"{\\\"success\\\":false,\\\"error\\\":\\\"Permission denied\\\",\\\"details\\\":\\\"Path does not exist: /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/packages/core/test\\\",\\\"path\\\":\\\"/packages/core/test\\\",\\\"suggestion\\\":\\\"Path '/packages/core/test' not found. Did you mean:\\\\n  - /bin/test\\\\n  - /private/tmp/MultiQC__MultiQC-3242-patch-check/tests\\\\n  - /usr/share/zoneinfo.default/EST\\\",\\\"code\\\":\\\"ENOENT\\\",\\\"context\\\":\\\"Attempted to search in: /packages/core/test\\\"}\"}"
+> > }
+> > ```
+> > 
+> > 31. **Sub-agent event: tool_output**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_output",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "read_file",
+> >   "toolCallId": "call_L2Mx2pCBeAHDM92nvI9bVQjM|fc_045b4203620df0b4016ab56e47990887d1b892d221ec96f376",
+> >   "isError": false,
+> >   "output": "{\"results\":[{\"status\":\"success\",\"message\":\"\\nFile successfully read, file name defs.ts with file path: enc_file_sovfhn/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/core/src/di/interface/defs.ts\\n\\n**File Read Information:**\\n- Lines read: 1 to 284 (284 lines)\\n- Total lines in file: 284\\n- Remaining lines: 0\\n\\nContent:\\n/**\\n * @license\\n * Copyright Google Inc. All Rights Reserved.\\n *\\n * Use of this source code is governed by an MIT-style license that can be\\n * found in the LICENSE file at https://angular.io/license\\n */\\n\\nimport {Type} from '../../interface/type';\\nimport {getClosureSafeProperty} from '../../util/property';\\nimport {ClassProvider, ConstructorProvider, ExistingProvider, FactoryProvider, StaticClassProvider, ValueProvider} from './provider';\\n\\n\\n\\n/**\\n * Information about how a type or `InjectionToken` interfaces with the DI system.\\n *\\n * At a minimum, this includes a `factory` which defines how to create the given type `T`, possibly\\n * requesting injection of other types if necessary.\\n *\\n * Optionally, a `providedIn` parameter specifies that the given type belongs to a particular\\n * `InjectorDef`, `NgModule`, or a special scope (e.g. `'root'`). A value of `null` indicates\\n * that the injectable does not belong to any scope.\\n *\\n * NOTE: This is a private type and should not be exported\\n *\\n * @publicApi\\n */\\nexport interface ɵɵInjectableDef {\\n  /**\\n   * Specifies that the given type belongs to a particular injector:\\n   * - `InjectorType` such as `NgModule`,\\n   * - `'root'` the root injector\\n   * - `'any'` all injectors.\\n   * - `null`, does not belong to any injector. Must be explicitly listed in the injector\\n   *   `providers`.\\n   */\\n  providedIn: InjectorType|'root'|'platform'|'any'|null;\\n\\n  /**\\n   * The token to which this definition belongs.\\n   *\\n   * Note that this may not be the same as the type that the `factory` will create.\\n   */\\n  token: unknown;\\n\\n  /**\\n   * Factory method to execute to create an instance of the injectable.\\n   */\\n  factory: (t?: Type) => T;\\n\\n  /**\\n   * In a case of no explicit injector, a location where the instance of the injectable is stored.\\n   */\\n  value: T|undefined;\\n}\\n\\n/**\\n * Information about the providers to be included in an `Injector` as well as how the given type\\n * which carries the information should be created by the DI system.\\n *\\n * An `InjectorDef` can import other types which have `InjectorDefs`, forming a deep nested\\n * structure of providers with a defined priority (identically to how `NgModule`s also have\\n * an import/dependency structure).\\n *\\n * NOTE: This is a private type and should not be exported\\n *\\n * @publicApi\\n */\\nexport interface ɵɵInjectorDef {\\n  factory: () => T;\\n\\n  // TODO(alxhub): Narrow down the type here once decorators properly change the return type of the\\n  // class they are decorating (to add the ɵprov property for example).\\n  providers: (Type|ValueProvider|ExistingProvider|FactoryProvider|ConstructorProvider|\\n              StaticClassProvider|ClassProvider|any[])[];\\n\\n  imports: (InjectorType|InjectorTypeWithProviders)[];\\n}\\n\\n/**\\n * A `Type` which has an `InjectableDef` static field.\\n *\\n * `InjectableDefType`s contain their own Dependency Injection metadata and are usable in an\\n * `InjectorDef`-based `StaticInjector.\\n *\\n * @publicApi\\n */\\nexport interface InjectableType extends Type {\\n  /**\\n   * Opaque type whose structure is highly version dependent. Do not rely on any properties.\\n   */\\n  ɵprov: never;\\n}\\n\\n/**\\n * A type which has an `InjectorDef` static field.\\n *\\n * `InjectorDefTypes` can be used to configure a `StaticInjector`.\\n *\\n * @publicApi\\n */\\nexport interface InjectorType extends Type {\\n  /**\\n   * Opaque type whose structure is highly version dependent. Do not rely on any properties.\\n   */\\n  ɵinj: never;\\n}\\n\\n/**\\n * Describes the `InjectorDef` equivalent of a `ModuleWithProviders`, an `InjectorDefType` with an\\n * associated array of providers.\\n *\\n * Objects of this type can be listed in the imports section of an `InjectorDef`.\\n *\\n * NOTE: This is a private type and should not be exported\\n */\\nexport interface InjectorTypeWithProviders {\\n  ngModule: InjectorType;\\n  providers?: (Type|ValueProvider|ExistingProvider|FactoryProvider|ConstructorProvider|\\n               StaticClassProvider|ClassProvider|any[])[];\\n}\\n\\n\\n/**\\n * Construct an `InjectableDef` which defines how a token will be constructed by the DI system, and\\n * in which injectors (if any) it will be available.\\n *\\n * This should be assigned to a static `ɵprov` field on a type, which will then be an\\n * `InjectableType`.\\n *\\n * Options:\\n * * `providedIn` determines which injectors will include the injectable, by either associating it\\n *   with an `@NgModule` or other `InjectorType`, or by specifying that this injectable should be\\n *   provided in the `'root'` injector, which will be the application-level injector in most apps.\\n * * `factory` gives the zero argument function which will create an instance of the injectable.\\n *   The factory can call `inject` to access the `Injector` and request injection of dependencies.\\n *\\n * @codeGenApi\\n */\\nexport function ɵɵdefineInjectable(opts: {\\n  token: unknown,\\n  providedIn?: Type|'root'|'platform'|'any'|null, factory: () => T,\\n}): never {\\n  return ({\\n           token: opts.token,\\n           providedIn: opts.providedIn as any || null,\\n           factory: opts.factory,\\n           value: undefined,\\n         } as ɵɵInjectableDef) as never;\\n}\\n\\n/**\\n * @deprecated in v8, delete after v10. This API should be used only be generated code, and that\\n * code should now use ɵɵdefineInjectable instead.\\n * @publicApi\\n */\\nexport const defineInjectable = ɵɵdefineInjectable;\\n\\n/**\\n * Construct an `InjectorDef` which configures an injector.\\n *\\n * This should be assigned to a static injector def (`ɵinj`) field on a type, which will then be an\\n * `InjectorType`.\\n *\\n * Options:\\n *\\n * * `factory`: an `InjectorType` is an instantiable type, so a zero argument `factory` function to\\n *   create the type must be provided. If that factory function needs to inject arguments, it can\\n *   use the `inject` function.\\n * * `providers`: an optional array of providers to add to the injector. Each provider must\\n *   either have a factory or point to a type which has a `ɵprov` static property (the\\n *   type must be an `InjectableType`).\\n * * `imports`: an optional array of imports of other `InjectorType`s or `InjectorTypeWithModule`s\\n *   whose providers will also be added to the injector. Locally provided types will override\\n *   providers from imports.\\n *\\n * @publicApi\\n */\\nexport function ɵɵdefineInjector(options: {factory: () => any, providers?: any[], imports?: any[]}):\\n    never {\\n  return ({\\n           factory: options.factory,\\n           providers: options.providers || [],\\n           imports: options.imports || [],\\n         } as ɵɵInjectorDef) as never;\\n}\\n\\n/**\\n * Read the injectable def (`ɵprov`) for `type` in a way which is immune to accidentally reading\\n * inherited value.\\n *\\n * @param type A type which may have its own (non-inherited) `ɵprov`.\\n */\\nexport function getInjectableDef(type: any): ɵɵInjectableDef|null {\\n  return getOwnDefinition(type, type[NG_PROV_DEF]) ||\\n      getOwnDefinition(type, type[NG_INJECTABLE_DEF]);\\n}\\n\\n/**\\n * Return `def` only if it is defined directly on `type` and is not inherited from a base\\n * class of `type`.\\n *\\n * The function `Object.hasOwnProperty` is not sufficient to distinguish this case because in older\\n * browsers (e.g. IE10) static property inheritance is implemented by copying the properties.\\n *\\n * Instead, the definition's `token` is compared to the `type`, and if they don't match then the\\n * property was not defined directly on the type itself, and was likely inherited. The definition\\n * is only returned if the `type` matches the `def.token`.\\n */\\nfunction getOwnDefinition(type: any, def: ɵɵInjectableDef): ɵɵInjectableDef|null {\\n  return def && def.token === type ? def : null;\\n}\\n\\n/**\\n * Read the injectable def (`ɵprov`) for `type` or read the `ɵprov` from one of its ancestors.\\n *\\n * @param type A type which may have `ɵprov`, via inheritance.\\n *\\n * @deprecated Will be removed in v10, where an error will occur in the scenario if we find the\\n * `ɵprov` on an ancestor only.\\n */\\nexport function getInheritedInjectableDef(type: any): ɵɵInjectableDef|null {\\n  // See `jit/injectable.ts#compileInjectable` for context on NG_PROV_DEF_FALLBACK.\\n  const def = type &&\\n      (type[NG_PROV_DEF] || type[NG_INJECTABLE_DEF] ||\\n       (type[NG_PROV_DEF_FALLBACK] && type[NG_PROV_DEF_FALLBACK]()));\\n\\n  if (def) {\\n    const typeName = getTypeName(type);\\n    // TODO(FW-1307): Re-add ngDevMode when closure can handle it\\n    // ngDevMode &&\\n    console.warn(\\n        `DEPRECATED: DI is instantiating a token \\\"${\\n            typeName}\\\" that inherits its @Injectable decorator but does not provide one itself.\\\\n` +\\n        `This will become an error in v10. Please add @Injectable() to the \\\"${typeName}\\\" class.`);\\n    return def;\\n  } else {\\n    return null;\\n  }\\n}\\n\\n/** Gets the name of a type, accounting for some cross-browser differences. */\\nfunction getTypeName(type: any): string {\\n  // `Function.prototype.name` behaves differently between IE and other browsers. In most browsers\\n  // it'll always return the name of the function itself, no matter how many other functions it\\n  // inherits from. On IE the function doesn't have its own `name` property, but it takes it from\\n  // the lowest level in the prototype chain. E.g. if we have `class Foo extends Parent` most\\n  // browsers will evaluate `Foo.name` to `Foo` while IE will return `Parent`. We work around\\n  // the issue by converting the function to a string and parsing its name out that way via a regex.\\n  if (type.hasOwnProperty('name')) {\\n    return type.name;\\n  }\\n\\n  const match = ('' + type).match(/^function\\\\s*([^\\\\s(]+)/);\\n  return match === null ? '' : match[1];\\n}\\n\\n/**\\n * Read the injector def type in a way which is immune to accidentally reading inherited value.\\n *\\n * @param type type which may have an injector def (`ɵinj`)\\n */\\nexport function getInjectorDef(type: any): ɵɵInjectorDef|null {\\n  return type && (type.hasOwnProperty(NG_INJ_DEF) || type.hasOwnProperty(NG_INJECTOR_DEF)) ?\\n      (type as any)[NG_INJ_DEF] :\\n      null;\\n}\\n\\nexport const NG_PROV_DEF = getClosureSafeProperty({ɵprov: getClosureSafeProperty});\\nexport const NG_INJ_DEF = getClosureSafeProperty({ɵinj: getClosureSafeProperty});\\n\\n// On IE10 properties defined via `defineProperty` won't be inherited by child classes,\\n// which will break inheriting the injectable definition from a grandparent through an\\n// undecorated parent class. We work around it by defining a fallback method which will be\\n// used to retrieve the definition. This should only be a problem in JIT mode, because in\\n// AOT TypeScript seems to have a workaround for static properties. When inheriting from an\\n// undecorated parent is no longer supported in v10, this can safely be removed.\\nexport const NG_PROV_DEF_FALLBACK = getClosureSafeProperty({ɵprovFallback: getClosureSafeProperty});\\n\\n// We need to keep these around so we can read off old defs if new defs are unavailable\\nexport const NG_INJECTABLE_DEF = getClosureSafeProperty({ngInjectableDef: getClosureSafeProperty});\\nexport const NG_INJECTOR_DEF = getClosureSafeProperty({ngInjectorDef: getClosureSafeProperty});\\n\\n\",\"fileReadMetaData\":{\"startLine\":1,\"endLine\":284,\"totalLines\":284,\"remainingLines\":0},\"updatedFilePath\":\"/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/core/src/di/interface/defs.ts\"},{\"status\":\"success\",\"message\":\"\\nFile successfully read, file name r3_injector.ts with file path: enc_file_sovfhn/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/core/src/di/r3_injector.ts\\n\\n**File Read Information:**\\n- Lines read: 1 to 570 (570 lines)\\n- Total lines in file: 570\\n- Remaining lines: 0\\n\\nContent:\\n/**\\n * @license\\n * Copyright Google Inc. All Rights Reserved.\\n *\\n * Use of this source code is governed by an MIT-style license that can be\\n * found in the LICENSE file at https://angular.io/license\\n */\\n\\nimport '../util/ng_dev_mode';\\n\\nimport {OnDestroy} from '../interface/lifecycle_hooks';\\nimport {Type} from '../interface/type';\\nimport {getFactoryDef} from '../render3/definition';\\nimport {throwCyclicDependencyError, throwInvalidProviderError, throwMixedMultiProviderError} from '../render3/errors';\\nimport {FactoryFn} from '../render3/interfaces/definition';\\nimport {deepForEach, newArray} from '../util/array_utils';\\nimport {stringify} from '../util/stringify';\\n\\nimport {resolveForwardRef} from './forward_ref';\\nimport {InjectionToken} from './injection_token';\\nimport {Injector} from './injector';\\nimport {catchInjectorError, injectArgs, INJECTOR, NG_TEMP_TOKEN_PATH, NullInjector, setCurrentInjector, THROW_IF_NOT_FOUND, USE_VALUE, ɵɵinject} from './injector_compatibility';\\nimport {getInheritedInjectableDef, getInjectableDef, getInjectorDef, InjectorType, InjectorTypeWithProviders, ɵɵInjectableDef} from './interface/defs';\\nimport {InjectFlags} from './interface/injector';\\nimport {ClassProvider, ConstructorProvider, ExistingProvider, FactoryProvider, StaticClassProvider, StaticProvider, TypeProvider, ValueProvider} from './interface/provider';\\nimport {INJECTOR_SCOPE} from './scope';\\n\\n\\n\\n/**\\n * Internal type for a single provider in a deep provider array.\\n */\\ntype SingleProvider = TypeProvider|ValueProvider|ClassProvider|ConstructorProvider|ExistingProvider|\\n    FactoryProvider|StaticClassProvider;\\n\\n/**\\n * Marker which indicates that a value has not yet been created from the factory function.\\n */\\nconst NOT_YET = {};\\n\\n/**\\n * Marker which indicates that the factory function for a token is in the process of being called.\\n *\\n * If the injector is asked to inject a token with its value set to CIRCULAR, that indicates\\n * injection of a dependency has recursively attempted to inject the original token, and there is\\n * a circular dependency among the providers.\\n */\\nconst CIRCULAR = {};\\n\\nconst EMPTY_ARRAY = [] as any[];\\n\\n/**\\n * A lazily initialized NullInjector.\\n */\\nlet NULL_INJECTOR: Injector|undefined = undefined;\\n\\nfunction getNullInjector(): Injector {\\n  if (NULL_INJECTOR === undefined) {\\n    NULL_INJECTOR = new NullInjector();\\n  }\\n  return NULL_INJECTOR;\\n}\\n\\n/**\\n * An entry in the injector which tracks information about the given token, including a possible\\n * current value.\\n */\\ninterface Record {\\n  factory: (() => T)|undefined;\\n  value: T|{};\\n  multi: any[]|undefined;\\n}\\n\\n/**\\n * Create a new `Injector` which is configured using a `defType` of `InjectorType`s.\\n *\\n * @publicApi\\n */\\nexport function createInjector(\\n    defType: /* InjectorType */ any, parent: Injector|null = null,\\n    additionalProviders: StaticProvider[]|null = null, name?: string): Injector {\\n  const injector =\\n      createInjectorWithoutInjectorInstances(defType, parent, additionalProviders, name);\\n  injector._resolveInjectorDefTypes();\\n  return injector;\\n}\\n\\n/**\\n * Creates a new injector without eagerly resolving its injector types. Can be used in places\\n * where resolving the injector types immediately can lead to an infinite loop. The injector types\\n * should be resolved at a later point by calling `_resolveInjectorDefTypes`.\\n */\\nexport function createInjectorWithoutInjectorInstances(\\n    defType: /* InjectorType */ any, parent: Injector|null = null,\\n    additionalProviders: StaticProvider[]|null = null, name?: string): R3Injector {\\n  return new R3Injector(defType, additionalProviders, parent || getNullInjector(), name);\\n}\\n\\nexport class R3Injector {\\n  /**\\n   * Map of tokens to records which contain the instances of those tokens.\\n   * - `null` value implies that we don't have the record. Used by tree-shakable injectors\\n   * to prevent further searches.\\n   */\\n  private records = new Map|InjectionToken, Record|null>();\\n\\n  /**\\n   * The transitive set of `InjectorType`s which define this injector.\\n   */\\n  private injectorDefTypes = new Set>();\\n\\n  /**\\n   * Set of values instantiated by this injector which contain `ngOnDestroy` lifecycle hooks.\\n   */\\n  private onDestroy = new Set();\\n\\n  /**\\n   * Flag indicating this injector provides the APP_ROOT_SCOPE token, and thus counts as the\\n   * root scope.\\n   */\\n  private readonly scope: 'root'|'platform'|null;\\n\\n  readonly source: string|null;\\n\\n  /**\\n   * Flag indicating that this injector was previously destroyed.\\n   */\\n  get destroyed(): boolean {\\n    return this._destroyed;\\n  }\\n  private _destroyed = false;\\n\\n  constructor(\\n      def: InjectorType, additionalProviders: StaticProvider[]|null, readonly parent: Injector,\\n      source: string|null = null) {\\n    const dedupStack: InjectorType[] = [];\\n\\n    // Start off by creating Records for every provider declared in every InjectorType\\n    // included transitively in additional providers then do the same for `def`. This order is\\n    // important because `def` may include providers that override ones in additionalProviders.\\n    additionalProviders &&\\n        deepForEach(\\n            additionalProviders,\\n            provider => this.processProvider(provider, def, additionalProviders));\\n\\n    deepForEach([def], injectorDef => this.processInjectorType(injectorDef, [], dedupStack));\\n\\n    // Make sure the INJECTOR token provides this injector.\\n    this.records.set(INJECTOR, makeRecord(undefined, this));\\n\\n    // Detect whether this injector has the APP_ROOT_SCOPE token and thus should provide\\n    // any injectable scoped to APP_ROOT_SCOPE.\\n    const record = this.records.get(INJECTOR_SCOPE);\\n    this.scope = record != null ? record.value : null;\\n\\n    // Source name, used for debugging\\n    this.source = source || (typeof def === 'object' ? null : stringify(def));\\n  }\\n\\n  /**\\n   * Destroy the injector and release references to every instance or provider associated with it.\\n   *\\n   * Also calls the `OnDestroy` lifecycle hooks of every instance that was created for which a\\n   * hook was found.\\n   */\\n  destroy(): void {\\n    this.assertNotDestroyed();\\n\\n    // Set destroyed = true first, in case lifecycle hooks re-enter destroy().\\n    this._destroyed = true;\\n    try {\\n      // Call all the lifecycle hooks.\\n      this.onDestroy.forEach(service => service.ngOnDestroy());\\n    } finally {\\n      // Release all references.\\n      this.records.clear();\\n      this.onDestroy.clear();\\n      this.injectorDefTypes.clear();\\n    }\\n  }\\n\\n  get(\\n      token: Type|InjectionToken, notFoundValue: any = THROW_IF_NOT_FOUND,\\n      flags = InjectFlags.Default): T {\\n    this.assertNotDestroyed();\\n    // Set the injection context.\\n    const previousInjector = setCurrentInjector(this);\\n    try {\\n      // Check for the SkipSelf flag.\\n      if (!(flags & InjectFlags.SkipSelf)) {\\n        // SkipSelf isn't set, check if the record belongs to this injector.\\n        let record: Record|undefined|null = this.records.get(token);\\n        if (record === undefined) {\\n          // No record, but maybe the token is scoped to this injector. Look for an injectable\\n          // def with a scope matching this injector.\\n          const def = couldBeInjectableType(token) && getInjectableDef(token);\\n          if (def && this.injectableDefInScope(def)) {\\n            // Found an injectable def and it's scoped to this injector. Pretend as if it was here\\n            // all along.\\n            record = makeRecord(injectableDefOrInjectorDefFactory(token), NOT_YET);\\n          } else {\\n            record = null;\\n          }\\n          this.records.set(token, record);\\n        }\\n        // If a record was found, get the instance for it and return it.\\n        if (record != null /* NOT null || undefined */) {\\n          return this.hydrate(token, record);\\n        }\\n      }\\n\\n      // Select the next injector based on the Self flag - if self is set, the next injector is\\n      // the NullInjector, otherwise it's the parent.\\n      const nextInjector = !(flags & InjectFlags.Self) ? this.parent : getNullInjector();\\n      // Set the notFoundValue based on the Optional flag - if optional is set and notFoundValue\\n      // is undefined, the value is null, otherwise it's the notFoundValue.\\n      notFoundValue = (flags & InjectFlags.Optional) && notFoundValue === THROW_IF_NOT_FOUND ?\\n          null :\\n          notFoundValue;\\n      return nextInjector.get(token, notFoundValue);\\n    } catch (e) {\\n      if (e.name === 'NullInjectorError') {\\n        const path: any[] = e[NG_TEMP_TOKEN_PATH] = e[NG_TEMP_TOKEN_PATH] || [];\\n        path.unshift(stringify(token));\\n        if (previousInjector) {\\n          // We still have a parent injector, keep throwing\\n          throw e;\\n        } else {\\n          // Format & throw the final error message when we don't have any previous injector\\n          return catchInjectorError(e, token, 'R3InjectorError', this.source);\\n        }\\n      } else {\\n        throw e;\\n      }\\n    } finally {\\n      // Lastly, clean up the state by restoring the previous injector.\\n      setCurrentInjector(previousInjector);\\n    }\\n  }\\n\\n  /** @internal */\\n  _resolveInjectorDefTypes() {\\n    this.injectorDefTypes.forEach(defType => this.get(defType));\\n  }\\n\\n  toString() {\\n    const tokens = [], records = this.records;\\n    records.forEach((v, token) => tokens.push(stringify(token)));\\n    return `R3Injector[${tokens.join(', ')}]`;\\n  }\\n\\n  private assertNotDestroyed(): void {\\n    if (this._destroyed) {\\n      throw new Error('Injector has already been destroyed.');\\n    }\\n  }\\n\\n  /**\\n   * Add an `InjectorType` or `InjectorTypeWithProviders` and all of its transitive providers\\n   * to this injector.\\n   *\\n   * If an `InjectorTypeWithProviders` that declares providers besides the type is specified,\\n   * the function will return \\\"true\\\" to indicate that the providers of the type definition need\\n   * to be processed. This allows us to process providers of injector types after all imports of\\n   * an injector definition are processed. (following View Engine semantics: see FW-1349)\\n   */\\n  private processInjectorType(\\n      defOrWrappedDef: InjectorType|InjectorTypeWithProviders,\\n      parents: InjectorType[],\\n      dedupStack: InjectorType[]): defOrWrappedDef is InjectorTypeWithProviders {\\n    defOrWrappedDef = resolveForwardRef(defOrWrappedDef);\\n    if (!defOrWrappedDef) return false;\\n\\n    // Either the defOrWrappedDef is an InjectorType (with injector def) or an\\n    // InjectorDefTypeWithProviders (aka ModuleWithProviders). Detecting either is a megamorphic\\n    // read, so care is taken to only do the read once.\\n\\n    // First attempt to read the injector def (`ɵinj`).\\n    let def = getInjectorDef(defOrWrappedDef);\\n\\n    // If that's not present, then attempt to read ngModule from the InjectorDefTypeWithProviders.\\n    const ngModule =\\n        (def == null) && (defOrWrappedDef as InjectorTypeWithProviders).ngModule || undefined;\\n\\n    // Determine the InjectorType. In the case where `defOrWrappedDef` is an `InjectorType`,\\n    // then this is easy. In the case of an InjectorDefTypeWithProviders, then the definition type\\n    // is the `ngModule`.\\n    const defType: InjectorType =\\n        (ngModule === undefined) ? (defOrWrappedDef as InjectorType) : ngModule;\\n\\n    // Check for circular dependencies.\\n    if (ngDevMode && parents.indexOf(defType) !== -1) {\\n      const defName = stringify(defType);\\n      throw new Error(`Circular dependency in DI detected for type ${defName}. Dependency path: ${\\n          parents.map(defType => stringify(defType)).join(' > ')} > ${defName}.`);\\n    }\\n\\n    // Check for multiple imports of the same module\\n    const isDuplicate = dedupStack.indexOf(defType) !== -1;\\n\\n    // Finally, if defOrWrappedType was an `InjectorDefTypeWithProviders`, then the actual\\n    // `InjectorDef` is on its `ngModule`.\\n    if (ngModule !== undefined) {\\n      def = getInjectorDef(ngModule);\\n    }\\n\\n    // If no definition was found, it might be from exports. Remove it.\\n    if (def == null) {\\n      return false;\\n    }\\n\\n    // Add providers in the same way that @NgModule resolution did:\\n\\n    // First, include providers from any imports.\\n    if (def.imports != null && !isDuplicate) {\\n      // Before processing defType's imports, add it to the set of parents. This way, if it ends\\n      // up deeply importing itself, this can be detected.\\n      ngDevMode && parents.push(defType);\\n      // Add it to the set of dedups. This way we can detect multiple imports of the same module\\n      dedupStack.push(defType);\\n\\n      let importTypesWithProviders: (InjectorTypeWithProviders[])|undefined;\\n      try {\\n        deepForEach(def.imports, imported => {\\n          if (this.processInjectorType(imported, parents, dedupStack)) {\\n            if (importTypesWithProviders === undefined) importTypesWithProviders = [];\\n            // If the processed import is an injector type with providers, we store it in the\\n            // list of import types with providers, so that we can process those afterwards.\\n            importTypesWithProviders.push(imported);\\n          }\\n        });\\n      } finally {\\n        // Remove it from the parents set when finished.\\n        ngDevMode && parents.pop();\\n      }\\n\\n      // Imports which are declared with providers (TypeWithProviders) need to be processed\\n      // after all imported modules are processed. This is similar to how View Engine\\n      // processes/merges module imports in the metadata resolver. See: FW-1349.\\n      if (importTypesWithProviders !== undefined) {\\n        for (let i = 0; i  this.processProvider(provider, ngModule, providers || EMPTY_ARRAY));\\n        }\\n      }\\n    }\\n    // Track the InjectorType and add a provider for it. It's important that this is done after the\\n    // def's imports.\\n    this.injectorDefTypes.add(defType);\\n    this.records.set(defType, makeRecord(def.factory, NOT_YET));\\n\\n    // Next, include providers listed on the definition itself.\\n    const defProviders = def.providers;\\n    if (defProviders != null && !isDuplicate) {\\n      const injectorType = defOrWrappedDef as InjectorType;\\n      deepForEach(\\n          defProviders, provider => this.processProvider(provider, injectorType, defProviders));\\n    }\\n\\n    return (\\n        ngModule !== undefined &&\\n        (defOrWrappedDef as InjectorTypeWithProviders).providers !== undefined);\\n  }\\n\\n  /**\\n   * Process a `SingleProvider` and add it.\\n   */\\n  private processProvider(\\n      provider: SingleProvider, ngModuleType: InjectorType, providers: any[]): void {\\n    // Determine the token from the provider. Either it's its own token, or has a {provide: ...}\\n    // property.\\n    provider = resolveForwardRef(provider);\\n    let token: any =\\n        isTypeProvider(provider) ? provider : resolveForwardRef(provider && provider.provide);\\n\\n    // Construct a `Record` for the provider.\\n    const record = providerToRecord(provider, ngModuleType, providers);\\n\\n    if (!isTypeProvider(provider) && provider.multi === true) {\\n      // If the provider indicates that it's a multi-provider, process it specially.\\n      // First check whether it's been defined already.\\n      let multiRecord = this.records.get(token);\\n      if (multiRecord) {\\n        // It has. Throw a nice error if\\n        if (multiRecord.multi === undefined) {\\n          throwMixedMultiProviderError();\\n        }\\n      } else {\\n        multiRecord = makeRecord(undefined, NOT_YET, true);\\n        multiRecord.factory = () => injectArgs(multiRecord!.multi!);\\n        this.records.set(token, multiRecord);\\n      }\\n      token = provider;\\n      multiRecord.multi!.push(provider);\\n    } else {\\n      const existing = this.records.get(token);\\n      if (existing && existing.multi !== undefined) {\\n        throwMixedMultiProviderError();\\n      }\\n    }\\n    this.records.set(token, record);\\n  }\\n\\n  private hydrate(token: Type|InjectionToken, record: Record): T {\\n    if (record.value === CIRCULAR) {\\n      throwCyclicDependencyError(stringify(token));\\n    } else if (record.value === NOT_YET) {\\n      record.value = CIRCULAR;\\n      record.value = record.factory!();\\n    }\\n    if (typeof record.value === 'object' && record.value && hasOnDestroy(record.value)) {\\n      this.onDestroy.add(record.value);\\n    }\\n    return record.value as T;\\n  }\\n\\n  private injectableDefInScope(def: ɵɵInjectableDef): boolean {\\n    if (!def.providedIn) {\\n      return false;\\n    } else if (typeof def.providedIn === 'string') {\\n      return def.providedIn === 'any' || (def.providedIn === this.scope);\\n    } else {\\n      return this.injectorDefTypes.has(def.providedIn);\\n    }\\n  }\\n}\\n\\nfunction injectableDefOrInjectorDefFactory(token: Type|InjectionToken): FactoryFn {\\n  // Most tokens will have an injectable def directly on them, which specifies a factory directly.\\n  const injectableDef = getInjectableDef(token);\\n  const factory = injectableDef !== null ? injectableDef.factory : getFactoryDef(token);\\n\\n  if (factory !== null) {\\n    return factory;\\n  }\\n\\n  // If the token is an NgModule, it's also injectable but the factory is on its injector def\\n  // (`ɵinj`)\\n  const injectorDef = getInjectorDef(token);\\n  if (injectorDef !== null) {\\n    return injectorDef.factory;\\n  }\\n\\n  // InjectionTokens should have an injectable def (ɵprov) and thus should be handled above.\\n  // If it's missing that, it's an error.\\n  if (token instanceof InjectionToken) {\\n    throw new Error(`Token ${stringify(token)} is missing a ɵprov definition.`);\\n  }\\n\\n  // Undecorated types can sometimes be created if they have no constructor arguments.\\n  if (token instanceof Function) {\\n    return getUndecoratedInjectableFactory(token);\\n  }\\n\\n  // There was no way to resolve a factory for this token.\\n  throw new Error('unreachable');\\n}\\n\\nfunction getUndecoratedInjectableFactory(token: Function) {\\n  // If the token has parameters then it has dependencies that we cannot resolve implicitly.\\n  const paramLength = token.length;\\n  if (paramLength > 0) {\\n    const args: string[] = newArray(paramLength, '?');\\n    throw new Error(`Can't resolve all parameters for ${stringify(token)}: (${args.join(', ')}).`);\\n  }\\n\\n  // The constructor function appears to have no parameters.\\n  // This might be because it inherits from a super-class. In which case, use an injectable\\n  // def from an ancestor if there is one.\\n  // Otherwise this really is a simple class with no dependencies, so return a factory that\\n  // just instantiates the zero-arg constructor.\\n  const inheritedInjectableDef = getInheritedInjectableDef(token);\\n  if (inheritedInjectableDef !== null) {\\n    return () => inheritedInjectableDef.factory(token as Type);\\n  } else {\\n    return () => new (token as Type)();\\n  }\\n}\\n\\nfunction providerToRecord(\\n    provider: SingleProvider, ngModuleType: InjectorType, providers: any[]): Record {\\n  if (isValueProvider(provider)) {\\n    return makeRecord(undefined, provider.useValue);\\n  } else {\\n    const factory: (() => any)|undefined = providerToFactory(provider, ngModuleType, providers);\\n    return makeRecord(factory, NOT_YET);\\n  }\\n}\\n\\n/**\\n * Converts a `SingleProvider` into a factory function.\\n *\\n * @param provider provider to convert to factory\\n */\\nexport function providerToFactory(\\n    provider: SingleProvider, ngModuleType?: InjectorType, providers?: any[]): () => any {\\n  let factory: (() => any)|undefined = undefined;\\n  if (isTypeProvider(provider)) {\\n    const unwrappedProvider = resolveForwardRef(provider);\\n    return getFactoryDef(unwrappedProvider) || injectableDefOrInjectorDefFactory(unwrappedProvider);\\n  } else {\\n    if (isValueProvider(provider)) {\\n      factory = () => resolveForwardRef(provider.useValue);\\n    } else if (isFactoryProvider(provider)) {\\n      factory = () => provider.useFactory(...injectArgs(provider.deps || []));\\n    } else if (isExistingProvider(provider)) {\\n      factory = () => ɵɵinject(resolveForwardRef(provider.useExisting));\\n    } else {\\n      const classRef = resolveForwardRef(\\n          provider &&\\n          ((provider as StaticClassProvider | ClassProvider).useClass || provider.provide));\\n      if (!classRef) {\\n        throwInvalidProviderError(ngModuleType, providers, provider);\\n      }\\n      if (hasDeps(provider)) {\\n        factory = () => new (classRef)(...injectArgs(provider.deps));\\n      } else {\\n        return getFactoryDef(classRef) || injectableDefOrInjectorDefFactory(classRef);\\n      }\\n    }\\n  }\\n  return factory;\\n}\\n\\nfunction makeRecord(\\n    factory: (() => T)|undefined, value: T|{}, multi: boolean = false): Record {\\n  return {\\n    factory: factory,\\n    value: value,\\n    multi: multi ? [] : undefined,\\n  };\\n}\\n\\nfunction isValueProvider(value: SingleProvider): value is ValueProvider {\\n  return value !== null && typeof value == 'object' && USE_VALUE in value;\\n}\\n\\nfunction isExistingProvider(value: SingleProvider): value is ExistingProvider {\\n  return !!(value && (value as ExistingProvider).useExisting);\\n}\\n\\nfunction isFactoryProvider(value: SingleProvider): value is FactoryProvider {\\n  return !!(value && (value as FactoryProvider).useFactory);\\n}\\n\\nexport function isTypeProvider(value: SingleProvider): value is TypeProvider {\\n  return typeof value === 'function';\\n}\\n\\nexport function isClassProvider(value: SingleProvider): value is ClassProvider {\\n  return !!(value as StaticClassProvider | ClassProvider).useClass;\\n}\\n\\nfunction hasDeps(value: ClassProvider|ConstructorProvider|\\n                 StaticClassProvider): value is ClassProvider&{deps: any[]} {\\n  return !!(value as any).deps;\\n}\\n\\nfunction hasOnDestroy(value: any): value is OnDestroy {\\n  return value !== null && typeof value === 'object' &&\\n      typeof (value as OnDestroy).ngOnDestroy === 'function';\\n}\\n\\nfunction couldBeInjectableType(value: any): value is Type|InjectionToken {\\n  return (typeof value === 'function') ||\\n      (typeof value === 'object' && value instanceof InjectionToken);\\n}\\n\\n\",\"fileReadMetaData\":{\"startLine\":1,\"endLine\":570,\"totalLines\":570,\"remainingLines\":0},\"updatedFilePath\":\"/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/core/src/di/r3_injector.ts\"},{\"status\":\"success\",\"message\":\"\\nFile successfully read, file name injectable.ts with file path: enc_file_sovfhn/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/core/src/di/jit/injectable.ts\\n\\n**File Read Information:**\\n- Lines read: 1 to 128 (128 lines)\\n- Total lines in file: 128\\n- Remaining lines: 0\\n\\nContent:\\n/**\\n * @license\\n * Copyright Google Inc. All Rights Reserved.\\n *\\n * Use of this source code is governed by an MIT-style license that can be\\n * found in the LICENSE file at https://angular.io/license\\n */\\n\\nimport {getCompilerFacade, R3InjectableMetadataFacade} from '../../compiler/compiler_facade';\\nimport {Type} from '../../interface/type';\\nimport {NG_FACTORY_DEF} from '../../render3/fields';\\nimport {getClosureSafeProperty} from '../../util/property';\\nimport {resolveForwardRef} from '../forward_ref';\\nimport {Injectable} from '../injectable';\\nimport {NG_PROV_DEF, NG_PROV_DEF_FALLBACK} from '../interface/defs';\\nimport {ClassSansProvider, ExistingSansProvider, FactorySansProvider, ValueProvider, ValueSansProvider} from '../interface/provider';\\n\\nimport {angularCoreDiEnv} from './environment';\\nimport {convertDependencies, reflectDependencies} from './util';\\n\\n\\n\\n/**\\n * Compile an Angular injectable according to its `Injectable` metadata, and patch the resulting\\n * injectable def (`ɵprov`) onto the injectable type.\\n */\\nexport function compileInjectable(type: Type, srcMeta?: Injectable): void {\\n  let ngInjectableDef: any = null;\\n  let ngFactoryDef: any = null;\\n\\n  // if NG_PROV_DEF is already defined on this class then don't overwrite it\\n  if (!type.hasOwnProperty(NG_PROV_DEF)) {\\n    Object.defineProperty(type, NG_PROV_DEF, {\\n      get: () => {\\n        if (ngInjectableDef === null) {\\n          ngInjectableDef = getCompilerFacade().compileInjectable(\\n              angularCoreDiEnv, `ng:///${type.name}/ɵprov.js`,\\n              getInjectableMetadata(type, srcMeta));\\n        }\\n        return ngInjectableDef;\\n      },\\n    });\\n\\n    // On IE10 properties defined via `defineProperty` won't be inherited by child classes,\\n    // which will break inheriting the injectable definition from a grandparent through an\\n    // undecorated parent class. We work around it by defining a method which should be used\\n    // as a fallback. This should only be a problem in JIT mode, because in AOT TypeScript\\n    // seems to have a workaround for static properties. When inheriting from an undecorated\\n    // parent is no longer supported in v10, this can safely be removed.\\n    if (!type.hasOwnProperty(NG_PROV_DEF_FALLBACK)) {\\n      (type as any)[NG_PROV_DEF_FALLBACK] = () => (type as any)[NG_PROV_DEF];\\n    }\\n  }\\n\\n  // if NG_FACTORY_DEF is already defined on this class then don't overwrite it\\n  if (!type.hasOwnProperty(NG_FACTORY_DEF)) {\\n    Object.defineProperty(type, NG_FACTORY_DEF, {\\n      get: () => {\\n        if (ngFactoryDef === null) {\\n          const metadata = getInjectableMetadata(type, srcMeta);\\n          const compiler = getCompilerFacade();\\n          ngFactoryDef = compiler.compileFactory(angularCoreDiEnv, `ng:///${type.name}/ɵfac.js`, {\\n            name: metadata.name,\\n            type: metadata.type,\\n            typeArgumentCount: metadata.typeArgumentCount,\\n            deps: reflectDependencies(type),\\n            injectFn: 'inject',\\n            target: compiler.R3FactoryTarget.Injectable\\n          });\\n        }\\n        return ngFactoryDef;\\n      },\\n      // Leave this configurable so that the factories from directives or pipes can take precedence.\\n      configurable: true\\n    });\\n  }\\n}\\n\\ntype UseClassProvider = Injectable&ClassSansProvider&{deps?: any[]};\\n\\nconst USE_VALUE =\\n    getClosureSafeProperty({provide: String, useValue: getClosureSafeProperty});\\n\\nfunction isUseClassProvider(meta: Injectable): meta is UseClassProvider {\\n  return (meta as UseClassProvider).useClass !== undefined;\\n}\\n\\nfunction isUseValueProvider(meta: Injectable): meta is Injectable&ValueSansProvider {\\n  return USE_VALUE in meta;\\n}\\n\\nfunction isUseFactoryProvider(meta: Injectable): meta is Injectable&FactorySansProvider {\\n  return (meta as FactorySansProvider).useFactory !== undefined;\\n}\\n\\nfunction isUseExistingProvider(meta: Injectable): meta is Injectable&ExistingSansProvider {\\n  return (meta as ExistingSansProvider).useExisting !== undefined;\\n}\\n\\nfunction getInjectableMetadata(type: Type, srcMeta?: Injectable): R3InjectableMetadataFacade {\\n  // Allow the compilation of a class with a `@Injectable()` decorator without parameters\\n  const meta: Injectable = srcMeta || {providedIn: null};\\n  const compilerMeta: R3InjectableMetadataFacade = {\\n    name: type.name,\\n    type: type,\\n    typeArgumentCount: 0,\\n    providedIn: meta.providedIn,\\n    userDeps: undefined,\\n  };\\n  if ((isUseClassProvider(meta) || isUseFactoryProvider(meta)) && meta.deps !== undefined) {\\n    compilerMeta.userDeps = convertDependencies(meta.deps);\\n  }\\n  if (isUseClassProvider(meta)) {\\n    // The user explicitly specified useClass, and may or may not have provided deps.\\n    compilerMeta.useClass = resolveForwardRef(meta.useClass);\\n  } else if (isUseValueProvider(meta)) {\\n    // The user explicitly specified useValue.\\n    compilerMeta.useValue = resolveForwardRef(meta.useValue);\\n  } else if (isUseFactoryProvider(meta)) {\\n    // The user explicitly specified useFactory.\\n    compilerMeta.useFactory = meta.useFactory;\\n  } else if (isUseExistingProvider(meta)) {\\n    // The user explicitly specified useExisting.\\n    compilerMeta.useExisting = resolveForwardRef(meta.useExisting);\\n  }\\n  return compilerMeta;\\n}\\n\\n\",\"fileReadMetaData\":{\"startLine\":1,\"endLine\":128,\"totalLines\":128,\"remainingLines\":0},\"updatedFilePath\":\"/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/core/src/di/jit/injectable.ts\"},{\"status\":\"success\",\"message\":\"\\nFile successfully read, file name injectable.ts with file path: enc_file_sovfhn/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/core/src/di/injectable.ts\\n\\n**File Read Information:**\\n- Lines read: 1 to 110 (110 lines)\\n- Total lines in file: 110\\n- Remaining lines: 0\\n\\nContent:\\n/**\\n * @license\\n * Copyright Google Inc. All Rights Reserved.\\n *\\n * Use of this source code is governed by an MIT-style license that can be\\n * found in the LICENSE file at https://angular.io/license\\n */\\n\\nimport {Type} from '../interface/type';\\nimport {makeDecorator, TypeDecorator} from '../util/decorators';\\n\\nimport {getInjectableDef, InjectableType, ɵɵdefineInjectable} from './interface/defs';\\nimport {ClassSansProvider, ConstructorSansProvider, ExistingSansProvider, FactorySansProvider, StaticClassSansProvider, ValueSansProvider} from './interface/provider';\\nimport {compileInjectable as render3CompileInjectable} from './jit/injectable';\\nimport {convertInjectableProviderToFactory} from './util';\\n\\n\\n\\n/**\\n * Injectable providers used in `@Injectable` decorator.\\n *\\n * @publicApi\\n */\\nexport type InjectableProvider = ValueSansProvider|ExistingSansProvider|StaticClassSansProvider|\\n    ConstructorSansProvider|FactorySansProvider|ClassSansProvider;\\n\\n/**\\n * Type of the Injectable decorator / constructor function.\\n *\\n * @publicApi\\n */\\nexport interface InjectableDecorator {\\n  /**\\n   * Decorator that marks a class as available to be\\n   * provided and injected as a dependency.\\n   *\\n   * @see [Introduction to Services and DI](guide/architecture-services)\\n   * @see [Dependency Injection Guide](guide/dependency-injection)\\n   *\\n   * @usageNotes\\n   *\\n   * Marking a class with `@Injectable` ensures that the compiler\\n   * will generate the necessary metadata to create the class's\\n   * dependencies when the class is injected.\\n   *\\n   * The following example shows how a service class is properly\\n   *  marked so that a supporting service can be injected upon creation.\\n   *\\n   * \\n   *\\n   */\\n  (): TypeDecorator;\\n  (options?: {providedIn: Type|'root'|'platform'|'any'|null}&\\n   InjectableProvider): TypeDecorator;\\n  new(): Injectable;\\n  new(options?: {providedIn: Type|'root'|'platform'|'any'|null}&\\n      InjectableProvider): Injectable;\\n}\\n\\n/**\\n * Type of the Injectable metadata.\\n *\\n * @publicApi\\n */\\nexport interface Injectable {\\n  /**\\n   * Determines which injectors will provide the injectable,\\n   * by either associating it with an `@NgModule` or other `InjectorType`,\\n   * or by specifying that this injectable should be provided in one of the following injectors:\\n   * - 'root' : The application-level injector in most apps.\\n   * - 'platform' : A special singleton platform injector shared by all\\n   * applications on the page.\\n   * - 'any' : Provides a unique instance in every module (including lazy modules) that injects the\\n   * token.\\n   *\\n   */\\n  providedIn?: Type|'root'|'platform'|'any'|null;\\n}\\n\\n/**\\n * Injectable decorator and metadata.\\n *\\n * @Annotation\\n * @publicApi\\n */\\nexport const Injectable: InjectableDecorator = makeDecorator(\\n    'Injectable', undefined, undefined, undefined,\\n    (type: Type, meta: Injectable) => SWITCH_COMPILE_INJECTABLE(type as any, meta));\\n\\n\\n/**\\n * Supports @Injectable() in JIT mode for Render2.\\n */\\nfunction render2CompileInjectable(\\n    injectableType: Type,\\n    options?: {providedIn?: Type|'root'|'platform'|'any'|null}&InjectableProvider): void {\\n  if (options && options.providedIn !== undefined && !getInjectableDef(injectableType)) {\\n    (injectableType as InjectableType).ɵprov = ɵɵdefineInjectable({\\n      token: injectableType,\\n      providedIn: options.providedIn,\\n      factory: convertInjectableProviderToFactory(injectableType, options),\\n    });\\n  }\\n}\\n\\nexport const SWITCH_COMPILE_INJECTABLE__POST_R3__ = render3CompileInjectable;\\nconst SWITCH_COMPILE_INJECTABLE__PRE_R3__ = render2CompileInjectable;\\nconst SWITCH_COMPILE_INJECTABLE: typeof render3CompileInjectable =\\n    SWITCH_COMPILE_INJECTABLE__PRE_R3__;\\n\\n\",\"fileReadMetaData\":{\"startLine\":1,\"endLine\":110,\"totalLines\":110,\"remainingLines\":0},\"updatedFilePath\":\"/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/core/src/di/injectable.ts\"}]}"
+> > }
+> > ```
+> > 
+> > 32. **Sub-agent event: tool_output**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_output",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "run_terminal_command",
+> >   "toolCallId": "call_IC2kLg8zgofAXegFy0IUq81T|fc_045b4203620df0b4016ab56e47992087d184a76bbaeba411d9",
+> >   "isError": false,
+> >   "output": "{\"status\":\"error\",\"message\":\"I ran all provided commands and below are the outcomes for each command with their status. Please analyze each output carefully and run the commands again for which you see errors to get their output by correcting the command and other parameters.\\n\\n=== EXECUTION SUMMARY ===\\nTotal Commands: 2\\nNumber of Successful Commands: 0\\nNumber of Failed Commands: 2\\nNumber of Timed Out Commands: 0\\n========================\\n\\n╔══════════════════════════════════════════════════════════════════════╗\\n║ COMMAND 1 of 2                                                        ║\\n╚══════════════════════════════════════════════════════════════════════╝\\nCommand: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc 'enc_file_sovfhn/.slingshot/bin/rtk git status --short --branch'\\nStatus: ERROR\\n─────────────────────────────────────────────────────────────────────────\\nOutput:\\nCommand failed with exit code 127.\\n\\n--- Full Output ---\\nzsh:1: no such file or directory: enc_file_sovfhn/.slingshot/bin/rtk\\n__CMD_FINISHED__ 127\\n--- End of Full Output ---\\n═════════════════════════════════════════════════════════════════════════\\n\\n╔══════════════════════════════════════════════════════════════════════╗\\n║ COMMAND 2 of 2                                                        ║\\n╚══════════════════════════════════════════════════════════════════════╝\\nCommand: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc 'enc_file_sovfhn/.slingshot/bin/rtk git --no-pager show --stat --oneline --decorate --no-renames f799725'\\nStatus: ERROR\\n─────────────────────────────────────────────────────────────────────────\\nOutput:\\nCommand failed with exit code 127.\\n\\n--- Full Output ---\\nzsh:1: no such file or directory: enc_file_sovfhn/.slingshot/bin/rtk\\n__CMD_FINISHED__ 127\\n--- End of Full Output ---\\n═════════════════════════════════════════════════════════════════════════\\n\\n\"}"
+> > }
+> > ```
+> > 
+> > 33. **Sub-agent event: token_usage**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "token_usage",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "tokenUsage": {
+> >     "inputTokens": 2731,
+> >     "outputTokens": 451,
+> >     "totalTokens": 12953,
+> >     "cost": {
+> >       "total": 0.019146240000000002
+> >     }
+> >   },
+> >   "cumulativeTokenUsage": {
+> >     "inputTokens": 2818,
+> >     "outputTokens": 779,
+> >     "totalTokens": 23055,
+> >     "cost": {
+> >       "total": 0.025777920000000003
+> >     }
+> >   },
+> >   "status": "running"
+> > }
+> > ```
+> > 
+> > 34. **Sub-agent event: tool_call**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_call",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "run_terminal_command",
+> >   "toolCallId": "call_nABkaDYLlQvuAQ5nRTbwRYI4|fc_032f22962d24028b016ab56e49c9a087d18ba113331240507f",
+> >   "input": {
+> >     "commands": [
+> >       {
+> >         "command": "../enc_file_sovfhn/.slingshot/bin/rtk git --no-pager status --short --branch",
+> >         "cwd": "angular__angular-37561",
+> >         "profileName": "bash",
+> >         "readTerminalFullOutput": true,
+> >         "timeoutMs": 30000,
+> >         "isInteractive": false
+> >       },
+> >       {
+> >         "command": "../enc_file_sovfhn/.slingshot/bin/rtk git --no-pager show --stat --oneline --decorate --no-renames f799725",
+> >         "cwd": "angular__angular-37561",
+> >         "profileName": "bash",
+> >         "readTerminalFullOutput": true,
+> >         "timeoutMs": 30000,
+> >         "isInteractive": false
+> >       }
+> >     ],
+> >     "toolPurpose": "I want to inspect the isolated Angular repository state and verify the requested base revision before tracing compiler behavior."
+> >   },
+> >   "toolIcon": "",
+> >   "toolLabel": "Executing Command",
+> >   "isPillTool": false,
+> >   "toolPurpose": "I want to inspect the isolated Angular repository state and verify the requested base revision before tracing compiler behavior."
+> > }
+> > ```
+> > 
+> > 35. **Sub-agent event: tool_call**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_call",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "grep",
+> >   "toolCallId": "call_8PUzYnmee5fvWT2MCAf3CGE7|fc_032f22962d24028b016ab56e49c9b887d1abcc2fc46096947d",
+> >   "input": {
+> >     "pattern": "compileInjectable|Injectable.*factory|ɵfac|FactoryTarget",
+> >     "searchPath": "/angular__angular-37561/packages/compiler",
+> >     "glob": [
+> >       "**/*.ts"
+> >     ],
+> >     "outputMode": "files",
+> >     "headLimit": 100,
+> >     "toolPurpose": "I need to locate production compiler files involved in `@Injectable` factory code generation."
+> >   },
+> >   "toolIcon": "\n      \n      \n",
+> >   "toolLabel": "Searching",
+> >   "isPillTool": false,
+> >   "toolPurpose": "I need to locate production compiler files involved in `@Injectable` factory code generation."
+> > }
+> > ```
+> > 
+> > 36. **Sub-agent event: tool_call**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_call",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "grep",
+> >   "toolCallId": "call_B0aRK5KP6ewsaVBkBKQpqrsJ|fc_032f22962d24028b016ab56e49c9c487d1867c1140d1a6008a",
+> >   "input": {
+> >     "pattern": "compileInjectable|Injectable.*factory|ɵfac|FactoryTarget",
+> >     "searchPath": "/angular__angular-37561/packages/compiler-cli",
+> >     "glob": [
+> >       "**/*.ts"
+> >     ],
+> >     "outputMode": "files",
+> >     "headLimit": 100,
+> >     "toolPurpose": "I need to locate compiler-cli production code and relevant tests involved in `@Injectable` factory generation and decorator transforms."
+> >   },
+> >   "toolIcon": "\n      \n      \n",
+> >   "toolLabel": "Searching",
+> >   "isPillTool": false,
+> >   "toolPurpose": "I need to locate compiler-cli production code and relevant tests involved in `@Injectable` factory generation and decorator transforms."
+> > }
+> > ```
+> > 
+> > 37. **Sub-agent event: tool_output**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_output",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "grep",
+> >   "toolCallId": "call_8PUzYnmee5fvWT2MCAf3CGE7|fc_032f22962d24028b016ab56e49c9b887d1abcc2fc46096947d",
+> >   "isError": false,
+> >   "output": "{\"status\":\"success\",\"message\":\"{\\\"success\\\":true,\\\"mode\\\":\\\"files\\\",\\\"files\\\":[{\\\"file\\\":\\\"src/jit_compiler_facade.ts\\\",\\\"size\\\":15624,\\\"mtime\\\":1790275096989},{\\\"file\\\":\\\"src/compiler_facade_interface.ts\\\",\\\"size\\\":5049,\\\"mtime\\\":1790275096983},{\\\"file\\\":\\\"src/injectable_compiler_2.ts\\\",\\\"size\\\":5051,\\\"mtime\\\":1790275096988},{\\\"file\\\":\\\"src/compiler.ts\\\",\\\"size\\\":5826,\\\"mtime\\\":1790275096983},{\\\"file\\\":\\\"src/render3/r3_pipe_compiler.ts\\\",\\\"size\\\":4188,\\\"mtime\\\":1790275096995},{\\\"file\\\":\\\"src/render3/r3_module_compiler.ts\\\",\\\"size\\\":9835,\\\"mtime\\\":1790275096994},{\\\"file\\\":\\\"src/render3/r3_factory.ts\\\",\\\"size\\\":14922,\\\"mtime\\\":1790275096994},{\\\"file\\\":\\\"src/render3/view/compiler.ts\\\",\\\"size\\\":36556,\\\"mtime\\\":1790275096995},{\\\"file\\\":\\\"test/compiler_facade_interface_spec.ts\\\",\\\"size\\\":5282,\\\"mtime\\\":1790275097004}],\\\"numFiles\\\":9,\\\"pagination\\\":{\\\"offset\\\":0,\\\"limit\\\":100,\\\"returned\\\":9,\\\"total\\\":9,\\\"hasMore\\\":false}}\"}"
+> > }
+> > ```
+> > 
+> > 38. **Sub-agent event: tool_output**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_output",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "grep",
+> >   "toolCallId": "call_B0aRK5KP6ewsaVBkBKQpqrsJ|fc_032f22962d24028b016ab56e49c9c487d1867c1140d1a6008a",
+> >   "isError": false,
+> >   "output": "{\"status\":\"success\",\"message\":\"{\\\"success\\\":true,\\\"mode\\\":\\\"files\\\",\\\"files\\\":[{\\\"file\\\":\\\"src/ngtsc/metadata/src/util.ts\\\",\\\"size\\\":6145,\\\"mtime\\\":1790275096940},{\\\"file\\\":\\\"test/ngtsc/ngtsc_spec.ts\\\",\\\"size\\\":227348,\\\"mtime\\\":1790275096974},{\\\"file\\\":\\\"src/ngtsc/annotations/src/injectable.ts\\\",\\\"size\\\":12009,\\\"mtime\\\":1790275096921},{\\\"file\\\":\\\"test/compliance/r3_view_compiler_listener_spec.ts\\\",\\\"size\\\":14238,\\\"mtime\\\":1790275096968},{\\\"file\\\":\\\"src/ngtsc/annotations/src/factory.ts\\\",\\\"size\\\":563,\\\"mtime\\\":1790275096921},{\\\"file\\\":\\\"src/ngtsc/annotations/src/component.ts\\\",\\\"size\\\":38849,\\\"mtime\\\":1790275096921},{\\\"file\\\":\\\"test/compliance/r3_view_compiler_directives_spec.ts\\\",\\\"size\\\":13182,\\\"mtime\\\":1790275096967},{\\\"file\\\":\\\"src/ngtsc/annotations/src/pipe.ts\\\",\\\"size\\\":5720,\\\"mtime\\\":1790275096922},{\\\"file\\\":\\\"src/ngtsc/annotations/src/directive.ts\\\",\\\"size\\\":28986,\\\"mtime\\\":1790275096921},{\\\"file\\\":\\\"test/compliance/r3_compiler_compliance_spec.ts\\\",\\\"size\\\":128790,\\\"mtime\\\":1790275096966},{\\\"file\\\":\\\"ngcc/test/rendering/renderer_spec.ts\\\",\\\"size\\\":32523,\\\"mtime\\\":1790275096915},{\\\"file\\\":\\\"src/ngtsc/annotations/test/injectable_spec.ts\\\",\\\"size\\\":3932,\\\"mtime\\\":1790275096923},{\\\"file\\\":\\\"test/compliance/r3_view_compiler_di_spec.ts\\\",\\\"size\\\":11777,\\\"mtime\\\":1790275096967},{\\\"file\\\":\\\"ngcc/test/rendering/dts_renderer_spec.ts\\\",\\\"size\\\":8336,\\\"mtime\\\":1790275096914},{\\\"file\\\":\\\"test/compliance/r3_view_compiler_providers_spec.ts\\\",\\\"size\\\":4694,\\\"mtime\\\":1790275096968},{\\\"file\\\":\\\"ngcc/test/integration/ngcc_spec.ts\\\",\\\"size\\\":83194,\\\"mtime\\\":1790275096911}],\\\"numFiles\\\":16,\\\"pagination\\\":{\\\"offset\\\":0,\\\"limit\\\":100,\\\"returned\\\":16,\\\"total\\\":16,\\\"hasMore\\\":false}}\"}"
+> > }
+> > ```
+> > 
+> > 39. **Sub-agent event: tool_output**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_output",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "run_terminal_command",
+> >   "toolCallId": "call_nABkaDYLlQvuAQ5nRTbwRYI4|fc_032f22962d24028b016ab56e49c9a087d18ba113331240507f",
+> >   "isError": false,
+> >   "output": "{\"status\":\"error\",\"message\":\"I ran all provided commands and below are the outcomes for each command with their status. Please analyze each output carefully and run the commands again for which you see errors to get their output by correcting the command and other parameters.\\n\\n=== EXECUTION SUMMARY ===\\nTotal Commands: 2\\nNumber of Successful Commands: 0\\nNumber of Failed Commands: 2\\nNumber of Timed Out Commands: 0\\n========================\\n\\n╔══════════════════════════════════════════════════════════════════════╗\\n║ COMMAND 1 of 2                                                        ║\\n╚══════════════════════════════════════════════════════════════════════╝\\nCommand: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '../enc_file_sovfhn/.slingshot/bin/rtk git --no-pager status --short --branch'\\nStatus: ERROR\\n─────────────────────────────────────────────────────────────────────────\\nOutput:\\nCommand failed with exit code 127.\\n\\n--- Full Output ---\\nzsh:1: no such file or directory: ../enc_file_sovfhn/.slingshot/bin/rtk\\n__CMD_FINISHED__ 127\\n--- End of Full Output ---\\n═════════════════════════════════════════════════════════════════════════\\n\\n╔══════════════════════════════════════════════════════════════════════╗\\n║ COMMAND 2 of 2                                                        ║\\n╚══════════════════════════════════════════════════════════════════════╝\\nCommand: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '../enc_file_sovfhn/.slingshot/bin/rtk git --no-pager show --stat --oneline --decorate --no-renames f799725'\\nStatus: ERROR\\n─────────────────────────────────────────────────────────────────────────\\nOutput:\\nCommand failed with exit code 127.\\n\\n--- Full Output ---\\nzsh:1: no such file or directory: ../enc_file_sovfhn/.slingshot/bin/rtk\\n__CMD_FINISHED__ 127\\n--- End of Full Output ---\\n═════════════════════════════════════════════════════════════════════════\\n\\n\"}"
+> > }
+> > ```
+> > 
+> > 40. **Sub-agent event: token_usage**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "token_usage",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "tokenUsage": {
+> >     "inputTokens": 2848,
+> >     "outputTokens": 369,
+> >     "totalTokens": 14111,
+> >     "cost": {
+> >       "total": 0.01802112
+> >     }
+> >   },
+> >   "cumulativeTokenUsage": {
+> >     "inputTokens": 4061,
+> >     "outputTokens": 866,
+> >     "totalTokens": 35263,
+> >     "cost": {
+> >       "total": 0.032221440000000004
+> >     }
+> >   },
+> >   "status": "running"
+> > }
+> > ```
+> > 
+> > 41. **Sub-agent event: tool_call**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_call",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "run_terminal_command",
+> >   "toolCallId": "call_ZrAdPk3USpUrkFfNb3iOoiDe|fc_032f22962d24028b016ab56e4c824887d18805b77c1dc1a6a9",
+> >   "input": {
+> >     "commands": [
+> >       {
+> >         "command": "enc_file_sovfhn/.slingshot/bin/rtk git -C angular__angular-37561 --no-pager status --short --branch",
+> >         "profileName": "bash",
+> >         "readTerminalFullOutput": true,
+> >         "timeoutMs": 30000,
+> >         "isInteractive": false
+> >       },
+> >       {
+> >         "command": "enc_file_sovfhn/.slingshot/bin/rtk git -C angular__angular-37561 --no-pager show --stat --oneline --decorate --no-renames f799725",
+> >         "profileName": "bash",
+> >         "readTerminalFullOutput": true,
+> >         "timeoutMs": 30000,
+> >         "isInteractive": false
+> >       }
+> >     ],
+> >     "toolPurpose": "I want to inspect the isolated Angular repository state and verify the requested base revision before tracing compiler behavior."
+> >   },
+> >   "toolIcon": "",
+> >   "toolLabel": "Executing Command",
+> >   "isPillTool": false,
+> >   "toolPurpose": "I want to inspect the isolated Angular repository state and verify the requested base revision before tracing compiler behavior."
+> > }
+> > ```
+> > 
+> > 42. **Sub-agent event: tool_output**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_output",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "run_terminal_command",
+> >   "toolCallId": "call_ZrAdPk3USpUrkFfNb3iOoiDe|fc_032f22962d24028b016ab56e4c824887d18805b77c1dc1a6a9",
+> >   "isError": false,
+> >   "output": "{\"status\":\"error\",\"message\":\"I ran all provided commands and below are the outcomes for each command with their status. Please analyze each output carefully and run the commands again for which you see errors to get their output by correcting the command and other parameters.\\n\\n=== EXECUTION SUMMARY ===\\nTotal Commands: 2\\nNumber of Successful Commands: 0\\nNumber of Failed Commands: 2\\nNumber of Timed Out Commands: 0\\n========================\\n\\n╔══════════════════════════════════════════════════════════════════════╗\\n║ COMMAND 1 of 2                                                        ║\\n╚══════════════════════════════════════════════════════════════════════╝\\nCommand: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc 'enc_file_sovfhn/.slingshot/bin/rtk git -C angular__angular-37561 --no-pager status --short --branch'\\nStatus: ERROR\\n─────────────────────────────────────────────────────────────────────────\\nOutput:\\nCommand failed with exit code 127.\\n\\n--- Full Output ---\\nzsh:1: no such file or directory: enc_file_sovfhn/.slingshot/bin/rtk\\n__CMD_FINISHED__ 127\\n--- End of Full Output ---\\n═════════════════════════════════════════════════════════════════════════\\n\\n╔══════════════════════════════════════════════════════════════════════╗\\n║ COMMAND 2 of 2                                                        ║\\n╚══════════════════════════════════════════════════════════════════════╝\\nCommand: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc 'enc_file_sovfhn/.slingshot/bin/rtk git -C angular__angular-37561 --no-pager show --stat --oneline --decorate --no-renames f799725'\\nStatus: ERROR\\n─────────────────────────────────────────────────────────────────────────\\nOutput:\\nCommand failed with exit code 127.\\n\\n--- Full Output ---\\nzsh:1: no such file or directory: enc_file_sovfhn/.slingshot/bin/rtk\\n__CMD_FINISHED__ 127\\n--- End of Full Output ---\\n═════════════════════════════════════════════════════════════════════════\\n\\n\"}"
+> > }
+> > ```
+> > 
+> > 43. **Sub-agent event: token_usage**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "token_usage",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "tokenUsage": {
+> >     "inputTokens": 1633,
+> >     "outputTokens": 305,
+> >     "totalTokens": 15677,
+> >     "cost": {
+> >       "total": 0.01212672
+> >     }
+> >   },
+> >   "cumulativeTokenUsage": {
+> >     "inputTokens": 5694,
+> >     "outputTokens": 1171,
+> >     "totalTokens": 50940,
+> >     "cost": {
+> >       "total": 0.044348160000000005
+> >     }
+> >   },
+> >   "status": "running"
+> > }
+> > ```
+> > 
+> > 44. **Sub-agent event: tool_call**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_call",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "run_terminal_command",
+> >   "toolCallId": "call_mwkF8yqEFoeTc6P7Q5MLAEVT|fc_045b4203620df0b4016ab56e4e938c87d1b6dbc5c6fc0ec378",
+> >   "input": {
+> >     "commands": [
+> >       {
+> >         "command": "git status --short --branch",
+> >         "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561",
+> >         "profileName": "bash",
+> >         "readTerminalFullOutput": true,
+> >         "timeoutMs": 30000,
+> >         "isInteractive": false
+> >       },
+> >       {
+> >         "command": "git --no-pager log --oneline --decorate -12 f799725",
+> >         "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561",
+> >         "profileName": "bash",
+> >         "readTerminalFullOutput": true,
+> >         "timeoutMs": 30000,
+> >         "isInteractive": false
+> >       },
+> >       {
+> >         "command": "git --no-pager branch --contains f799725 --all",
+> >         "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561",
+> >         "profileName": "bash",
+> >         "readTerminalFullOutput": true,
+> >         "timeoutMs": 30000,
+> >         "isInteractive": false
+> >       }
+> >     ],
+> >     "toolPurpose": "- I want to inspect the Git state and history around base `f799725`; the required RTK invocation failed because its executable was unavailable at the repository working directory, so I am retrying once directly."
+> >   },
+> >   "toolIcon": "",
+> >   "toolLabel": "Executing Command",
+> >   "isPillTool": false,
+> >   "toolPurpose": "- I want to inspect the Git state and history around base `f799725`; the required RTK invocation failed because its executable was unavailable at the repository working directory, so I am retrying once directly."
+> > }
+> > ```
+> > 
+> > 45. **Sub-agent event: tool_call**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_call",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "grep",
+> >   "toolCallId": "call_BEjZY04qfg7s0qdSxuSHd6fJ|fc_045b4203620df0b4016ab56e4e93a087d1a6b3e1a90a41016d",
+> >   "input": {
+> >     "pattern": "getInheritedInjectableDef|getInjectableDef|getFactoryDef|hasOwnProperty|inherit",
+> >     "searchPath": "packages/core/test",
+> >     "caseInsensitive": false,
+> >     "context": 5,
+> >     "glob": [
+> >       "**/*.ts"
+> >     ],
+> >     "outputMode": "grouped",
+> >     "headLimit": 500,
+> >     "toolPurpose": "- I need to find tests under Angular core that exercise inherited injectable and factory definitions and distinguish own metadata from inherited metadata."
+> >   },
+> >   "toolIcon": "\n      \n      \n",
+> >   "toolLabel": "Searching",
+> >   "isPillTool": false,
+> >   "toolPurpose": "- I need to find tests under Angular core that exercise inherited injectable and factory definitions and distinguish own metadata from inherited metadata."
+> > }
+> > ```
+> > 
+> > 46. **Sub-agent event: tool_call**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_call",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "read_file",
+> >   "toolCallId": "call_smhUQjwU67c1dudBbWfSqfi7|fc_045b4203620df0b4016ab56e4e93ac87d1bc3efcbef853c863",
+> >   "input": {
+> >     "fileNames": [
+> >       {
+> >         "fileName": "packages/core/src/render3/definition.ts",
+> >         "startLine": 1
+> >       },
+> >       {
+> >         "fileName": "packages/core/src/render3/fields.ts",
+> >         "startLine": 1
+> >       }
+> >     ],
+> >     "toolPurpose": "- I want to inspect the runtime factory definition accessor and static field constants used by DI provider resolution."
+> >   },
+> >   "toolIcon": "\n",
+> >   "toolLabel": "Reading",
+> >   "isPillTool": true,
+> >   "toolPurpose": "- I want to inspect the runtime factory definition accessor and static field constants used by DI provider resolution."
+> > }
+> > ```
+> > 
+> > 47. **Sub-agent event: tool_output**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_output",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "grep",
+> >   "toolCallId": "call_BEjZY04qfg7s0qdSxuSHd6fJ|fc_045b4203620df0b4016ab56e4e93a087d1a6b3e1a90a41016d",
+> >   "isError": false,
+> >   "output": "{\"status\":\"error\",\"message\":\"{\\\"success\\\":false,\\\"error\\\":\\\"Permission denied\\\",\\\"details\\\":\\\"Path does not exist: /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/packages/core/test\\\",\\\"path\\\":\\\"packages/core/test\\\",\\\"suggestion\\\":\\\"Path 'packages/core/test' not found. Did you mean:\\\\n  - /bin/test\\\\n  - /private/tmp/MultiQC__MultiQC-3242-patch-check/tests\\\\n  - /usr/share/zoneinfo.default/EST\\\",\\\"code\\\":\\\"ENOENT\\\",\\\"context\\\":\\\"Attempted to search in: packages/core/test\\\"}\"}"
+> > }
+> > ```
+> > 
+> > 48. **Sub-agent event: tool_output**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_output",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "read_file",
+> >   "toolCallId": "call_smhUQjwU67c1dudBbWfSqfi7|fc_045b4203620df0b4016ab56e4e93ac87d1bc3efcbef853c863",
+> >   "isError": false,
+> >   "output": "{\"results\":[{\"status\":\"success\",\"message\":\"\\nFile successfully read, file name definition.ts with file path: enc_file_sovfhn/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/core/src/render3/definition.ts\\n\\n**File Read Information:**\\n- Lines read: 1 to 773 (773 lines)\\n- Total lines in file: 773\\n- Remaining lines: 0\\n\\nContent:\\n/**\\n * @license\\n * Copyright Google Inc. All Rights Reserved.\\n *\\n * Use of this source code is governed by an MIT-style license that can be\\n * found in the LICENSE file at https://angular.io/license\\n */\\n\\nimport {ChangeDetectionStrategy} from '../change_detection/constants';\\nimport {Mutable, Type} from '../interface/type';\\nimport {NgModuleDef} from '../metadata/ng_module';\\nimport {SchemaMetadata} from '../metadata/schema';\\nimport {ViewEncapsulation} from '../metadata/view';\\nimport {noSideEffects} from '../util/closure';\\nimport {initNgDevMode} from '../util/ng_dev_mode';\\nimport {stringify} from '../util/stringify';\\n\\nimport {EMPTY_ARRAY, EMPTY_OBJ} from './empty';\\nimport {NG_COMP_DEF, NG_DIR_DEF, NG_FACTORY_DEF, NG_LOC_ID_DEF, NG_MOD_DEF, NG_PIPE_DEF} from './fields';\\nimport {ComponentDef, ComponentDefFeature, ComponentTemplate, ComponentType, ContentQueriesFunction, DirectiveDef, DirectiveDefFeature, DirectiveTypesOrFactory, FactoryFn, HostBindingsFunction, PipeDef, PipeType, PipeTypesOrFactory, ViewQueriesFunction} from './interfaces/definition';\\nimport {AttributeMarker, TAttributes, TConstants} from './interfaces/node';\\nimport {CssSelectorList, SelectorFlags} from './interfaces/projection';\\nimport {NgModuleType} from './ng_module_ref';\\n\\nlet _renderCompCount = 0;\\n\\n// While these types are unused here, they are required so that types don't\\n// get resolved lazily. see: https://github.com/Microsoft/web-build-tools/issues/1050\\ntype _web_build_tools_issue_1050_SelectorFlags = SelectorFlags;\\ntype _web_build_tools_issue_1050_AttributeMarker = AttributeMarker;\\n\\n/**\\n * Create a component definition object.\\n *\\n *\\n * # Example\\n * ```\\n * class MyDirective {\\n *   // Generated by Angular Template Compiler\\n *   // [Symbol] syntax will not be supported by TypeScript until v2.7\\n *   static ɵcmp = defineComponent({\\n *     ...\\n *   });\\n * }\\n * ```\\n * @codeGenApi\\n */\\nexport function ɵɵdefineComponent(componentDefinition: {\\n  /**\\n   * Directive type, needed to configure the injector.\\n   */\\n  type: Type;\\n\\n  /** The selectors that will be used to match nodes to this component. */\\n  selectors?: CssSelectorList;\\n\\n  /**\\n   * The number of nodes, local refs, and pipes in this component template.\\n   *\\n   * Used to calculate the length of this component's LView array, so we\\n   * can pre-fill the array and set the binding start index.\\n   */\\n  // TODO(kara): remove queries from this count\\n  decls: number;\\n\\n  /**\\n   * The number of bindings in this component template (including pure fn bindings).\\n   *\\n   * Used to calculate the length of this component's LView array, so we\\n   * can pre-fill the array and set the host binding start index.\\n   */\\n  vars: number;\\n\\n  /**\\n   * A map of input names.\\n   *\\n   * The format is in: `{[actualPropertyName: string]:(string|[string, string])}`.\\n   *\\n   * Given:\\n   * ```\\n   * class MyComponent {\\n   *   @Input()\\n   *   publicInput1: string;\\n   *\\n   *   @Input('publicInput2')\\n   *   declaredInput2: string;\\n   * }\\n   * ```\\n   *\\n   * is described as:\\n   * ```\\n   * {\\n   *   publicInput1: 'publicInput1',\\n   *   declaredInput2: ['publicInput2', 'declaredInput2'],\\n   * }\\n   * ```\\n   *\\n   * Which the minifier may translate to:\\n   * ```\\n   * {\\n   *   minifiedPublicInput1: 'publicInput1',\\n   *   minifiedDeclaredInput2: ['publicInput2', 'declaredInput2'],\\n   * }\\n   * ```\\n   *\\n   * This allows the render to re-construct the minified, public, and declared names\\n   * of properties.\\n   *\\n   * NOTE:\\n   *  - Because declared and public name are usually same we only generate the array\\n   *    `['public', 'declared']` format when they differ.\\n   *  - The reason why this API and `outputs` API is not the same is that `NgOnChanges` has\\n   *    inconsistent behavior in that it uses declared names rather than minified or public. For\\n   *    this reason `NgOnChanges` will be deprecated and removed in future version and this\\n   *    API will be simplified to be consistent with `output`.\\n   */\\n  inputs?: {[P in keyof T]?: string | [string, string]};\\n\\n  /**\\n   * A map of output names.\\n   *\\n   * The format is in: `{[actualPropertyName: string]:string}`.\\n   *\\n   * Which the minifier may translate to: `{[minifiedPropertyName: string]:string}`.\\n   *\\n   * This allows the render to re-construct the minified and non-minified names\\n   * of properties.\\n   */\\n  outputs?: {[P in keyof T]?: string};\\n\\n  /**\\n   * Function executed by the parent template to allow child directive to apply host bindings.\\n   */\\n  hostBindings?: HostBindingsFunction;\\n\\n  /**\\n   * The number of bindings in this directive `hostBindings` (including pure fn bindings).\\n   *\\n   * Used to calculate the length of the component's LView array, so we\\n   * can pre-fill the array and set the host binding start index.\\n   */\\n  hostVars?: number;\\n\\n  /**\\n   * Assign static attribute values to a host element.\\n   *\\n   * This property will assign static attribute values as well as class and style\\n   * values to a host element. Since attribute values can consist of different types of values, the\\n   * `hostAttrs` array must include the values in the following format:\\n   *\\n   * attrs = [\\n   *   // static attributes (like `title`, `name`, `id`...)\\n   *   attr1, value1, attr2, value,\\n   *\\n   *   // a single namespace value (like `x:id`)\\n   *   NAMESPACE_MARKER, namespaceUri1, name1, value1,\\n   *\\n   *   // another single namespace value (like `x:name`)\\n   *   NAMESPACE_MARKER, namespaceUri2, name2, value2,\\n   *\\n   *   // a series of CSS classes that will be applied to the element (no spaces)\\n   *   CLASSES_MARKER, class1, class2, class3,\\n   *\\n   *   // a series of CSS styles (property + value) that will be applied to the element\\n   *   STYLES_MARKER, prop1, value1, prop2, value2\\n   * ]\\n   *\\n   * All non-class and non-style attributes must be defined at the start of the list\\n   * first before all class and style values are set. When there is a change in value\\n   * type (like when classes and styles are introduced) a marker must be used to separate\\n   * the entries. The marker values themselves are set via entries found in the\\n   * [AttributeMarker] enum.\\n   */\\n  hostAttrs?: TAttributes;\\n\\n  /**\\n   * Function to create instances of content queries associated with a given directive.\\n   */\\n  contentQueries?: ContentQueriesFunction;\\n\\n  /**\\n   * Defines the name that can be used in the template to assign this directive to a variable.\\n   *\\n   * See: {@link Directive.exportAs}\\n   */\\n  exportAs?: string[];\\n\\n  /**\\n   * Template function use for rendering DOM.\\n   *\\n   * This function has following structure.\\n   *\\n   * ```\\n   * function Template(ctx:T, creationMode: boolean) {\\n   *   if (creationMode) {\\n   *     // Contains creation mode instructions.\\n   *   }\\n   *   // Contains binding update instructions\\n   * }\\n   * ```\\n   *\\n   * Common instructions are:\\n   * Creation mode instructions:\\n   *  - `elementStart`, `elementEnd`\\n   *  - `text`\\n   *  - `container`\\n   *  - `listener`\\n   *\\n   * Binding update instructions:\\n   * - `bind`\\n   * - `elementAttribute`\\n   * - `elementProperty`\\n   * - `elementClass`\\n   * - `elementStyle`\\n   *\\n   */\\n  template: ComponentTemplate;\\n\\n  /**\\n   * Constants for the nodes in the component's view.\\n   * Includes attribute arrays, local definition arrays etc.\\n   */\\n  consts?: TConstants;\\n\\n  /**\\n   * An array of `ngContent[selector]` values that were found in the template.\\n   */\\n  ngContentSelectors?: string[];\\n\\n  /**\\n   * Additional set of instructions specific to view query processing. This could be seen as a\\n   * set of instruction to be inserted into the template function.\\n   *\\n   * Query-related instructions need to be pulled out to a specific function as a timing of\\n   * execution is different as compared to all other instructions (after change detection hooks but\\n   * before view hooks).\\n   */\\n  viewQuery?: ViewQueriesFunction| null;\\n\\n  /**\\n   * A list of optional features to apply.\\n   *\\n   * See: {@link NgOnChangesFeature}, {@link ProvidersFeature}\\n   */\\n  features?: ComponentDefFeature[];\\n\\n  /**\\n   * Defines template and style encapsulation options available for Component's {@link Component}.\\n   */\\n  encapsulation?: ViewEncapsulation;\\n\\n  /**\\n   * Defines arbitrary developer-defined data to be stored on a renderer instance.\\n   * This is useful for renderers that delegate to other renderers.\\n   *\\n   * see: animation\\n   */\\n  data?: {[kind: string]: any};\\n\\n  /**\\n   * A set of styles that the component needs to be present for component to render correctly.\\n   */\\n  styles?: string[];\\n\\n  /**\\n   * The strategy that the default change detector uses to detect changes.\\n   * When set, takes effect the next time change detection is triggered.\\n   */\\n  changeDetection?: ChangeDetectionStrategy;\\n\\n  /**\\n   * Registry of directives and components that may be found in this component's view.\\n   *\\n   * The property is either an array of `DirectiveDef`s or a function which returns the array of\\n   * `DirectiveDef`s. The function is necessary to be able to support forward declarations.\\n   */\\n  directives?: DirectiveTypesOrFactory | null;\\n\\n  /**\\n   * Registry of pipes that may be found in this component's view.\\n   *\\n   * The property is either an array of `PipeDefs`s or a function which returns the array of\\n   * `PipeDefs`s. The function is necessary to be able to support forward declarations.\\n   */\\n  pipes?: PipeTypesOrFactory | null;\\n\\n  /**\\n   * The set of schemas that declare elements to be allowed in the component's template.\\n   */\\n  schemas?: SchemaMetadata[] | null;\\n}): never {\\n  return noSideEffects(() => {\\n    // Initialize ngDevMode. This must be the first statement in ɵɵdefineComponent.\\n    // See the `initNgDevMode` docstring for more information.\\n    (typeof ngDevMode === 'undefined' || ngDevMode) && initNgDevMode();\\n\\n    const type = componentDefinition.type;\\n    const typePrototype = type.prototype;\\n    const declaredInputs: {[key: string]: string} = {} as any;\\n    const def: Mutable, keyof ComponentDef> = {\\n      type: type,\\n      providersResolver: null,\\n      decls: componentDefinition.decls,\\n      vars: componentDefinition.vars,\\n      factory: null,\\n      template: componentDefinition.template || null!,\\n      consts: componentDefinition.consts || null,\\n      ngContentSelectors: componentDefinition.ngContentSelectors,\\n      hostBindings: componentDefinition.hostBindings || null,\\n      hostVars: componentDefinition.hostVars || 0,\\n      hostAttrs: componentDefinition.hostAttrs || null,\\n      contentQueries: componentDefinition.contentQueries || null,\\n      declaredInputs: declaredInputs,\\n      inputs: null!,   // assigned in noSideEffects\\n      outputs: null!,  // assigned in noSideEffects\\n      exportAs: componentDefinition.exportAs || null,\\n      onChanges: null,\\n      onInit: typePrototype.ngOnInit || null,\\n      doCheck: typePrototype.ngDoCheck || null,\\n      afterContentInit: typePrototype.ngAfterContentInit || null,\\n      afterContentChecked: typePrototype.ngAfterContentChecked || null,\\n      afterViewInit: typePrototype.ngAfterViewInit || null,\\n      afterViewChecked: typePrototype.ngAfterViewChecked || null,\\n      onDestroy: typePrototype.ngOnDestroy || null,\\n      onPush: componentDefinition.changeDetection === ChangeDetectionStrategy.OnPush,\\n      directiveDefs: null!,  // assigned in noSideEffects\\n      pipeDefs: null!,       // assigned in noSideEffects\\n      selectors: componentDefinition.selectors || EMPTY_ARRAY,\\n      viewQuery: componentDefinition.viewQuery || null,\\n      features: componentDefinition.features as DirectiveDefFeature[] || null,\\n      data: componentDefinition.data || {},\\n      // TODO(misko): convert ViewEncapsulation into const enum so that it can be used directly in\\n      // the next line. Also `None` should be 0 not 2.\\n      encapsulation: componentDefinition.encapsulation || ViewEncapsulation.Emulated,\\n      id: 'c',\\n      styles: componentDefinition.styles || EMPTY_ARRAY,\\n      _: null as never,\\n      setInput: null,\\n      schemas: componentDefinition.schemas || null,\\n      tView: null,\\n    };\\n    const directiveTypes = componentDefinition.directives!;\\n    const feature = componentDefinition.features;\\n    const pipeTypes = componentDefinition.pipes!;\\n    def.id += _renderCompCount++;\\n    def.inputs = invertObject(componentDefinition.inputs, declaredInputs),\\n    def.outputs = invertObject(componentDefinition.outputs),\\n    feature && feature.forEach((fn) => fn(def));\\n    def.directiveDefs = directiveTypes ?\\n        () => (typeof directiveTypes === 'function' ? directiveTypes() : directiveTypes)\\n                  .map(extractDirectiveDef) :\\n        null;\\n    def.pipeDefs = pipeTypes ?\\n        () => (typeof pipeTypes === 'function' ? pipeTypes() : pipeTypes).map(extractPipeDef) :\\n        null;\\n\\n    return def as never;\\n  });\\n}\\n\\n/**\\n * @codeGenApi\\n */\\nexport function ɵɵsetComponentScope(\\n    type: ComponentType, directives: Type[], pipes: Type[]): void {\\n  const def = (type.ɵcmp as ComponentDef);\\n  def.directiveDefs = () => directives.map(extractDirectiveDef);\\n  def.pipeDefs = () => pipes.map(extractPipeDef);\\n}\\n\\nexport function extractDirectiveDef(type: Type): DirectiveDef|ComponentDef {\\n  const def = getComponentDef(type) || getDirectiveDef(type);\\n  if (ngDevMode && !def) {\\n    throw new Error(`'${type.name}' is neither 'ComponentType' or 'DirectiveType'.`);\\n  }\\n  return def!;\\n}\\n\\nexport function extractPipeDef(type: Type): PipeDef {\\n  const def = getPipeDef(type);\\n  if (ngDevMode && !def) {\\n    throw new Error(`'${type.name}' is not a 'PipeType'.`);\\n  }\\n  return def!;\\n}\\n\\nexport const autoRegisterModuleById: {[id: string]: NgModuleType} = {};\\n\\n/**\\n * @codeGenApi\\n */\\nexport function ɵɵdefineNgModule(def: {\\n  /** Token representing the module. Used by DI. */\\n  type: T;\\n\\n  /** List of components to bootstrap. */\\n  bootstrap?: Type[] | (() => Type[]);\\n\\n  /** List of components, directives, and pipes declared by this module. */\\n  declarations?: Type[] | (() => Type[]);\\n\\n  /** List of modules or `ModuleWithProviders` imported by this module. */\\n  imports?: Type[] | (() => Type[]);\\n\\n  /**\\n   * List of modules, `ModuleWithProviders`, components, directives, or pipes exported by this\\n   * module.\\n   */\\n  exports?: Type[] | (() => Type[]);\\n\\n  /** The set of schemas that declare elements to be allowed in the NgModule. */\\n  schemas?: SchemaMetadata[] | null;\\n\\n  /** Unique ID for the module that is used with `getModuleFactory`. */\\n  id?: string | null;\\n}): never {\\n  const res: NgModuleDef = {\\n    type: def.type,\\n    bootstrap: def.bootstrap || EMPTY_ARRAY,\\n    declarations: def.declarations || EMPTY_ARRAY,\\n    imports: def.imports || EMPTY_ARRAY,\\n    exports: def.exports || EMPTY_ARRAY,\\n    transitiveCompileScopes: null,\\n    schemas: def.schemas || null,\\n    id: def.id || null,\\n  };\\n  if (def.id != null) {\\n    noSideEffects(() => {\\n      autoRegisterModuleById[def.id!] = def.type as unknown as NgModuleType;\\n    });\\n  }\\n  return res as never;\\n}\\n\\n/**\\n * Adds the module metadata that is necessary to compute the module's transitive scope to an\\n * existing module definition.\\n *\\n * Scope metadata of modules is not used in production builds, so calls to this function can be\\n * marked pure to tree-shake it from the bundle, allowing for all referenced declarations\\n * to become eligible for tree-shaking as well.\\n *\\n * @codeGenApi\\n */\\nexport function ɵɵsetNgModuleScope(type: any, scope: {\\n  /** List of components, directives, and pipes declared by this module. */\\n  declarations?: Type[]|(() => Type[]);\\n\\n  /** List of modules or `ModuleWithProviders` imported by this module. */\\n  imports?: Type[] | (() => Type[]);\\n\\n  /**\\n   * List of modules, `ModuleWithProviders`, components, directives, or pipes exported by this\\n   * module.\\n   */\\n  exports?: Type[] | (() => Type[]);\\n}): void {\\n  return noSideEffects(() => {\\n           const ngModuleDef = getNgModuleDef(type, true);\\n           ngModuleDef.declarations = scope.declarations || EMPTY_ARRAY;\\n           ngModuleDef.imports = scope.imports || EMPTY_ARRAY;\\n           ngModuleDef.exports = scope.exports || EMPTY_ARRAY;\\n         }) as never;\\n}\\n\\n/**\\n * Inverts an inputs or outputs lookup such that the keys, which were the\\n * minified keys, are part of the values, and the values are parsed so that\\n * the publicName of the property is the new key\\n *\\n * e.g. for\\n *\\n * ```\\n * class Comp {\\n *   @Input()\\n *   propName1: string;\\n *\\n *   @Input('publicName2')\\n *   declaredPropName2: number;\\n * }\\n * ```\\n *\\n * will be serialized as\\n *\\n * ```\\n * {\\n *   propName1: 'propName1',\\n *   declaredPropName2: ['publicName2', 'declaredPropName2'],\\n * }\\n * ```\\n *\\n * which is than translated by the minifier as:\\n *\\n * ```\\n * {\\n *   minifiedPropName1: 'propName1',\\n *   minifiedPropName2: ['publicName2', 'declaredPropName2'],\\n * }\\n * ```\\n *\\n * becomes: (public name => minifiedName)\\n *\\n * ```\\n * {\\n *  'propName1': 'minifiedPropName1',\\n *  'publicName2': 'minifiedPropName2',\\n * }\\n * ```\\n *\\n * Optionally the function can take `secondary` which will result in: (public name => declared name)\\n *\\n * ```\\n * {\\n *  'propName1': 'propName1',\\n *  'publicName2': 'declaredPropName2',\\n * }\\n * ```\\n *\\n\\n */\\nfunction invertObject(\\n    obj?: {[P in keyof T]?: string|[string, string]},\\n    secondary?: {[key: string]: string}): {[P in keyof T]: string} {\\n  if (obj == null) return EMPTY_OBJ as any;\\n  const newLookup: any = {};\\n  for (const minifiedKey in obj) {\\n    if (obj.hasOwnProperty(minifiedKey)) {\\n      let publicName: string|[string, string] = obj[minifiedKey]!;\\n      let declaredName = publicName;\\n      if (Array.isArray(publicName)) {\\n        declaredName = publicName[1];\\n        publicName = publicName[0];\\n      }\\n      newLookup[publicName] = minifiedKey;\\n      if (secondary) {\\n        (secondary[publicName] = declaredName as string);\\n      }\\n    }\\n  }\\n  return newLookup;\\n}\\n\\n/**\\n * Create a directive definition object.\\n *\\n * # Example\\n * ```ts\\n * class MyDirective {\\n *   // Generated by Angular Template Compiler\\n *   // [Symbol] syntax will not be supported by TypeScript until v2.7\\n *   static ɵdir = ɵɵdefineDirective({\\n *     ...\\n *   });\\n * }\\n * ```\\n *\\n * @codeGenApi\\n */\\nexport const ɵɵdefineDirective =\\n    ɵɵdefineComponent as any as(directiveDefinition: {\\n      /**\\n       * Directive type, needed to configure the injector.\\n       */\\n      type: Type;\\n\\n      /** The selectors that will be used to match nodes to this directive. */\\n      selectors?: CssSelectorList;\\n\\n      /**\\n       * A map of input names.\\n       *\\n       * The format is in: `{[actualPropertyName: string]:(string|[string, string])}`.\\n       *\\n       * Given:\\n       * ```\\n       * class MyComponent {\\n       *   @Input()\\n       *   publicInput1: string;\\n       *\\n       *   @Input('publicInput2')\\n       *   declaredInput2: string;\\n       * }\\n       * ```\\n       *\\n       * is described as:\\n       * ```\\n       * {\\n       *   publicInput1: 'publicInput1',\\n       *   declaredInput2: ['declaredInput2', 'publicInput2'],\\n       * }\\n       * ```\\n       *\\n       * Which the minifier may translate to:\\n       * ```\\n       * {\\n       *   minifiedPublicInput1: 'publicInput1',\\n       *   minifiedDeclaredInput2: [ 'publicInput2', 'declaredInput2'],\\n       * }\\n       * ```\\n       *\\n       * This allows the render to re-construct the minified, public, and declared names\\n       * of properties.\\n       *\\n       * NOTE:\\n       *  - Because declared and public name are usually same we only generate the array\\n       *    `['declared', 'public']` format when they differ.\\n       *  - The reason why this API and `outputs` API is not the same is that `NgOnChanges` has\\n       *    inconsistent behavior in that it uses declared names rather than minified or public. For\\n       *    this reason `NgOnChanges` will be deprecated and removed in future version and this\\n       *    API will be simplified to be consistent with `output`.\\n       */\\n      inputs?: {[P in keyof T]?: string | [string, string]};\\n\\n      /**\\n       * A map of output names.\\n       *\\n       * The format is in: `{[actualPropertyName: string]:string}`.\\n       *\\n       * Which the minifier may translate to: `{[minifiedPropertyName: string]:string}`.\\n       *\\n       * This allows the render to re-construct the minified and non-minified names\\n       * of properties.\\n       */\\n      outputs?: {[P in keyof T]?: string};\\n\\n      /**\\n       * A list of optional features to apply.\\n       *\\n       * See: {@link NgOnChangesFeature}, {@link ProvidersFeature}, {@link InheritDefinitionFeature}\\n       */\\n      features?: DirectiveDefFeature[];\\n\\n      /**\\n       * Function executed by the parent template to allow child directive to apply host bindings.\\n       */\\n      hostBindings?: HostBindingsFunction;\\n\\n      /**\\n       * The number of bindings in this directive `hostBindings` (including pure fn bindings).\\n       *\\n       * Used to calculate the length of the component's LView array, so we\\n       * can pre-fill the array and set the host binding start index.\\n       */\\n      hostVars?: number;\\n\\n      /**\\n       * Assign static attribute values to a host element.\\n       *\\n       * This property will assign static attribute values as well as class and style\\n       * values to a host element. Since attribute values can consist of different types of values,\\n       * the `hostAttrs` array must include the values in the following format:\\n       *\\n       * attrs = [\\n       *   // static attributes (like `title`, `name`, `id`...)\\n       *   attr1, value1, attr2, value,\\n       *\\n       *   // a single namespace value (like `x:id`)\\n       *   NAMESPACE_MARKER, namespaceUri1, name1, value1,\\n       *\\n       *   // another single namespace value (like `x:name`)\\n       *   NAMESPACE_MARKER, namespaceUri2, name2, value2,\\n       *\\n       *   // a series of CSS classes that will be applied to the element (no spaces)\\n       *   CLASSES_MARKER, class1, class2, class3,\\n       *\\n       *   // a series of CSS styles (property + value) that will be applied to the element\\n       *   STYLES_MARKER, prop1, value1, prop2, value2\\n       * ]\\n       *\\n       * All non-class and non-style attributes must be defined at the start of the list\\n       * first before all class and style values are set. When there is a change in value\\n       * type (like when classes and styles are introduced) a marker must be used to separate\\n       * the entries. The marker values themselves are set via entries found in the\\n       * [AttributeMarker] enum.\\n       */\\n      hostAttrs?: TAttributes;\\n\\n      /**\\n       * Function to create instances of content queries associated with a given directive.\\n       */\\n      contentQueries?: ContentQueriesFunction;\\n\\n      /**\\n       * Additional set of instructions specific to view query processing. This could be seen as a\\n       * set of instructions to be inserted into the template function.\\n       */\\n      viewQuery?: ViewQueriesFunction| null;\\n\\n      /**\\n       * Defines the name that can be used in the template to assign this directive to a variable.\\n       *\\n       * See: {@link Directive.exportAs}\\n       */\\n      exportAs?: string[];\\n    }) => never;\\n\\n/**\\n * Create a pipe definition object.\\n *\\n * # Example\\n * ```\\n * class MyPipe implements PipeTransform {\\n *   // Generated by Angular Template Compiler\\n *   static ɵpipe = definePipe({\\n *     ...\\n *   });\\n * }\\n * ```\\n * @param pipeDef Pipe definition generated by the compiler\\n *\\n * @codeGenApi\\n */\\nexport function ɵɵdefinePipe(pipeDef: {\\n  /** Name of the pipe. Used for matching pipes in template to pipe defs. */\\n  name: string,\\n\\n  /** Pipe class reference. Needed to extract pipe lifecycle hooks. */\\n  type: Type,\\n\\n  /** Whether the pipe is pure. */\\n  pure?: boolean\\n}): never {\\n  return (>{\\n           type: pipeDef.type,\\n           name: pipeDef.name,\\n           factory: null,\\n           pure: pipeDef.pure !== false,\\n           onDestroy: pipeDef.type.prototype.ngOnDestroy || null\\n         }) as never;\\n}\\n\\n/**\\n * The following getter methods retrieve the definition form the type. Currently the retrieval\\n * honors inheritance, but in the future we may change the rule to require that definitions are\\n * explicit. This would require some sort of migration strategy.\\n */\\n\\nexport function getComponentDef(type: any): ComponentDef|null {\\n  return type[NG_COMP_DEF] || null;\\n}\\n\\nexport function getDirectiveDef(type: any): DirectiveDef|null {\\n  return type[NG_DIR_DEF] || null;\\n}\\n\\nexport function getPipeDef(type: any): PipeDef|null {\\n  return type[NG_PIPE_DEF] || null;\\n}\\n\\nexport function getFactoryDef(type: any, throwNotFound: true): FactoryFn;\\nexport function getFactoryDef(type: any): FactoryFn|null;\\nexport function getFactoryDef(type: any, throwNotFound?: boolean): FactoryFn|null {\\n  const hasFactoryDef = type.hasOwnProperty(NG_FACTORY_DEF);\\n  if (!hasFactoryDef && throwNotFound === true && ngDevMode) {\\n    throw new Error(`Type ${stringify(type)} does not have 'ɵfac' property.`);\\n  }\\n  return hasFactoryDef ? type[NG_FACTORY_DEF] : null;\\n}\\n\\nexport function getNgModuleDef(type: any, throwNotFound: true): NgModuleDef;\\nexport function getNgModuleDef(type: any): NgModuleDef|null;\\nexport function getNgModuleDef(type: any, throwNotFound?: boolean): NgModuleDef|null {\\n  const ngModuleDef = type[NG_MOD_DEF] || null;\\n  if (!ngModuleDef && throwNotFound === true) {\\n    throw new Error(`Type ${stringify(type)} does not have 'ɵmod' property.`);\\n  }\\n  return ngModuleDef;\\n}\\n\\nexport function getNgLocaleIdDef(type: any): string|null {\\n  return (type as any)[NG_LOC_ID_DEF] || null;\\n}\\n\\n\",\"fileReadMetaData\":{\"startLine\":1,\"endLine\":773,\"totalLines\":773,\"remainingLines\":0},\"updatedFilePath\":\"/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/core/src/render3/definition.ts\"},{\"status\":\"success\",\"message\":\"\\nFile successfully read, file name fields.ts with file path: enc_file_sovfhn/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/core/src/render3/fields.ts\\n\\n**File Read Information:**\\n- Lines read: 1 to 25 (25 lines)\\n- Total lines in file: 25\\n- Remaining lines: 0\\n\\nContent:\\n/**\\n * @license\\n * Copyright Google Inc. All Rights Reserved.\\n *\\n * Use of this source code is governed by an MIT-style license that can be\\n * found in the LICENSE file at https://angular.io/license\\n */\\n\\nimport {getClosureSafeProperty} from '../util/property';\\n\\nexport const NG_COMP_DEF = getClosureSafeProperty({ɵcmp: getClosureSafeProperty});\\nexport const NG_DIR_DEF = getClosureSafeProperty({ɵdir: getClosureSafeProperty});\\nexport const NG_PIPE_DEF = getClosureSafeProperty({ɵpipe: getClosureSafeProperty});\\nexport const NG_MOD_DEF = getClosureSafeProperty({ɵmod: getClosureSafeProperty});\\nexport const NG_LOC_ID_DEF = getClosureSafeProperty({ɵloc: getClosureSafeProperty});\\nexport const NG_FACTORY_DEF = getClosureSafeProperty({ɵfac: getClosureSafeProperty});\\n\\n/**\\n * If a directive is diPublic, bloomAdd sets a property on the type with this constant as\\n * the key and the directive's unique ID as the value. This allows us to map directives to their\\n * bloom filter bit for DI.\\n */\\n// TODO(misko): This is wrong. The NG_ELEMENT_ID should never be minified.\\nexport const NG_ELEMENT_ID = getClosureSafeProperty({__NG_ELEMENT_ID__: getClosureSafeProperty});\\n\\n\",\"fileReadMetaData\":{\"startLine\":1,\"endLine\":25,\"totalLines\":25,\"remainingLines\":0},\"updatedFilePath\":\"/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/core/src/render3/fields.ts\"}]}"
+> > }
+> > ```
+> > 
+> > 49. **Sub-agent event: tool_output**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_output",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "run_terminal_command",
+> >   "toolCallId": "call_mwkF8yqEFoeTc6P7Q5MLAEVT|fc_045b4203620df0b4016ab56e4e938c87d1b6dbc5c6fc0ec378",
+> >   "isError": false,
+> >   "output": "{\"status\":\"success\",\"message\":\"I ran all provided commands and below are the outcomes for each command with their status. Please analyze each output carefully and run the commands again for which you see errors to get their output by correcting the command and other parameters.\\n\\n=== EXECUTION SUMMARY ===\\nTotal Commands: 3\\nNumber of Successful Commands: 3\\nNumber of Failed Commands: 0\\nNumber of Timed Out Commands: 0\\n========================\\n\\n╔══════════════════════════════════════════════════════════════════════╗\\n║ COMMAND 1 of 3                                                        ║\\n╚══════════════════════════════════════════════════════════════════════╝\\nCommand: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc 'git status --short --branch'\\nStatus: SUCCESS\\n─────────────────────────────────────────────────────────────────────────\\nOutput:\\nCommand success.\\n\\n--- Full Output ---\\n## HEAD (no branch)\\n__CMD_FINISHED__ 0\\n--- End of Full Output ---\\n═════════════════════════════════════════════════════════════════════════\\n\\n╔══════════════════════════════════════════════════════════════════════╗\\n║ COMMAND 2 of 3                                                        ║\\n╚══════════════════════════════════════════════════════════════════════╝\\nCommand: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc 'git --no-pager log --oneline --decorate -12 f799725'\\nStatus: SUCCESS\\n─────────────────────────────────────────────────────────────────────────\\nOutput:\\nCommand success.\\n\\n--- Full Output ---\\nf799725 (grafted, HEAD) release: cut the v9.1.11 release\\n__CMD_FINISHED__ 0\\n--- End of Full Output ---\\n═════════════════════════════════════════════════════════════════════════\\n\\n╔══════════════════════════════════════════════════════════════════════╗\\n║ COMMAND 3 of 3                                                        ║\\n╚══════════════════════════════════════════════════════════════════════╝\\nCommand: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc 'git --no-pager branch --contains f799725 --all'\\nStatus: SUCCESS\\n─────────────────────────────────────────────────────────────────────────\\nOutput:\\nCommand success.\\n\\n--- Full Output ---\\n* (HEAD detached at FETCH_HEAD)\\n__CMD_FINISHED__ 0\\n--- End of Full Output ---\\n═════════════════════════════════════════════════════════════════════════\\n\\n\"}"
+> > }
+> > ```
+> > 
+> > 50. **Sub-agent event: token_usage**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "token_usage",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "tokenUsage": {
+> >     "inputTokens": 12841,
+> >     "outputTokens": 620,
+> >     "totalTokens": 25960,
+> >     "cost": {
+> >       "total": 0.06121344000000001
+> >     }
+> >   },
+> >   "cumulativeTokenUsage": {
+> >     "inputTokens": 15659,
+> >     "outputTokens": 1399,
+> >     "totalTokens": 49015,
+> >     "cost": {
+> >       "total": 0.08699136000000002
+> >     }
+> >   },
+> >   "status": "running"
+> > }
+> > ```
+> > 
+> > 51. **Sub-agent event: tool_call**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_call",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "run_terminal_command",
+> >   "toolCallId": "call_NH8T86keh4Nta2NMPyJdKgXG|fc_032f22962d24028b016ab56e4f8fb487d1afcc83a4ca9897a8",
+> >   "input": {
+> >     "commands": [
+> >       {
+> >         "command": "git --no-pager status --short --branch",
+> >         "cwd": "angular__angular-37561",
+> >         "profileName": "bash",
+> >         "readTerminalFullOutput": true,
+> >         "timeoutMs": 30000,
+> >         "isInteractive": false
+> >       },
+> >       {
+> >         "command": "git --no-pager show --stat --oneline --decorate --no-renames f799725",
+> >         "cwd": "angular__angular-37561",
+> >         "profileName": "bash",
+> >         "readTerminalFullOutput": true,
+> >         "timeoutMs": 30000,
+> >         "isInteractive": false
+> >       }
+> >     ],
+> >     "toolPurpose": "RTK is unavailable in this workspace, so I want to retry the repository inspection directly to verify state and the requested base revision."
+> >   },
+> >   "toolIcon": "",
+> >   "toolLabel": "Executing Command",
+> >   "isPillTool": false,
+> >   "toolPurpose": "RTK is unavailable in this workspace, so I want to retry the repository inspection directly to verify state and the requested base revision."
+> > }
+> > ```
+> > 
+> > 52. **Sub-agent event: tool_output**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_output",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "run_terminal_command",
+> >   "toolCallId": "call_NH8T86keh4Nta2NMPyJdKgXG|fc_032f22962d24028b016ab56e4f8fb487d1afcc83a4ca9897a8",
+> >   "isError": false,
+> >   "output": "{\"status\":\"success\",\"message\":\"I ran all provided commands and below are the outcomes for each command with their status. Please analyze each output carefully and run the commands again for which you see errors to get their output by correcting the command and other parameters.\\n\\n=== EXECUTION SUMMARY ===\\nTotal Commands: 2\\nNumber of Successful Commands: 2\\nNumber of Failed Commands: 0\\nNumber of Timed Out Commands: 0\\n========================\\n\\n╔══════════════════════════════════════════════════════════════════════╗\\n║ COMMAND 1 of 2                                                        ║\\n╚══════════════════════════════════════════════════════════════════════╝\\nCommand: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc 'git --no-pager status --short --branch'\\nStatus: SUCCESS\\n─────────────────────────────────────────────────────────────────────────\\nOutput:\\nCommand success.\\n\\n--- Full Output ---\\n## HEAD (no branch)\\n__CMD_FINISHED__ 0\\n--- End of Full Output ---\\n═════════════════════════════════════════════════════════════════════════\\n\\n╔══════════════════════════════════════════════════════════════════════╗\\n║ COMMAND 2 of 2                                                        ║\\n╚══════════════════════════════════════════════════════════════════════╝\\nCommand: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc 'git --no-pager show --stat --oneline --decorate --no-renames f799725'\\nStatus: SUCCESS\\n─────────────────────────────────────────────────────────────────────────\\nOutput:\\nCommand success.\\n\\n--- Large Output (565 KB) — saved to disk ---\\nThe command produced 565 KB of output which exceeds the inline token limit. The output has been saved temporarily for this session.\\nIMPORTANT INSTRUCTION FOR AGENT: You MUST use the grep tool now to extract relevant information from the file and present a clear summary to the user. Do NOT show the file path to the user — it is a temporary internal file that will be deleted when this session ends and is inaccessible to them.\\nSearch the file using: { \\\"pattern\\\": \\\"error|warning|failed|FAILED|ERROR\\\", \\\"searchPath\\\": \\\"/Users/sankanum1/Library/Application Support/Code/User/globalStorage/publicis-sapient.slingshot/terminal-output/running-env/swe-angular-37561_1ff64ca0-b847-11f1-b6d2-61e1c1792ade_child_worker-compiler-injectable/slingshot_cmd_out_1790275152748_a76d804f-219b-43a8-93db-f0c33cdc438f.txt\\\" }\\nIf the first grep does not return what is needed, run additional targeted greps before responding to the user.\\n--- End of Large Output ---\\n═════════════════════════════════════════════════════════════════════════\\n\\n\"}"
+> > }
+> > ```
+> > 
+> > 53. **Sub-agent event: token_usage**
+> > worker-compiler-injectable
+> > Input:
+> > ```json
+> > {
+> >   "type": "token_usage",
+> >   "subagentId": "worker-compiler-injectable",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-compiler-injectable",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "tokenUsage": {
+> >     "inputTokens": 814,
+> >     "outputTokens": 164,
+> >     "totalTokens": 16347,
+> >     "cost": {
+> >       "total": 0.00627456
+> >     }
+> >   },
+> >   "cumulativeTokenUsage": {
+> >     "inputTokens": 6508,
+> >     "outputTokens": 1335,
+> >     "totalTokens": 67287,
+> >     "cost": {
+> >       "total": 0.05062272
+> >     }
+> >   },
+> >   "status": "running"
+> > }
+> > ```
+> > 
+> > 54. **Sub-agent event: tool_call**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_call",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "grep",
+> >   "toolCallId": "call_UQ3D7t0r64XyrnfPMnKsDPMz|fc_045b4203620df0b4016ab56e535fd087d187efda4a1f02d6db",
+> >   "input": {
+> >     "pattern": "getInheritedInjectableDef|getInjectableDef|getFactoryDef",
+> >     "searchPath": "/",
+> >     "caseInsensitive": false,
+> >     "context": 8,
+> >     "glob": [
+> >       "packages/core/test/**/*.ts"
+> >     ],
+> >     "outputMode": "grouped",
+> >     "headLimit": 500,
+> >     "toolPurpose": "- I need to locate direct unit tests for injectable and factory definition accessors and inherited DI resolution."
+> >   },
+> >   "toolIcon": "\n      \n      \n",
+> >   "toolLabel": "Searching",
+> >   "isPillTool": false,
+> >   "toolPurpose": "- I need to locate direct unit tests for injectable and factory definition accessors and inherited DI resolution."
+> > }
+> > ```
+> > 
+> > 55. **Sub-agent event: tool_call**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_call",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "grep",
+> >   "toolCallId": "call_esSsQ1RnkOU4guxiiewtpc0O|fc_045b4203620df0b4016ab56e535fe487d1b53c12301b033de7",
+> >   "input": {
+> >     "pattern": "inherits its @Injectable|inherits.*Injectable|inherited.*factory|own.*factory|own.*injectable|decorator.*return|return class|class decorator",
+> >     "searchPath": "/",
+> >     "caseInsensitive": true,
+> >     "context": 8,
+> >     "glob": [
+> >       "packages/core/test/**/*.ts"
+> >     ],
+> >     "outputMode": "grouped",
+> >     "headLimit": 500,
+> >     "toolPurpose": "- I need to find scenario tests involving inherited injectable metadata, factory ownership, and class-returning decorators."
+> >   },
+> >   "toolIcon": "\n      \n      \n",
+> >   "toolLabel": "Searching",
+> >   "isPillTool": false,
+> >   "toolPurpose": "- I need to find scenario tests involving inherited injectable metadata, factory ownership, and class-returning decorators."
+> > }
+> > ```
+> > 
+> > 56. **Sub-agent event: tool_call**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_call",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "run_terminal_command",
+> >   "toolCallId": "call_N6bPyXl9usbmzaBJtwFOfoXO|fc_045b4203620df0b4016ab56e535fec87d187469daf06b72b34",
+> >   "input": {
+> >     "commands": [
+> >       {
+> >         "command": "git grep -n -E \"getInheritedInjectableDef|getInjectableDef|getFactoryDef|inherits its @Injectable|return class\" -- packages/core/test packages/core/src",
+> >         "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561",
+> >         "profileName": "bash",
+> >         "readTerminalFullOutput": true,
+> >         "timeoutMs": 30000,
+> >         "isInteractive": false
+> >       }
+> >     ],
+> >     "toolPurpose": "- I want to search tracked Angular core source and tests for all direct references to inheritance-sensitive DI definition accessors; RTK was previously unavailable, so this direct Git grep is the permitted retry."
+> >   },
+> >   "toolIcon": "",
+> >   "toolLabel": "Executing Command",
+> >   "isPillTool": false,
+> >   "toolPurpose": "- I want to search tracked Angular core source and tests for all direct references to inheritance-sensitive DI definition accessors; RTK was previously unavailable, so this direct Git grep is the permitted retry."
+> > }
+> > ```
+> > 
+> > 57. **Sub-agent event: tool_output**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_output",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "grep",
+> >   "toolCallId": "call_UQ3D7t0r64XyrnfPMnKsDPMz|fc_045b4203620df0b4016ab56e535fd087d187efda4a1f02d6db",
+> >   "isError": false,
+> >   "output": "{\"status\":\"success\",\"message\":\"{\\\"success\\\":true,\\\"matches\\\":[],\\\"pagination\\\":{\\\"offset\\\":0,\\\"limit\\\":500,\\\"returned\\\":0,\\\"total\\\":0,\\\"hasMore\\\":false},\\\"message\\\":\\\"No matches found for the given pattern\\\",\\\"mode\\\":\\\"content\\\",\\\"numFiles\\\":0,\\\"numLines\\\":0}\"}"
+> > }
+> > ```
+> > 
+> > 58. **Sub-agent event: tool_output**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_output",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "grep",
+> >   "toolCallId": "call_esSsQ1RnkOU4guxiiewtpc0O|fc_045b4203620df0b4016ab56e535fe487d1b53c12301b033de7",
+> >   "isError": false,
+> >   "output": "{\"status\":\"success\",\"message\":\"{\\\"success\\\":true,\\\"mode\\\":\\\"content\\\",\\\"numFiles\\\":5,\\\"numLines\\\":10,\\\"pagination\\\":{\\\"offset\\\":0,\\\"limit\\\":500,\\\"returned\\\":10,\\\"total\\\":10,\\\"hasMore\\\":false},\\\"matchesByFile\\\":{\\\"packages/core/test/reflection/reflector_spec.ts\\\":[{\\\"file\\\":\\\"packages/core/test/reflection/reflector_spec.ts\\\",\\\"line\\\":301,\\\"content\\\":\\\"// Note: We need the class decorator as well,\\\",\\\"contextBefore\\\":[{\\\"line\\\":293,\\\"content\\\":\\\"expect(reflector.annotations(null!)).toEqual([]);\\\"},{\\\"line\\\":294,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":295,\\\"content\\\":\\\"\\\"},{\\\"line\\\":296,\\\"content\\\":\\\"it('should inherit parameters', () => {\\\"},{\\\"line\\\":297,\\\"content\\\":\\\"class A {}\\\"},{\\\"line\\\":298,\\\"content\\\":\\\"class B {}\\\"},{\\\"line\\\":299,\\\"content\\\":\\\"class C {}\\\"},{\\\"line\\\":300,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":302,\\\"content\\\":\\\"// as otherwise TS won't capture the ctor arguments!\\\"},{\\\"line\\\":303,\\\"content\\\":\\\"@ClassDecorator({value: 'parent'})\\\"},{\\\"line\\\":304,\\\"content\\\":\\\"class Parent {\\\"},{\\\"line\\\":305,\\\"content\\\":\\\"constructor(@ParamDecorator('a') a: A, @ParamDecorator('b') b: B) {}\\\"},{\\\"line\\\":306,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":307,\\\"content\\\":\\\"\\\"},{\\\"line\\\":308,\\\"content\\\":\\\"class Child extends Parent {}\\\"},{\\\"line\\\":309,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"class decorator\\\"]},{\\\"file\\\":\\\"packages/core/test/reflection/reflector_spec.ts\\\",\\\"line\\\":319,\\\"content\\\":\\\"// Note: We need the class decorator as well,\\\",\\\"contextBefore\\\":[{\\\"line\\\":311,\\\"content\\\":\\\"class ChildWithDecorator extends Parent {\\\"},{\\\"line\\\":312,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":313,\\\"content\\\":\\\"\\\"},{\\\"line\\\":314,\\\"content\\\":\\\"@ClassDecorator({value: 'child'})\\\"},{\\\"line\\\":315,\\\"content\\\":\\\"class ChildWithDecoratorAndProps extends Parent {\\\"},{\\\"line\\\":316,\\\"content\\\":\\\"private x = 10;\\\"},{\\\"line\\\":317,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":318,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":320,\\\"content\\\":\\\"// as otherwise TS won't capture the ctor arguments!\\\"},{\\\"line\\\":321,\\\"content\\\":\\\"@ClassDecorator({value: 'child'})\\\"},{\\\"line\\\":322,\\\"content\\\":\\\"class ChildWithCtor extends Parent {\\\"},{\\\"line\\\":323,\\\"content\\\":\\\"constructor(@ParamDecorator('c') c: C) {\\\"},{\\\"line\\\":324,\\\"content\\\":\\\"super(null!, null!);\\\"},{\\\"line\\\":325,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":326,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":327,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"class decorator\\\"]}],\\\"packages/core/test/render3/pipe_spec.ts\\\":[{\\\"file\\\":\\\"packages/core/test/render3/pipe_spec.ts\\\",\\\"line\\\":9,\\\"content\\\":\\\"import {Injectable as _Injectable, Pipe as _Pipe, PipeTransform, WrappedValue, ɵɵdefineInjectable, ɵɵdefinePipe, ɵɵgetInheritedFactory, ɵɵinject} from '@angular/core';\\\",\\\"contextBefore\\\":[{\\\"line\\\":1,\\\"content\\\":\\\"/**\\\"},{\\\"line\\\":2,\\\"content\\\":\\\"* @license\\\"},{\\\"line\\\":3,\\\"content\\\":\\\"* Copyright Google Inc. All Rights Reserved.\\\"},{\\\"line\\\":4,\\\"content\\\":\\\"*\\\"},{\\\"line\\\":5,\\\"content\\\":\\\"* Use of this source code is governed by an MIT-style license that can be\\\"},{\\\"line\\\":6,\\\"content\\\":\\\"* found in the LICENSE file at https://angular.io/license\\\"},{\\\"line\\\":7,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":8,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":10,\\\"content\\\":\\\"import {expect} from '@angular/platform-browser/testing/src/matchers';\\\"},{\\\"line\\\":11,\\\"content\\\":\\\"\\\"},{\\\"line\\\":12,\\\"content\\\":\\\"import {ɵɵtext, ɵɵtextInterpolate1} from '../../src/render3/instructions/all';\\\"},{\\\"line\\\":13,\\\"content\\\":\\\"import {ɵɵpipe, ɵɵpipeBind1} from '../../src/render3/pipe';\\\"},{\\\"line\\\":14,\\\"content\\\":\\\"\\\"},{\\\"line\\\":15,\\\"content\\\":\\\"import {TemplateFixture} from './render_util';\\\"},{\\\"line\\\":16,\\\"content\\\":\\\"\\\"},{\\\"line\\\":17,\\\"content\\\":\\\"const Pipe: typeof _Pipe = function(...args: any[]): any {\\\"}],\\\"matches\\\":[\\\"tedFactory, ɵɵin\\\"]},{\\\"file\\\":\\\"packages/core/test/render3/pipe_spec.ts\\\",\\\"line\\\":75,\\\"content\\\":\\\"// differs from the JIT code in `TestBed`, because it includes a `ɵɵgetInheritedFactory` call\\\",\\\"contextBefore\\\":[{\\\"line\\\":67,\\\"content\\\":\\\"\\\"},{\\\"line\\\":68,\\\"content\\\":\\\"fixture.update();\\\"},{\\\"line\\\":69,\\\"content\\\":\\\"expect(fixture.html).toEqual('Bar');\\\"},{\\\"line\\\":70,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":71,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":72,\\\"content\\\":\\\"\\\"},{\\\"line\\\":73,\\\"content\\\":\\\"// This test isn't in `acceptance`, because we can't capture the same behavior that we want\\\"},{\\\"line\\\":74,\\\"content\\\":\\\"// when going through `TestBed`. Here we're testing the behavior of AOT-compiled code which\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":76,\\\"content\\\":\\\"// when the pipe is using inheritance.\\\"},{\\\"line\\\":77,\\\"content\\\":\\\"it('should be able to use DI in a Pipe that extends an Injectable', () => {\\\"},{\\\"line\\\":78,\\\"content\\\":\\\"@Injectable({providedIn: 'root'})\\\"},{\\\"line\\\":79,\\\"content\\\":\\\"class SayHelloService {\\\"},{\\\"line\\\":80,\\\"content\\\":\\\"getHello() {\\\"},{\\\"line\\\":81,\\\"content\\\":\\\"return 'Hello there';\\\"},{\\\"line\\\":82,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":83,\\\"content\\\":\\\"static ɵfac = () => new SayHelloService();\\\"}],\\\"matches\\\":[\\\"heritedFactory` \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/pipe_spec.ts\\\",\\\"line\\\":100,\\\"content\\\":\\\"static ɵfac = (t?: any) => ɵɵgetInheritedFactory(t || SayHelloPipe)(SayHelloPipe);\\\",\\\"contextBefore\\\":[{\\\"line\\\":92,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({token: ParentPipe, factory: ParentPipe.ɵfac});\\\"},{\\\"line\\\":93,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":94,\\\"content\\\":\\\"\\\"},{\\\"line\\\":95,\\\"content\\\":\\\"@Pipe({name: 'sayHello', pure: true})\\\"},{\\\"line\\\":96,\\\"content\\\":\\\"class SayHelloPipe extends ParentPipe implements PipeTransform {\\\"},{\\\"line\\\":97,\\\"content\\\":\\\"transform() {\\\"},{\\\"line\\\":98,\\\"content\\\":\\\"return this.sayHelloService.getHello();\\\"},{\\\"line\\\":99,\\\"content\\\":\\\"}\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":101,\\\"content\\\":\\\"static ɵpipe = ɵɵdefinePipe({name: 'sayHello', type: SayHelloPipe, pure: true});\\\"},{\\\"line\\\":102,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":103,\\\"content\\\":\\\"\\\"},{\\\"line\\\":104,\\\"content\\\":\\\"const fixture = new TemplateFixture(\\\"},{\\\"line\\\":105,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":106,\\\"content\\\":\\\"ɵɵtext(0);\\\"},{\\\"line\\\":107,\\\"content\\\":\\\"ɵɵpipe(1, 'sayHello');\\\"},{\\\"line\\\":108,\\\"content\\\":\\\"},\\\"}],\\\"matches\\\":[\\\"eritedFactory(t \\\"]}],\\\"packages/core/test/render3/render_util.ts\\\":[{\\\"file\\\":\\\"packages/core/test/render3/render_util.ts\\\",\\\"line\\\":378,\\\"content\\\":\\\"return class Component {\\\",\\\"contextBefore\\\":[{\\\"line\\\":370,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":371,\\\"content\\\":\\\"\\\"},{\\\"line\\\":372,\\\"content\\\":\\\"export function createComponent(\\\"},{\\\"line\\\":373,\\\"content\\\":\\\"name: string, template: ComponentTemplate, decls: number = 0, vars: number = 0,\\\"},{\\\"line\\\":374,\\\"content\\\":\\\"directives: DirectiveTypesOrFactory = [], pipes: PipeTypesOrFactory = [],\\\"},{\\\"line\\\":375,\\\"content\\\":\\\"viewQuery: ComponentTemplate|null = null, providers: Provider[] = [],\\\"},{\\\"line\\\":376,\\\"content\\\":\\\"viewProviders: Provider[] = [], hostBindings?: HostBindingsFunction,\\\"},{\\\"line\\\":377,\\\"content\\\":\\\"consts: TConstants = []): ComponentType {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":379,\\\"content\\\":\\\"value: any;\\\"},{\\\"line\\\":380,\\\"content\\\":\\\"static ɵfac = () => new Component;\\\"},{\\\"line\\\":381,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":382,\\\"content\\\":\\\"type: Component,\\\"},{\\\"line\\\":383,\\\"content\\\":\\\"selectors: [[name]],\\\"},{\\\"line\\\":384,\\\"content\\\":\\\"decls: decls,\\\"},{\\\"line\\\":385,\\\"content\\\":\\\"vars: vars,\\\"},{\\\"line\\\":386,\\\"content\\\":\\\"template: template,\\\"}],\\\"matches\\\":[\\\"return class\\\"]},{\\\"file\\\":\\\"packages/core/test/render3/render_util.ts\\\",\\\"line\\\":400,\\\"content\\\":\\\"return class Directive {\\\",\\\"contextBefore\\\":[{\\\"line\\\":392,\\\"content\\\":\\\"[ɵɵProvidersFeature(providers || [], viewProviders || [])]: [],\\\"},{\\\"line\\\":393,\\\"content\\\":\\\"consts: consts,\\\"},{\\\"line\\\":394,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":395,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":396,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":397,\\\"content\\\":\\\"\\\"},{\\\"line\\\":398,\\\"content\\\":\\\"export function createDirective(\\\"},{\\\"line\\\":399,\\\"content\\\":\\\"name: string, {exportAs}: {exportAs?: string[]} = {}): DirectiveType {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":401,\\\"content\\\":\\\"static ɵfac = () => new Directive();\\\"},{\\\"line\\\":402,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({\\\"},{\\\"line\\\":403,\\\"content\\\":\\\"type: Directive,\\\"},{\\\"line\\\":404,\\\"content\\\":\\\"selectors: [['', name, '']],\\\"},{\\\"line\\\":405,\\\"content\\\":\\\"exportAs: exportAs,\\\"},{\\\"line\\\":406,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":407,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":408,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"return class\\\"]}],\\\"packages/core/test/linker/integration_spec.ts\\\":[{\\\"file\\\":\\\"packages/core/test/linker/integration_spec.ts\\\",\\\"line\\\":1490,\\\"content\\\":\\\"// grab its own component factory\\\",\\\"contextBefore\\\":[{\\\"line\\\":1482,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1483,\\\"content\\\":\\\"@Component({template: '----'})\\\"},{\\\"line\\\":1484,\\\"content\\\":\\\"class NoSelectorComponent {\\\"},{\\\"line\\\":1485,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1486,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1487,\\\"content\\\":\\\"@Component({selector: 'some-comp', template: '', entryComponents: [NoSelectorComponent]})\\\"},{\\\"line\\\":1488,\\\"content\\\":\\\"class SomeComponent {\\\"},{\\\"line\\\":1489,\\\"content\\\":\\\"constructor(componentFactoryResolver: ComponentFactoryResolver) {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1491,\\\"content\\\":\\\"noSelectorComponentFactory =\\\"},{\\\"line\\\":1492,\\\"content\\\":\\\"componentFactoryResolver.resolveComponentFactory(NoSelectorComponent)!;\\\"},{\\\"line\\\":1493,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1494,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1495,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1496,\\\"content\\\":\\\"TestBed.configureTestingModule({declarations: [SomeComponent, NoSelectorComponent]});\\\"},{\\\"line\\\":1497,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1498,\\\"content\\\":\\\"// get the factory\\\"}],\\\"matches\\\":[\\\"own component factory\\\"]}],\\\"packages/core/test/acceptance/di_spec.ts\\\":[{\\\"file\\\":\\\"packages/core/test/acceptance/di_spec.ts\\\",\\\"line\\\":1032,\\\"content\\\":\\\"`DEPRECATED: DI is instantiating a token \\\\\\\"SubSubClass\\\\\\\" that inherits its @Injectable decorator but does not provide one itself.\\\\\\\\n` +\\\",\\\"contextBefore\\\":[{\\\"line\\\":1024,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1025,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1026,\\\"content\\\":\\\"const warnSpy = spyOn(console, 'warn');\\\"},{\\\"line\\\":1027,\\\"content\\\":\\\"const fixture = TestBed.createComponent(MyComp);\\\"},{\\\"line\\\":1028,\\\"content\\\":\\\"expect(fixture.componentInstance.myService.dep instanceof Dependency).toBe(true);\\\"},{\\\"line\\\":1029,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1030,\\\"content\\\":\\\"if (ivyEnabled) {\\\"},{\\\"line\\\":1031,\\\"content\\\":\\\"expect(warnSpy).toHaveBeenCalledWith(\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1033,\\\"content\\\":\\\"`This will become an error in v10. Please add @Injectable() to the \\\\\\\"SubSubClass\\\\\\\" class.`);\\\"},{\\\"line\\\":1034,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1035,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1036,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1037,\\\"content\\\":\\\"it('should instantiate correct class when undecorated class extends an injectable', () => {\\\"},{\\\"line\\\":1038,\\\"content\\\":\\\"@Injectable()\\\"},{\\\"line\\\":1039,\\\"content\\\":\\\"class MyService {\\\"},{\\\"line\\\":1040,\\\"content\\\":\\\"id = 1;\\\"}],\\\"matches\\\":[\\\"inherits its @Injectable\\\"]},{\\\"file\\\":\\\"packages/core/test/acceptance/di_spec.ts\\\",\\\"line\\\":1063,\\\"content\\\":\\\"`DEPRECATED: DI is instantiating a token \\\\\\\"MyRootService\\\\\\\" that inherits its @Injectable decorator but does not provide one itself.\\\\\\\\n` +\\\",\\\"contextBefore\\\":[{\\\"line\\\":1055,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1056,\\\"content\\\":\\\"const provider = TestBed.inject(MyRootService);\\\"},{\\\"line\\\":1057,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1058,\\\"content\\\":\\\"expect(provider instanceof MyRootService).toBe(true);\\\"},{\\\"line\\\":1059,\\\"content\\\":\\\"expect(provider.id).toBe(2);\\\"},{\\\"line\\\":1060,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1061,\\\"content\\\":\\\"if (ivyEnabled) {\\\"},{\\\"line\\\":1062,\\\"content\\\":\\\"expect(warnSpy).toHaveBeenCalledWith(\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1064,\\\"content\\\":\\\"`This will become an error in v10. Please add @Injectable() to the \\\\\\\"MyRootService\\\\\\\" class.`);\\\"},{\\\"line\\\":1065,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1066,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1067,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1068,\\\"content\\\":\\\"it('should inject services in constructor with overloads', () => {\\\"},{\\\"line\\\":1069,\\\"content\\\":\\\"@Injectable({providedIn: 'root'})\\\"},{\\\"line\\\":1070,\\\"content\\\":\\\"class MyService {\\\"},{\\\"line\\\":1071,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"inherits its @Injectable\\\"]}]}}\"}"
+> > }
+> > ```
+> > 
+> > 59. **Sub-agent event: tool_output**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_output",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "run_terminal_command",
+> >   "toolCallId": "call_N6bPyXl9usbmzaBJtwFOfoXO|fc_045b4203620df0b4016ab56e535fec87d187469daf06b72b34",
+> >   "isError": false,
+> >   "output": "{\"status\":\"success\",\"message\":\"I ran all provided commands and below are the outcomes for each command with their status. Please analyze each output carefully and run the commands again for which you see errors to get their output by correcting the command and other parameters.\\n\\n=== EXECUTION SUMMARY ===\\nTotal Commands: 1\\nNumber of Successful Commands: 1\\nNumber of Failed Commands: 0\\nNumber of Timed Out Commands: 0\\n========================\\n\\n╔══════════════════════════════════════════════════════════════════════╗\\n║ COMMAND 1 of 1                                                        ║\\n╚══════════════════════════════════════════════════════════════════════╝\\nCommand: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc 'git grep -n -E \\\"getInheritedInjectableDef|getInjectableDef|getFactoryDef|inherits its @Injectable|return class\\\" -- packages/core/test packages/core/src'\\nStatus: SUCCESS\\n─────────────────────────────────────────────────────────────────────────\\nOutput:\\nCommand success.\\n\\n--- Full Output ---\\npackages/core/src/core_private_export.ts:17:export {getInjectableDef as getInjectableDef, InjectableDef, InjectorDef} from './di/interface/defs';\\npackages/core/src/di/injectable.ts:12:import {getInjectableDef, InjectableType, defineInjectable} from './interface/defs';\\npackages/core/src/di/injectable.ts:97:  if (options && options.providedIn !== undefined && !getInjectableDef(injectableType)) {\\npackages/core/src/di/injector.ts:15:import {getInjectableDef, defineInjectable} from './interface/defs';\\npackages/core/src/di/injector.ts:164:      const injectableDef = getInjectableDef(token);\\npackages/core/src/di/injector_compatibility.ts:18:import {getInjectableDef, InjectableDef} from './interface/defs';\\npackages/core/src/di/injector_compatibility.ts:178:  const injectableDef: InjectableDef|null = getInjectableDef(token);\\npackages/core/src/di/interface/defs.ts:195:export function getInjectableDef(type: any): InjectableDef|null {\\npackages/core/src/di/interface/defs.ts:223:export function getInheritedInjectableDef(type: any): InjectableDef|null {\\npackages/core/src/di/interface/defs.ts:235:            typeName}\\\" that inherits its @Injectable decorator but does not provide one itself.\\\\n` +\\npackages/core/src/di/jit/environment.ts:12:import {getInjectableDef, getInjectorDef, defineInjectable, defineInjector} from '../interface/defs';\\npackages/core/src/di/jit/environment.ts:39:  const def = getInjectableDef(typeAny) || getInjectorDef(typeAny);\\npackages/core/src/di/r3_injector.ts:13:import {getFactoryDef} from '../render3/definition';\\npackages/core/src/di/r3_injector.ts:23:import {getInheritedInjectableDef, getInjectableDef, getInjectorDef, InjectorType, InjectorTypeWithProviders, InjectableDef} from './interface/defs';\\npackages/core/src/di/r3_injector.ts:196:          const def = couldBeInjectableType(token) && getInjectableDef(token);\\npackages/core/src/di/r3_injector.ts:432:  const injectableDef = getInjectableDef(token);\\npackages/core/src/di/r3_injector.ts:433:  const factory = injectableDef !== null ? injectableDef.factory : getFactoryDef(token);\\npackages/core/src/di/r3_injector.ts:474:  const inheritedInjectableDef = getInheritedInjectableDef(token);\\npackages/core/src/di/r3_injector.ts:502:    return getFactoryDef(unwrappedProvider) || injectableDefOrInjectorDefFactory(unwrappedProvider);\\npackages/core/src/di/r3_injector.ts:520:        return getFactoryDef(classRef) || injectableDefOrInjectorDefFactory(classRef);\\npackages/core/src/render3/definition.ts:750:export function getFactoryDef(type: any, throwNotFound: true): FactoryFn;\\npackages/core/src/render3/definition.ts:751:export function getFactoryDef(type: any): FactoryFn|null;\\npackages/core/src/render3/definition.ts:752:export function getFactoryDef(type: any, throwNotFound?: boolean): FactoryFn|null {\\npackages/core/src/render3/di.ts:20:import {getFactoryDef} from './definition';\\npackages/core/src/render3/di.ts:647:  let factory = getFactoryDef(typeAny);\\npackages/core/src/render3/instructions/shared.ts:20:import {getFactoryDef} from '../definition';\\npackages/core/src/render3/instructions/shared.ts:1460:      def.factory || ((def as {factory: Function}).factory = getFactoryDef(def.type, true));\\npackages/core/src/render3/pipe.ts:13:import {getFactoryDef} from './definition';\\npackages/core/src/render3/pipe.ts:49:  const pipeFactory = pipeDef.factory || (pipeDef.factory = getFactoryDef(pipeDef.type, true));\\npackages/core/src/util/named_array_type.ts:32:      return (new FunctionConstructor('Array', `return class ${name} extends Array{}`))(Array);\\npackages/core/src/view/ng_module.ts:12:import {getInjectableDef, InjectableDef} from '../di/interface/defs';\\npackages/core/src/view/ng_module.ts:113:        (injectableDef = getInjectableDef(depDef.token)) && targetsModule(data, injectableDef)) {\\npackages/core/src/view/services.ts:11:import {getInjectableDef, InjectableType, InjectableDef} from '../di/interface/defs';\\npackages/core/src/view/services.ts:176:  if (typeof override.token === 'function' && (injectableDef = getInjectableDef(override.token)) &&\\npackages/core/src/view/services.ts:283:        if (getInjectableDef(token)!.providedIn === module) {\\npackages/core/src/view/services.ts:311:        if (moduleSet.has(getInjectableDef(token)!.providedIn)) {\\npackages/core/test/acceptance/di_spec.ts:1032:            `DEPRECATED: DI is instantiating a token \\\"SubSubClass\\\" that inherits its @Injectable decorator but does not provide one itself.\\\\n` +\\npackages/core/test/acceptance/di_spec.ts:1063:            `DEPRECATED: DI is instantiating a token \\\"MyRootService\\\" that inherits its @Injectable decorator but does not provide one itself.\\\\n` +\\npackages/core/test/bundling/cyclic_import/bundle.golden_symbols.json:330:    \\\"name\\\": \\\"getFactoryDef\\\"\\npackages/core/test/bundling/hello_world/bundle.golden_symbols.json:267:    \\\"name\\\": \\\"getFactoryDef\\\"\\npackages/core/test/bundling/injection/bundle.golden_symbols.json:126:    \\\"name\\\": \\\"getFactoryDef\\\"\\npackages/core/test/bundling/injection/bundle.golden_symbols.json:129:    \\\"name\\\": \\\"getInheritedInjectableDef\\\"\\npackages/core/test/bundling/injection/bundle.golden_symbols.json:132:    \\\"name\\\": \\\"getInjectableDef\\\"\\npackages/core/test/bundling/todo/bundle.golden_symbols.json:618:    \\\"name\\\": \\\"getFactoryDef\\\"\\npackages/core/test/bundling/todo/bundle.golden_symbols.json:627:    \\\"name\\\": \\\"getInjectableDef\\\"\\npackages/core/test/render3/render_util.ts:378:  return class Component {\\npackages/core/test/render3/render_util.ts:400:  return class Directive {\\n__CMD_FINISHED__ 0\\n--- End of Full Output ---\\n═════════════════════════════════════════════════════════════════════════\\n\\n\"}"
+> > }
+> > ```
+> > 
+> > 60. **Sub-agent event: token_usage**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "token_usage",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "tokenUsage": {
+> >     "inputTokens": 9223,
+> >     "outputTokens": 385,
+> >     "totalTokens": 34945,
+> >     "cost": {
+> >       "total": 0.04280832000000001
+> >     }
+> >   },
+> >   "cumulativeTokenUsage": {
+> >     "inputTokens": 24882,
+> >     "outputTokens": 1784,
+> >     "totalTokens": 83960,
+> >     "cost": {
+> >       "total": 0.12979968000000003
+> >     }
+> >   },
+> >   "status": "running"
+> > }
+> > ```
+> > 
+> > 61. **Sub-agent event: tool_call**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_call",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "grep",
+> >   "toolCallId": "call_Lue8My4hJhbaWPbfwtnWnDON|fc_045b4203620df0b4016ab56e58848c87d1a23dfe19506af657",
+> >   "input": {
+> >     "pattern": "getInheritedFactory",
+> >     "searchPath": "/",
+> >     "caseInsensitive": false,
+> >     "context": 10,
+> >     "glob": [
+> >       "packages/core/src/**/*.ts",
+> >       "packages/core/test/**/*.ts"
+> >     ],
+> >     "outputMode": "grouped",
+> >     "headLimit": 300,
+> >     "toolPurpose": "- I need to inspect factory inheritance helpers and tests because a subclass returned by a decorator may resolve an inherited factory."
+> >   },
+> >   "toolIcon": "\n      \n      \n",
+> >   "toolLabel": "Searching",
+> >   "isPillTool": false,
+> >   "toolPurpose": "- I need to inspect factory inheritance helpers and tests because a subclass returned by a decorator may resolve an inherited factory."
+> > }
+> > ```
+> > 
+> > 62. **Sub-agent event: tool_call**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_call",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "grep",
+> >   "toolCallId": "call_1TbUFr35h7UslDjrpndn3aCg|fc_045b4203620df0b4016ab56e58849887d1acbf9b65ace2be48",
+> >   "input": {
+> >     "pattern": "return\\s+(class|target|type|constructor)|Object\\.setPrototypeOf|extends\\s+target|extends\\s+type|extends\\s+constructor",
+> >     "searchPath": "/",
+> >     "caseInsensitive": false,
+> >     "context": 8,
+> >     "glob": [
+> >       "packages/core/test/**/*.ts"
+> >     ],
+> >     "outputMode": "grouped",
+> >     "headLimit": 500,
+> >     "toolPurpose": "- I need to locate core tests with class decorators that replace a decorated class, especially by returning a subclass or constructor."
+> >   },
+> >   "toolIcon": "\n      \n      \n",
+> >   "toolLabel": "Searching",
+> >   "isPillTool": false,
+> >   "toolPurpose": "- I need to locate core tests with class decorators that replace a decorated class, especially by returning a subclass or constructor."
+> > }
+> > ```
+> > 
+> > 63. **Sub-agent event: tool_call**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_call",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "read_file",
+> >   "toolCallId": "call_B0Fhlif4S8X0ieLvBHSAcdTb|fc_045b4203620df0b4016ab56e5884a087d189c006f29135ab5f",
+> >   "input": {
+> >     "fileNames": [
+> >       {
+> >         "fileName": "packages/core/test/acceptance/di_spec.ts",
+> >         "startLine": 950,
+> >         "endLine": 1090
+> >       },
+> >       {
+> >         "fileName": "packages/core/src/render3/di.ts",
+> >         "startLine": 610,
+> >         "endLine": 680
+> >       }
+> >     ],
+> >     "toolPurpose": "- I want to read the exact inherited-injectable acceptance tests and the render3 inherited factory resolution function relevant to runtime recursion."
+> >   },
+> >   "toolIcon": "\n",
+> >   "toolLabel": "Reading",
+> >   "isPillTool": true,
+> >   "toolPurpose": "- I want to read the exact inherited-injectable acceptance tests and the render3 inherited factory resolution function relevant to runtime recursion."
+> > }
+> > ```
+> > 
+> > 64. **Sub-agent event: tool_output**
+> > worker-di-runtime
+> > Input:
+> > ```json
+> > {
+> >   "type": "tool_output",
+> >   "subagentId": "worker-di-runtime",
+> >   "role": "worker",
+> >   "baseSubagentId": "worker-di-runtime",
+> >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> >   "toolName": "read_file",
+> >   "toolCallId": "call_B0Fhlif4S8X0ieLvBHSAcdTb|fc_045b4203620df0b4016ab56e5884a087d189c006f29135ab5f",
+> >   "isError": false,
+> >   "output": "{\"results\":[{\"status\":\"success\",\"message\":\"\\nFile successfully read, file name di_spec.ts with file path: enc_file_sovfhn/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/core/test/acceptance/di_spec.ts\\n\\n**File Read Information:**\\n- Lines read: 950 to 1090 (141 lines)\\n\\nContent:\\n      });\\n    });\\n  });\\n\\n  describe('Tree shakable injectors', () => {\\n    it('should support tree shakable injectors scopes', () => {\\n      @Injectable({providedIn: 'any'})\\n      class AnyService {\\n        constructor(public injector: Injector) {}\\n      }\\n\\n      @Injectable({providedIn: 'root'})\\n      class RootService {\\n        constructor(public injector: Injector) {}\\n      }\\n\\n      @Injectable({providedIn: 'platform'})\\n      class PlatformService {\\n        constructor(public injector: Injector) {}\\n      }\\n\\n      const testBedInjector: Injector = TestBed.get(Injector);\\n      const childInjector = Injector.create([], testBedInjector);\\n\\n      const anyService = childInjector.get(AnyService);\\n      expect(anyService.injector).toBe(childInjector);\\n\\n      const rootService = childInjector.get(RootService);\\n      expect(rootService.injector.get(ɵINJECTOR_SCOPE)).toBe('root');\\n\\n      const platformService = childInjector.get(PlatformService);\\n      expect(platformService.injector.get(ɵINJECTOR_SCOPE)).toBe('platform');\\n    });\\n  });\\n\\n  describe('service injection', () => {\\n    it('should create instance even when no injector present', () => {\\n      @Injectable({providedIn: 'root'})\\n      class MyService {\\n        value = 'MyService';\\n      }\\n      @Component({template: '
+> > 
+> > 💭 **Agent Thoughts:**
+> > > {{myService.value}}'})\\n      class MyComp {\\n        constructor(public myService: MyService) {}\\n      }\\n      TestBed.configureTestingModule({declarations: [MyComp]});\\n      const fixture = TestBed.createComponent(MyComp);\\n      fixture.detectChanges();\\n\\n      const divElement = fixture.nativeElement.querySelector('div');\\n      expect(divElement.textContent).toEqual('MyService');\\n    });\\n\\n    it('should support sub-classes with no @Injectable decorator', () => {\\n      @Injectable()\\n      class Dependency {\\n      }\\n\\n      @Injectable()\\n      class SuperClass {\\n        constructor(public dep: Dependency) {}\\n      }\\n\\n      // Note, no @Injectable decorators for these two classes\\n      class SubClass extends SuperClass {}\\n      class SubSubClass extends SubClass {}\\n\\n      @Component({template: ''})\\n      class MyComp {\\n        constructor(public myService: SuperClass) {}\\n      }\\n      TestBed.configureTestingModule({\\n        declarations: [MyComp],\\n        providers: [{provide: SuperClass, useClass: SubSubClass}, Dependency]\\n      });\\n\\n      const warnSpy = spyOn(console, 'warn');\\n      const fixture = TestBed.createComponent(MyComp);\\n      expect(fixture.componentInstance.myService.dep instanceof Dependency).toBe(true);\\n\\n      if (ivyEnabled) {\\n        expect(warnSpy).toHaveBeenCalledWith(\\n            `DEPRECATED: DI is instantiating a token \\\"SubSubClass\\\" that inherits its @Injectable decorator but does not provide one itself.\\\\n` +\\n            `This will become an error in v10. Please add @Injectable() to the \\\"SubSubClass\\\" class.`);\\n      }\\n    });\\n\\n    it('should instantiate correct class when undecorated class extends an injectable', () => {\\n      @Injectable()\\n      class MyService {\\n        id = 1;\\n      }\\n\\n      class MyRootService extends MyService {\\n        id = 2;\\n      }\\n\\n      @Component({template: ''})\\n      class App {\\n      }\\n\\n      TestBed.configureTestingModule({declarations: [App], providers: [MyRootService]});\\n      const warnSpy = spyOn(console, 'warn');\\n      const fixture = TestBed.createComponent(App);\\n      fixture.detectChanges();\\n\\n      const provider = TestBed.inject(MyRootService);\\n\\n      expect(provider instanceof MyRootService).toBe(true);\\n      expect(provider.id).toBe(2);\\n\\n      if (ivyEnabled) {\\n        expect(warnSpy).toHaveBeenCalledWith(\\n            `DEPRECATED: DI is instantiating a token \\\"MyRootService\\\" that inherits its @Injectable decorator but does not provide one itself.\\\\n` +\\n            `This will become an error in v10. Please add @Injectable() to the \\\"MyRootService\\\" class.`);\\n      }\\n    });\\n\\n    it('should inject services in constructor with overloads', () => {\\n      @Injectable({providedIn: 'root'})\\n      class MyService {\\n      }\\n\\n      @Injectable({providedIn: 'root'})\\n      class MyOtherService {\\n      }\\n\\n      @Component({template: ''})\\n      class MyComp {\\n        constructor(myService: MyService);\\n        constructor(\\n            public myService: MyService, @Optional() public myOtherService?: MyOtherService) {}\\n      }\\n      TestBed.configureTestingModule({declarations: [MyComp]});\\n      const fixture = TestBed.createComponent(MyComp);\\n      fixture.detectChanges();\\n\\n      expect(fixture.componentInstance.myService instanceof MyService).toBe(true);\\n      expect(fixture.componentInstance.myOtherService instanceof MyOtherService).toBe(true);\\n    });\\n  });\\n\",\"fileReadMetaData\":{\"startLine\":950,\"endLine\":1090,\"totalLines\":2304,\"remainingLines\":1214},\"updatedFilePath\":\"/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/core/test/acceptance/di_spec.ts\"},{\"status\":\"success\",\"message\":\"\\nFile successfully read, file name di.ts with file path: enc_file_sovfhn/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/core/src/render3/di.ts\\n\\n**File Read Information:**\\n- Lines read: 610 to 673 (64 lines)\\n\\nContent:\\n    value = b6 ? (b5 ? injectorView[injectorIndex + 3] : injectorView[injectorIndex + 2]) :\\n                 (b5 ? injectorView[injectorIndex + 1] : injectorView[injectorIndex]);\\n  }\\n\\n  // If the bloom filter value has the bit corresponding to the directive's bloomBit flipped on,\\n  // this injector is a potential match.\\n  return !!(value & mask);\\n}\\n\\n/** Returns true if flags prevent parent injector from being searched for tokens */\\nfunction shouldSearchParent(flags: InjectFlags, isFirstHostTNode: boolean): boolean|number {\\n  return !(flags & InjectFlags.Self) && !(flags & InjectFlags.Host && isFirstHostTNode);\\n}\\n\\nexport class NodeInjector implements Injector {\\n  constructor(\\n      private _tNode: TElementNode|TContainerNode|TElementContainerNode|null,\\n      private _lView: LView) {}\\n\\n  get(token: any, notFoundValue?: any): any {\\n    return getOrCreateInjectable(this._tNode, this._lView, token, undefined, notFoundValue);\\n  }\\n}\\n\\n/**\\n * @codeGenApi\\n */\\nexport function ɵɵgetFactoryOf(type: Type): FactoryFn|null {\\n  const typeAny = type as any;\\n\\n  if (isForwardRef(type)) {\\n    return (() => {\\n             const factory = ɵɵgetFactoryOf(resolveForwardRef(typeAny));\\n             return factory ? factory() : null;\\n           }) as any;\\n  }\\n\\n  let factory = getFactoryDef(typeAny);\\n  if (factory === null) {\\n    const injectorDef = getInjectorDef(typeAny);\\n    factory = injectorDef && injectorDef.factory;\\n  }\\n  return factory || null;\\n}\\n\\n/**\\n * @codeGenApi\\n */\\nexport function ɵɵgetInheritedFactory(type: Type): (type: Type) => T {\\n  return noSideEffects(() => {\\n    const proto = Object.getPrototypeOf(type.prototype).constructor as Type;\\n    const factory = (proto as any)[NG_FACTORY_DEF] || ɵɵgetFactoryOf(proto);\\n    if (factory !== null) {\\n      return factory;\\n    } else {\\n      // There is no factory defined. Either this was improper usage of inheritance\\n      // (no Angular decorator on the superclass) or there is no constructor at all\\n      // in the inheritance chain. Since the two cases cannot be distinguished, the\\n      // latter has to be assumed.\\n      return (t) => new t();\\n    }\\n  });\\n}\\n\\n\",\"fileReadMetaData\":{\"startLine\":610,\"endLine\":673,\"totalLines\":673,\"remainingLines\":0},\"updatedFilePath\":\"/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/core/src/render3/di.ts\"}]}"
+> > > }
+> > > ```
+> > > 
+> > > 65. **Sub-agent event: tool_output**
+> > > worker-di-runtime
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_output",
+> > >   "subagentId": "worker-di-runtime",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-di-runtime",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "grep",
+> > >   "toolCallId": "call_Lue8My4hJhbaWPbfwtnWnDON|fc_045b4203620df0b4016ab56e58848c87d1a23dfe19506af657",
+> > >   "isError": false,
+> > >   "output": "{\"status\":\"success\",\"message\":\"{\\\"success\\\":true,\\\"mode\\\":\\\"content\\\",\\\"numFiles\\\":5,\\\"numLines\\\":7,\\\"pagination\\\":{\\\"offset\\\":0,\\\"limit\\\":300,\\\"returned\\\":7,\\\"total\\\":7,\\\"hasMore\\\":false},\\\"matchesByFile\\\":{\\\"packages/core/src/render3/index.ts\\\":[{\\\"file\\\":\\\"packages/core/src/render3/index.ts\\\",\\\"line\\\":18,\\\"content\\\":\\\"export {ɵɵgetFactoryOf, ɵɵgetInheritedFactory} from './di';\\\",\\\"contextBefore\\\":[{\\\"line\\\":8,\\\"content\\\":\\\"import {LifecycleHooksFeature, renderComponent, whenRendered} from './component';\\\"},{\\\"line\\\":9,\\\"content\\\":\\\"import {ɵɵdefineComponent, ɵɵdefineDirective, ɵɵdefineNgModule, ɵɵdefinePipe, ɵɵsetComponentScope, ɵɵsetNgModuleScope} from './definition';\\\"},{\\\"line\\\":10,\\\"content\\\":\\\"import {ɵɵCopyDefinitionFeature} from './features/copy_definition_feature';\\\"},{\\\"line\\\":11,\\\"content\\\":\\\"import {ɵɵInheritDefinitionFeature} from './features/inherit_definition_feature';\\\"},{\\\"line\\\":12,\\\"content\\\":\\\"import {ɵɵNgOnChangesFeature} from './features/ng_onchanges_feature';\\\"},{\\\"line\\\":13,\\\"content\\\":\\\"import {ɵɵProvidersFeature} from './features/providers_feature';\\\"},{\\\"line\\\":14,\\\"content\\\":\\\"import {ComponentDef, ComponentTemplate, ComponentType, DirectiveDef, DirectiveType, PipeDef, ɵɵComponentDefWithMeta, ɵɵDirectiveDefWithMeta, ɵɵFactoryDef, ɵɵPipeDefWithMeta} from './interfaces/definition';\\\"},{\\\"line\\\":15,\\\"content\\\":\\\"import {getComponent, getDirectives, getHostElement, getRenderedText} from './util/discovery_utils';\\\"},{\\\"line\\\":16,\\\"content\\\":\\\"\\\"},{\\\"line\\\":17,\\\"content\\\":\\\"export {ComponentFactory, ComponentFactoryResolver, ComponentRef, injectComponentFactoryResolver} from './component_ref';\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":19,\\\"content\\\":\\\"export {getLocaleId, setLocaleId, ɵɵi18n, ɵɵi18nApply, ɵɵi18nAttributes, ɵɵi18nEnd, ɵɵi18nExp, ɵɵi18nPostprocess, ɵɵi18nStart,} from './i18n';\\\"},{\\\"line\\\":20,\\\"content\\\":\\\"// clang-format off\\\"},{\\\"line\\\":21,\\\"content\\\":\\\"export {\\\"},{\\\"line\\\":22,\\\"content\\\":\\\"detectChanges,\\\"},{\\\"line\\\":23,\\\"content\\\":\\\"markDirty,\\\"},{\\\"line\\\":24,\\\"content\\\":\\\"store,\\\"},{\\\"line\\\":25,\\\"content\\\":\\\"tick,\\\"},{\\\"line\\\":26,\\\"content\\\":\\\"ɵɵadvance,\\\"},{\\\"line\\\":27,\\\"content\\\":\\\"\\\"},{\\\"line\\\":28,\\\"content\\\":\\\"ɵɵattribute,\\\"}],\\\"matches\\\":[\\\"nheritedFactory} fr\\\"]}],\\\"packages/core/src/render3/di.ts\\\":[{\\\"file\\\":\\\"packages/core/src/render3/di.ts\\\",\\\"line\\\":658,\\\"content\\\":\\\"export function ɵɵgetInheritedFactory(type: Type): (type: Type) => T {\\\",\\\"contextBefore\\\":[{\\\"line\\\":648,\\\"content\\\":\\\"if (factory === null) {\\\"},{\\\"line\\\":649,\\\"content\\\":\\\"const injectorDef = getInjectorDef(typeAny);\\\"},{\\\"line\\\":650,\\\"content\\\":\\\"factory = injectorDef && injectorDef.factory;\\\"},{\\\"line\\\":651,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":652,\\\"content\\\":\\\"return factory || null;\\\"},{\\\"line\\\":653,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":654,\\\"content\\\":\\\"\\\"},{\\\"line\\\":655,\\\"content\\\":\\\"/**\\\"},{\\\"line\\\":656,\\\"content\\\":\\\"* @codeGenApi\\\"},{\\\"line\\\":657,\\\"content\\\":\\\"*/\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":659,\\\"content\\\":\\\"return noSideEffects(() => {\\\"},{\\\"line\\\":660,\\\"content\\\":\\\"const proto = Object.getPrototypeOf(type.prototype).constructor as Type;\\\"},{\\\"line\\\":661,\\\"content\\\":\\\"const factory = (proto as any)[NG_FACTORY_DEF] || ɵɵgetFactoryOf(proto);\\\"},{\\\"line\\\":662,\\\"content\\\":\\\"if (factory !== null) {\\\"},{\\\"line\\\":663,\\\"content\\\":\\\"return factory;\\\"},{\\\"line\\\":664,\\\"content\\\":\\\"} else {\\\"},{\\\"line\\\":665,\\\"content\\\":\\\"// There is no factory defined. Either this was improper usage of inheritance\\\"},{\\\"line\\\":666,\\\"content\\\":\\\"// (no Angular decorator on the superclass) or there is no constructor at all\\\"},{\\\"line\\\":667,\\\"content\\\":\\\"// in the inheritance chain. Since the two cases cannot be distinguished, the\\\"},{\\\"line\\\":668,\\\"content\\\":\\\"// latter has to be assumed.\\\"}],\\\"matches\\\":[\\\"tInheritedFactory undefined;\\\"}],\\\"matches\\\":[\\\"eritedFactory, ɵɵin\\\"]},{\\\"file\\\":\\\"packages/core/test/render3/pipe_spec.ts\\\",\\\"line\\\":75,\\\"content\\\":\\\"// differs from the JIT code in `TestBed`, because it includes a `ɵɵgetInheritedFactory` call\\\",\\\"contextBefore\\\":[{\\\"line\\\":65,\\\"content\\\":\\\"fixture.hostElement.childNodes[0]!.textContent = 'Foo';\\\"},{\\\"line\\\":66,\\\"content\\\":\\\"expect(fixture.html).toEqual('Foo');\\\"},{\\\"line\\\":67,\\\"content\\\":\\\"\\\"},{\\\"line\\\":68,\\\"content\\\":\\\"fixture.update();\\\"},{\\\"line\\\":69,\\\"content\\\":\\\"expect(fixture.html).toEqual('Bar');\\\"},{\\\"line\\\":70,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":71,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":72,\\\"content\\\":\\\"\\\"},{\\\"line\\\":73,\\\"content\\\":\\\"// This test isn't in `acceptance`, because we can't capture the same behavior that we want\\\"},{\\\"line\\\":74,\\\"content\\\":\\\"// when going through `TestBed`. Here we're testing the behavior of AOT-compiled code which\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":76,\\\"content\\\":\\\"// when the pipe is using inheritance.\\\"},{\\\"line\\\":77,\\\"content\\\":\\\"it('should be able to use DI in a Pipe that extends an Injectable', () => {\\\"},{\\\"line\\\":78,\\\"content\\\":\\\"@Injectable({providedIn: 'root'})\\\"},{\\\"line\\\":79,\\\"content\\\":\\\"class SayHelloService {\\\"},{\\\"line\\\":80,\\\"content\\\":\\\"getHello() {\\\"},{\\\"line\\\":81,\\\"content\\\":\\\"return 'Hello there';\\\"},{\\\"line\\\":82,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":83,\\\"content\\\":\\\"static ɵfac = () => new SayHelloService();\\\"},{\\\"line\\\":84,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable(\\\"},{\\\"line\\\":85,\\\"content\\\":\\\"{token: SayHelloService, factory: SayHelloService.ɵfac, providedIn: 'root'});\\\"}],\\\"matches\\\":[\\\"tInheritedFactory` \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/pipe_spec.ts\\\",\\\"line\\\":100,\\\"content\\\":\\\"static ɵfac = (t?: any) => ɵɵgetInheritedFactory(t || SayHelloPipe)(SayHelloPipe);\\\",\\\"contextBefore\\\":[{\\\"line\\\":90,\\\"content\\\":\\\"constructor(protected sayHelloService: SayHelloService) {}\\\"},{\\\"line\\\":91,\\\"content\\\":\\\"static ɵfac = (t?: any) => new(t || ParentPipe)(ɵɵinject(SayHelloService));\\\"},{\\\"line\\\":92,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({token: ParentPipe, factory: ParentPipe.ɵfac});\\\"},{\\\"line\\\":93,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":94,\\\"content\\\":\\\"\\\"},{\\\"line\\\":95,\\\"content\\\":\\\"@Pipe({name: 'sayHello', pure: true})\\\"},{\\\"line\\\":96,\\\"content\\\":\\\"class SayHelloPipe extends ParentPipe implements PipeTransform {\\\"},{\\\"line\\\":97,\\\"content\\\":\\\"transform() {\\\"},{\\\"line\\\":98,\\\"content\\\":\\\"return this.sayHelloService.getHello();\\\"},{\\\"line\\\":99,\\\"content\\\":\\\"}\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":101,\\\"content\\\":\\\"static ɵpipe = ɵɵdefinePipe({name: 'sayHello', type: SayHelloPipe, pure: true});\\\"},{\\\"line\\\":102,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":103,\\\"content\\\":\\\"\\\"},{\\\"line\\\":104,\\\"content\\\":\\\"const fixture = new TemplateFixture(\\\"},{\\\"line\\\":105,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":106,\\\"content\\\":\\\"ɵɵtext(0);\\\"},{\\\"line\\\":107,\\\"content\\\":\\\"ɵɵpipe(1, 'sayHello');\\\"},{\\\"line\\\":108,\\\"content\\\":\\\"},\\\"},{\\\"line\\\":109,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":110,\\\"content\\\":\\\"ɵɵtextInterpolate1('', ɵɵpipeBind1(1, 1, null), '');\\\"}],\\\"matches\\\":[\\\"InheritedFactory(t \\\"]}]}}\"}"
+> > > }
+> > > ```
+> > > 
+> > > 66. **Sub-agent event: tool_output**
+> > > worker-di-runtime
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_output",
+> > >   "subagentId": "worker-di-runtime",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-di-runtime",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "grep",
+> > >   "toolCallId": "call_1TbUFr35h7UslDjrpndn3aCg|fc_045b4203620df0b4016ab56e58849887d1acbf9b65ace2be48",
+> > >   "isError": false,
+> > >   "output": "{\"status\":\"success\",\"message\":\"{\\\"success\\\":true,\\\"mode\\\":\\\"content\\\",\\\"numFiles\\\":5,\\\"numLines\\\":8,\\\"pagination\\\":{\\\"offset\\\":0,\\\"limit\\\":500,\\\"returned\\\":8,\\\"total\\\":8,\\\"hasMore\\\":false},\\\"matchesByFile\\\":{\\\"packages/core/test/render3/jit_environment_spec.ts\\\":[{\\\"file\\\":\\\"packages/core/test/render3/jit_environment_spec.ts\\\",\\\"line\\\":47,\\\"content\\\":\\\"return typeof sym === 'object' && sym.name !== null && sym.moduleName !== null;\\\",\\\"contextBefore\\\":[{\\\"line\\\":39,\\\"content\\\":\\\"expect(angularCoreEnv.hasOwnProperty(sym.name))\\\"},{\\\"line\\\":40,\\\"content\\\":\\\".toBe(true, `Missing symbol ${sym.name} in render3/jit/environment`);\\\"},{\\\"line\\\":41,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":42,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":43,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":44,\\\"content\\\":\\\"\\\"},{\\\"line\\\":45,\\\"content\\\":\\\"function isExternalReference(sym: ExternalReference|string): sym is ExternalReference&\\\"},{\\\"line\\\":46,\\\"content\\\":\\\"{name: string} {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":48,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"return type\\\"]}],\\\"packages/core/test/render3/styling_next/style_binding_list_spec.ts\\\":[{\\\"file\\\":\\\"packages/core/test/render3/styling_next/style_binding_list_spec.ts\\\",\\\"line\\\":447,\\\"content\\\":\\\"return typeof tStylingRange === 'number' ?\\\",\\\"contextBefore\\\":[{\\\"line\\\":439,\\\"content\\\":\\\"return expect([\\\"},{\\\"line\\\":440,\\\"content\\\":\\\"getTStylingRangePrev(tStylingRange),  //\\\"},{\\\"line\\\":441,\\\"content\\\":\\\"getTStylingRangeNext(tStylingRange),  //\\\"},{\\\"line\\\":442,\\\"content\\\":\\\"]);\\\"},{\\\"line\\\":443,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":444,\\\"content\\\":\\\"\\\"},{\\\"line\\\":445,\\\"content\\\":\\\"function expectTData(tData: TData) {\\\"},{\\\"line\\\":446,\\\"content\\\":\\\"return expect(tData.map((tStylingRange: any) => {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":448,\\\"content\\\":\\\"[\\\"},{\\\"line\\\":449,\\\"content\\\":\\\"false,\\\"},{\\\"line\\\":450,\\\"content\\\":\\\"getTStylingRangePrev(tStylingRange as any),  //\\\"},{\\\"line\\\":451,\\\"content\\\":\\\"false,\\\"},{\\\"line\\\":452,\\\"content\\\":\\\"getTStylingRangeNext(tStylingRange as any),  //\\\"},{\\\"line\\\":453,\\\"content\\\":\\\"] :\\\"},{\\\"line\\\":454,\\\"content\\\":\\\"tStylingRange;\\\"},{\\\"line\\\":455,\\\"content\\\":\\\"}));\\\"}],\\\"matches\\\":[\\\"return type\\\"]}],\\\"packages/core/test/render3/render_util.ts\\\":[{\\\"file\\\":\\\"packages/core/test/render3/render_util.ts\\\",\\\"line\\\":318,\\\"content\\\":\\\"return types.map(mapFn);\\\",\\\"contextBefore\\\":[{\\\"line\\\":310,\\\"content\\\":\\\"PipeDefList|null;\\\"},{\\\"line\\\":311,\\\"content\\\":\\\"function toDefs(\\\"},{\\\"line\\\":312,\\\"content\\\":\\\"types: Type[]|(() => Type[])|undefined|null,\\\"},{\\\"line\\\":313,\\\"content\\\":\\\"mapFn: (type: Type) => PipeDef| DirectiveDef): any {\\\"},{\\\"line\\\":314,\\\"content\\\":\\\"if (!types) return null;\\\"},{\\\"line\\\":315,\\\"content\\\":\\\"if (typeof types == 'function') {\\\"},{\\\"line\\\":316,\\\"content\\\":\\\"types = types();\\\"},{\\\"line\\\":317,\\\"content\\\":\\\"}\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":319,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":320,\\\"content\\\":\\\"\\\"},{\\\"line\\\":321,\\\"content\\\":\\\"beforeEach(resetDOM);\\\"},{\\\"line\\\":322,\\\"content\\\":\\\"\\\"},{\\\"line\\\":323,\\\"content\\\":\\\"// This is necessary so we can switch between the Render2 version and the Ivy version\\\"},{\\\"line\\\":324,\\\"content\\\":\\\"// of special objects like ElementRef and TemplateRef.\\\"},{\\\"line\\\":325,\\\"content\\\":\\\"beforeEach(enableIvyInjectableFactories);\\\"},{\\\"line\\\":326,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"return type\\\"]},{\\\"file\\\":\\\"packages/core/test/render3/render_util.ts\\\",\\\"line\\\":378,\\\"content\\\":\\\"return class Component {\\\",\\\"contextBefore\\\":[{\\\"line\\\":370,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":371,\\\"content\\\":\\\"\\\"},{\\\"line\\\":372,\\\"content\\\":\\\"export function createComponent(\\\"},{\\\"line\\\":373,\\\"content\\\":\\\"name: string, template: ComponentTemplate, decls: number = 0, vars: number = 0,\\\"},{\\\"line\\\":374,\\\"content\\\":\\\"directives: DirectiveTypesOrFactory = [], pipes: PipeTypesOrFactory = [],\\\"},{\\\"line\\\":375,\\\"content\\\":\\\"viewQuery: ComponentTemplate|null = null, providers: Provider[] = [],\\\"},{\\\"line\\\":376,\\\"content\\\":\\\"viewProviders: Provider[] = [], hostBindings?: HostBindingsFunction,\\\"},{\\\"line\\\":377,\\\"content\\\":\\\"consts: TConstants = []): ComponentType {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":379,\\\"content\\\":\\\"value: any;\\\"},{\\\"line\\\":380,\\\"content\\\":\\\"static ɵfac = () => new Component;\\\"},{\\\"line\\\":381,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":382,\\\"content\\\":\\\"type: Component,\\\"},{\\\"line\\\":383,\\\"content\\\":\\\"selectors: [[name]],\\\"},{\\\"line\\\":384,\\\"content\\\":\\\"decls: decls,\\\"},{\\\"line\\\":385,\\\"content\\\":\\\"vars: vars,\\\"},{\\\"line\\\":386,\\\"content\\\":\\\"template: template,\\\"}],\\\"matches\\\":[\\\"return class\\\"]},{\\\"file\\\":\\\"packages/core/test/render3/render_util.ts\\\",\\\"line\\\":400,\\\"content\\\":\\\"return class Directive {\\\",\\\"contextBefore\\\":[{\\\"line\\\":392,\\\"content\\\":\\\"[ɵɵProvidersFeature(providers || [], viewProviders || [])]: [],\\\"},{\\\"line\\\":393,\\\"content\\\":\\\"consts: consts,\\\"},{\\\"line\\\":394,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":395,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":396,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":397,\\\"content\\\":\\\"\\\"},{\\\"line\\\":398,\\\"content\\\":\\\"export function createDirective(\\\"},{\\\"line\\\":399,\\\"content\\\":\\\"name: string, {exportAs}: {exportAs?: string[]} = {}): DirectiveType {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":401,\\\"content\\\":\\\"static ɵfac = () => new Directive();\\\"},{\\\"line\\\":402,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({\\\"},{\\\"line\\\":403,\\\"content\\\":\\\"type: Directive,\\\"},{\\\"line\\\":404,\\\"content\\\":\\\"selectors: [['', name, '']],\\\"},{\\\"line\\\":405,\\\"content\\\":\\\"exportAs: exportAs,\\\"},{\\\"line\\\":406,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":407,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":408,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"return class\\\"]},{\\\"file\\\":\\\"packages/core/test/render3/render_util.ts\\\",\\\"line\\\":483,\\\"content\\\":\\\"return typeof selectorOrNode === 'string' ? document.querySelector(selectorOrNode) :\\\",\\\"contextBefore\\\":[{\\\"line\\\":475,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":476,\\\"content\\\":\\\"insertBefore(parent: RNode, newChild: RNode, refChild: RNode|null): void {\\\"},{\\\"line\\\":477,\\\"content\\\":\\\"parent.insertBefore(newChild, refChild, false);\\\"},{\\\"line\\\":478,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":479,\\\"content\\\":\\\"removeChild(parent: RElement, oldChild: RNode): void {\\\"},{\\\"line\\\":480,\\\"content\\\":\\\"parent.removeChild(oldChild);\\\"},{\\\"line\\\":481,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":482,\\\"content\\\":\\\"selectRootElement(selectorOrNode: string|any): RElement {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":484,\\\"content\\\":\\\"selectorOrNode;\\\"},{\\\"line\\\":485,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":486,\\\"content\\\":\\\"parentNode(node: RNode): RElement|null {\\\"},{\\\"line\\\":487,\\\"content\\\":\\\"return node.parentNode as RElement;\\\"},{\\\"line\\\":488,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":489,\\\"content\\\":\\\"nextSibling(node: RNode): RNode|null {\\\"},{\\\"line\\\":490,\\\"content\\\":\\\"return node.nextSibling;\\\"},{\\\"line\\\":491,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"return type\\\"]}],\\\"packages/core/test/render3/imported_renderer2.ts\\\":[{\\\"file\\\":\\\"packages/core/test/render3/imported_renderer2.ts\\\",\\\"line\\\":35,\\\"content\\\":\\\"return target.removeEventListener.apply(target, [eventName, callback, false]);\\\",\\\"contextBefore\\\":[{\\\"line\\\":27,\\\"content\\\":\\\"\\\"},{\\\"line\\\":28,\\\"content\\\":\\\"addEventListener(element: HTMLElement, eventName: string, handler: Function): Function {\\\"},{\\\"line\\\":29,\\\"content\\\":\\\"let callback: EventListener = handler as EventListener;\\\"},{\\\"line\\\":30,\\\"content\\\":\\\"element.addEventListener(eventName, callback, false);\\\"},{\\\"line\\\":31,\\\"content\\\":\\\"return () => this.removeEventListener(element, eventName, callback);\\\"},{\\\"line\\\":32,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":33,\\\"content\\\":\\\"\\\"},{\\\"line\\\":34,\\\"content\\\":\\\"removeEventListener(target: any, eventName: string, callback: Function): void {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":36,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":37,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":38,\\\"content\\\":\\\"\\\"},{\\\"line\\\":39,\\\"content\\\":\\\"export function getRendererFactory2(document: any): RendererFactory2 {\\\"},{\\\"line\\\":40,\\\"content\\\":\\\"const fakeNgZone: NgZone = new NoopNgZone();\\\"},{\\\"line\\\":41,\\\"content\\\":\\\"const eventManager = new EventManager([new SimpleDomEventsPlugin(document)], fakeNgZone);\\\"},{\\\"line\\\":42,\\\"content\\\":\\\"const rendererFactory =\\\"},{\\\"line\\\":43,\\\"content\\\":\\\"new ɵDomRendererFactory2(eventManager, new ɵDomSharedStylesHost(document), 'dummyappid');\\\"}],\\\"matches\\\":[\\\"return target\\\"]}],\\\"packages/core/test/linker/projection_integration_spec.ts\\\":[{\\\"file\\\":\\\"packages/core/test/linker/projection_integration_spec.ts\\\",\\\"line\\\":1047,\\\"content\\\":\\\"return typeof (document.body).createShadowRoot === 'function';\\\",\\\"contextBefore\\\":[{\\\"line\\\":1039,\\\"content\\\":\\\"@Component({\\\"},{\\\"line\\\":1040,\\\"content\\\":\\\"selector: 'cmp-a2',\\\"},{\\\"line\\\":1041,\\\"content\\\":\\\"template: `{{'a2'}}`,\\\"},{\\\"line\\\":1042,\\\"content\\\":\\\"})\\\"},{\\\"line\\\":1043,\\\"content\\\":\\\"class CmpA2 {\\\"},{\\\"line\\\":1044,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1045,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1046,\\\"content\\\":\\\"function supportsNativeShadowDOM(): boolean {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1048,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"return type\\\"]}]}}\"}"
+> > > }
+> > > ```
+> > > 
+> > > 67. **Sub-agent event: token_usage**
+> > > worker-di-runtime
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "token_usage",
+> > >   "subagentId": "worker-di-runtime",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-di-runtime",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "tokenUsage": {
+> > >     "inputTokens": 5477,
+> > >     "outputTokens": 399,
+> > >     "totalTokens": 40433,
+> > >     "cost": {
+> > >       "total": 0.028692480000000003
+> > >     }
+> > >   },
+> > >   "cumulativeTokenUsage": {
+> > >     "inputTokens": 30359,
+> > >     "outputTokens": 2183,
+> > >     "totalTokens": 124393,
+> > >     "cost": {
+> > >       "total": 0.15849216000000002
+> > >     }
+> > >   },
+> > >   "status": "running"
+> > > }
+> > > ```
+> > > 
+> > > 68. **Sub-agent event: tool_call**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_call",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "read_file",
+> > >   "toolCallId": "call_koHkT1usCLYszw01heTMAtdj|fc_032f22962d24028b016ab56e597dfc87d1b71267d4fbb83555",
+> > >   "input": {
+> > >     "fileNames": [
+> > >       {
+> > >         "fileName": "angular__angular-37561/packages/compiler-cli/src/ngtsc/annotations/src/injectable.ts",
+> > >         "startLine": 1
+> > >       },
+> > >       {
+> > >         "fileName": "angular__angular-37561/packages/compiler/src/render3/r3_factory.ts",
+> > >         "startLine": 1
+> > >       },
+> > >       {
+> > >         "fileName": "angular__angular-37561/packages/compiler-cli/src/ngtsc/annotations/src/factory.ts",
+> > >         "startLine": 1
+> > >       }
+> > >     ],
+> > >     "toolPurpose": "I want to read the exact production code that analyzes `@Injectable` classes and compiles their factory definitions, including the shared Render3 factory generator."
+> > >   },
+> > >   "toolIcon": "\n",
+> > >   "toolLabel": "Reading",
+> > >   "isPillTool": true,
+> > >   "toolPurpose": "I want to read the exact production code that analyzes `@Injectable` classes and compiles their factory definitions, including the shared Render3 factory generator."
+> > > }
+> > > ```
+> > > 
+> > > 69. **Sub-agent event: tool_call**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_call",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "grep",
+> > >   "toolCallId": "call_mWcYwes9mLSnpI2nwR2BBz56|fc_032f22962d24028b016ab56e597e1487d18364f4663a9d51d2",
+> > >   "input": {
+> > >     "pattern": "class decorator|classDecorator|decorator.*subclass|replace.*class|return class extends|extends target|extends clazz|extends cls",
+> > >     "searchPath": "/angular__angular-37561/packages/compiler-cli/test",
+> > >     "glob": [
+> > >       "**/*.ts"
+> > >     ],
+> > >     "caseInsensitive": true,
+> > >     "outputMode": "matches",
+> > >     "context": 4,
+> > >     "headLimit": 200,
+> > >     "toolPurpose": "I need to locate only relevant compiler-cli tests that define the expected contract for class decorators which replace a class with a subclass."
+> > >   },
+> > >   "toolIcon": "\n      \n      \n",
+> > >   "toolLabel": "Searching",
+> > >   "isPillTool": false,
+> > >   "toolPurpose": "I need to locate only relevant compiler-cli tests that define the expected contract for class decorators which replace a class with a subclass."
+> > > }
+> > > ```
+> > > 
+> > > 70. **Sub-agent event: tool_call**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_call",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "grep",
+> > >   "toolCallId": "call_Ojkx7VtoC9cXM4xVpLTYXgHQ|fc_032f22962d24028b016ab56e597e1c87d19bc925e27032d1a0",
+> > >   "input": {
+> > >     "pattern": "useClass|delegate|FactoryTarget\\.Injectable|compileFactoryFunction",
+> > >     "searchPath": "/angular__angular-37561/packages/compiler-cli/src",
+> > >     "glob": [
+> > >       "**/*.ts"
+> > >     ],
+> > >     "outputMode": "matches",
+> > >     "context": 3,
+> > >     "headLimit": 300,
+> > >     "toolPurpose": "I need to trace how compiler-cli builds injectable factory metadata and delegates it to the production factory compiler."
+> > >   },
+> > >   "toolIcon": "\n      \n      \n",
+> > >   "toolLabel": "Searching",
+> > >   "isPillTool": false,
+> > >   "toolPurpose": "I need to trace how compiler-cli builds injectable factory metadata and delegates it to the production factory compiler."
+> > > }
+> > > ```
+> > > 
+> > > 71. **Sub-agent event: tool_call**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_call",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "run_terminal_command",
+> > >   "toolCallId": "call_mWZ4mqbZF6iBxoZmgWv4zWOW|fc_032f22962d24028b016ab56e597e2487d1a05e8a7fc9b9c86e",
+> > >   "input": {
+> > >     "commands": [
+> > >       {
+> > >         "command": "git --no-pager show -s --format='%H%n%P%n%s' f799725 && git --no-pager rev-parse HEAD",
+> > >         "cwd": "angular__angular-37561",
+> > >         "profileName": "bash",
+> > >         "readTerminalFullOutput": true,
+> > >         "timeoutMs": 30000,
+> > >         "isInteractive": false
+> > >       }
+> > >     ],
+> > >     "toolPurpose": "RTK is unavailable, so I want to directly confirm the requested base commit identity and whether the detached worktree is exactly at that revision."
+> > >   },
+> > >   "toolIcon": "",
+> > >   "toolLabel": "Executing Command",
+> > >   "isPillTool": false,
+> > >   "toolPurpose": "RTK is unavailable, so I want to directly confirm the requested base commit identity and whether the detached worktree is exactly at that revision."
+> > > }
+> > > ```
+> > > 
+> > > 72. **Sub-agent event: tool_output**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_output",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "grep",
+> > >   "toolCallId": "call_mWcYwes9mLSnpI2nwR2BBz56|fc_032f22962d24028b016ab56e597e1487d18364f4663a9d51d2",
+> > >   "isError": false,
+> > >   "output": "{\"status\":\"success\",\"message\":\"{\\\"success\\\":true,\\\"mode\\\":\\\"content\\\",\\\"numFiles\\\":1,\\\"numLines\\\":6,\\\"pagination\\\":{\\\"offset\\\":0,\\\"limit\\\":200,\\\"returned\\\":6,\\\"total\\\":6,\\\"hasMore\\\":false},\\\"matches\\\":[{\\\"file\\\":\\\"ngtsc/fake_core/index.ts\\\",\\\"line\\\":14,\\\"content\\\":\\\"function callableClassDecorator(): FnWithArg any> {\\\",\\\"contextBefore\\\":[{\\\"line\\\":10,\\\"content\\\":\\\"(...args: any[]): T;\\\"},{\\\"line\\\":11,\\\"content\\\":\\\"new(...args: any[]): T;\\\"},{\\\"line\\\":12,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":13,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":15,\\\"content\\\":\\\"return null!;\\\"},{\\\"line\\\":16,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":17,\\\"content\\\":\\\"\\\"},{\\\"line\\\":18,\\\"content\\\":\\\"function callableParamDecorator(): FnWithArg void> {\\\"}],\\\"matches\\\":[\\\"ClassDecorator\\\"]},{\\\"file\\\":\\\"ngtsc/fake_core/index.ts\\\",\\\"line\\\":26,\\\"content\\\":\\\"export const Component = callableClassDecorator();\\\",\\\"contextBefore\\\":[{\\\"line\\\":22,\\\"content\\\":\\\"function callablePropDecorator(): FnWithArg any> {\\\"},{\\\"line\\\":23,\\\"content\\\":\\\"return null!;\\\"},{\\\"line\\\":24,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":25,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ClassDecorator\\\"]},{\\\"file\\\":\\\"ngtsc/fake_core/index.ts\\\",\\\"line\\\":27,\\\"content\\\":\\\"export const Directive = callableClassDecorator();\\\",\\\"matches\\\":[\\\"ClassDecorator\\\"]},{\\\"file\\\":\\\"ngtsc/fake_core/index.ts\\\",\\\"line\\\":28,\\\"content\\\":\\\"export const Injectable = callableClassDecorator();\\\",\\\"matches\\\":[\\\"ClassDecorator\\\"]},{\\\"file\\\":\\\"ngtsc/fake_core/index.ts\\\",\\\"line\\\":29,\\\"content\\\":\\\"export const NgModule = callableClassDecorator();\\\",\\\"matches\\\":[\\\"ClassDecorator\\\"]},{\\\"file\\\":\\\"ngtsc/fake_core/index.ts\\\",\\\"line\\\":30,\\\"content\\\":\\\"export const Pipe = callableClassDecorator();\\\",\\\"contextAfter\\\":[{\\\"line\\\":31,\\\"content\\\":\\\"\\\"},{\\\"line\\\":32,\\\"content\\\":\\\"export const Attribute = callableParamDecorator();\\\"},{\\\"line\\\":33,\\\"content\\\":\\\"export const Inject = callableParamDecorator();\\\"},{\\\"line\\\":34,\\\"content\\\":\\\"export const Self = callableParamDecorator();\\\"}],\\\"matches\\\":[\\\"ClassDecorator\\\"]}]}\"}"
+> > > }
+> > > ```
+> > > 
+> > > 73. **Sub-agent event: tool_output**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_output",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "grep",
+> > >   "toolCallId": "call_Ojkx7VtoC9cXM4xVpLTYXgHQ|fc_032f22962d24028b016ab56e597e1c87d19bc925e27032d1a0",
+> > >   "isError": false,
+> > >   "output": "{\"status\":\"success\",\"message\":\"{\\\"success\\\":true,\\\"mode\\\":\\\"content\\\",\\\"numFiles\\\":11,\\\"numLines\\\":92,\\\"pagination\\\":{\\\"offset\\\":0,\\\"limit\\\":300,\\\"returned\\\":92,\\\"total\\\":92,\\\"hasMore\\\":false},\\\"matches\\\":[{\\\"file\\\":\\\"metadata/bundle_index_host.ts\\\",\\\"line\\\":23,\\\"content\\\":\\\"delegate: H, syntheticIndex: {name: string, content: string, getMetadata: () => string}): H {\\\",\\\"contextBefore\\\":[{\\\"line\\\":20,\\\"content\\\":\\\"const JS_EXT = /(\\\\\\\\.js|)$/;\\\"},{\\\"line\\\":21,\\\"content\\\":\\\"\\\"},{\\\"line\\\":22,\\\"content\\\":\\\"function createSyntheticIndexHost(\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":24,\\\"content\\\":\\\"const normalSyntheticIndexName = path.normalize(syntheticIndex.name);\\\"},{\\\"line\\\":25,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"metadata/bundle_index_host.ts\\\",\\\"line\\\":26,\\\"content\\\":\\\"const newHost = Object.create(delegate);\\\",\\\"contextBefore\\\":[{\\\"line\\\":24,\\\"content\\\":\\\"const normalSyntheticIndexName = path.normalize(syntheticIndex.name);\\\"},{\\\"line\\\":25,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":27,\\\"content\\\":\\\"newHost.fileExists = (fileName: string): boolean => {\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"metadata/bundle_index_host.ts\\\",\\\"line\\\":28,\\\"content\\\":\\\"return path.normalize(fileName) == normalSyntheticIndexName || delegate.fileExists(fileName);\\\",\\\"contextBefore\\\":[{\\\"line\\\":27,\\\"content\\\":\\\"newHost.fileExists = (fileName: string): boolean => {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":29,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":30,\\\"content\\\":\\\"\\\"},{\\\"line\\\":31,\\\"content\\\":\\\"newHost.readFile = (fileName: string) => {\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"metadata/bundle_index_host.ts\\\",\\\"line\\\":33,\\\"content\\\":\\\"delegate.readFile(fileName);\\\",\\\"contextBefore\\\":[{\\\"line\\\":30,\\\"content\\\":\\\"\\\"},{\\\"line\\\":31,\\\"content\\\":\\\"newHost.readFile = (fileName: string) => {\\\"},{\\\"line\\\":32,\\\"content\\\":\\\"return path.normalize(fileName) == normalSyntheticIndexName ? syntheticIndex.content :\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":34,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":35,\\\"content\\\":\\\"\\\"},{\\\"line\\\":36,\\\"content\\\":\\\"newHost.getSourceFile =\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"metadata/bundle_index_host.ts\\\",\\\"line\\\":40,\\\"content\\\":\\\"if ((delegate as any).fileNameToModuleName) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":37,\\\"content\\\":\\\"(fileName: string, languageVersion: ts.ScriptTarget, onError?: (message: string) => void) => {\\\"},{\\\"line\\\":38,\\\"content\\\":\\\"if (path.normalize(fileName) == normalSyntheticIndexName) {\\\"},{\\\"line\\\":39,\\\"content\\\":\\\"const sf = ts.createSourceFile(fileName, syntheticIndex.content, languageVersion, true);\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"metadata/bundle_index_host.ts\\\",\\\"line\\\":41,\\\"content\\\":\\\"sf.moduleName = (delegate as any).fileNameToModuleName(fileName);\\\",\\\"contextAfter\\\":[{\\\"line\\\":42,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":43,\\\"content\\\":\\\"return sf;\\\"},{\\\"line\\\":44,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"metadata/bundle_index_host.ts\\\",\\\"line\\\":45,\\\"content\\\":\\\"return delegate.getSourceFile(fileName, languageVersion, onError);\\\",\\\"contextBefore\\\":[{\\\"line\\\":42,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":43,\\\"content\\\":\\\"return sf;\\\"},{\\\"line\\\":44,\\\"content\\\":\\\"}\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":46,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":47,\\\"content\\\":\\\"\\\"},{\\\"line\\\":48,\\\"content\\\":\\\"newHost.writeFile =\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"metadata/bundle_index_host.ts\\\",\\\"line\\\":51,\\\"content\\\":\\\"delegate.writeFile(fileName, data, writeByteOrderMark, onError, sourceFiles);\\\",\\\"contextBefore\\\":[{\\\"line\\\":48,\\\"content\\\":\\\"newHost.writeFile =\\\"},{\\\"line\\\":49,\\\"content\\\":\\\"(fileName: string, data: string, writeByteOrderMark: boolean,\\\"},{\\\"line\\\":50,\\\"content\\\":\\\"onError: ((message: string) => void)|undefined, sourceFiles: Readonly[]) => {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":52,\\\"content\\\":\\\"if (fileName.match(DTS) && sourceFiles && sourceFiles.length == 1 &&\\\"},{\\\"line\\\":53,\\\"content\\\":\\\"path.normalize(sourceFiles[0].fileName) === normalSyntheticIndexName) {\\\"},{\\\"line\\\":54,\\\"content\\\":\\\"// If we are writing the synthetic index, write the metadata along side.\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"metadata/bundle_index_host.ts\\\",\\\"line\\\":57,\\\"content\\\":\\\"delegate.writeFile(metadataName, indexMetadata, writeByteOrderMark, onError, []);\\\",\\\"contextBefore\\\":[{\\\"line\\\":54,\\\"content\\\":\\\"// If we are writing the synthetic index, write the metadata along side.\\\"},{\\\"line\\\":55,\\\"content\\\":\\\"const metadataName = fileName.replace(DTS, '.metadata.json');\\\"},{\\\"line\\\":56,\\\"content\\\":\\\"const indexMetadata = syntheticIndex.getMetadata();\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":58,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":59,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":60,\\\"content\\\":\\\"return newHost;\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/program.ts\\\",\\\"line\\\":57,\\\"content\\\":\\\"delegateHost: api.CompilerHost, oldProgram?: NgtscProgram) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":54,\\\"content\\\":\\\"\\\"},{\\\"line\\\":55,\\\"content\\\":\\\"constructor(\\\"},{\\\"line\\\":56,\\\"content\\\":\\\"rootNames: ReadonlyArray, private options: NgCompilerOptions,\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":58,\\\"content\\\":\\\"// First, check whether the current TS version is supported.\\\"},{\\\"line\\\":59,\\\"content\\\":\\\"if (!options.disableTypeScriptVersionCheck) {\\\"},{\\\"line\\\":60,\\\"content\\\":\\\"verifySupportedTypeScriptVersion();\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/program.ts\\\",\\\"line\\\":69,\\\"content\\\":\\\"this.host = NgCompilerHost.wrap(delegateHost, rootNames, options);\\\",\\\"contextBefore\\\":[{\\\"line\\\":66,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":67,\\\"content\\\":\\\"this.closureCompilerEnabled = !!options.annotateForClosureCompiler;\\\"},{\\\"line\\\":68,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":70,\\\"content\\\":\\\"\\\"},{\\\"line\\\":71,\\\"content\\\":\\\"const reuseProgram = oldProgram && oldProgram.reuseTsProgram;\\\"},{\\\"line\\\":72,\\\"content\\\":\\\"this.tsProgram = ts.createProgram(this.host.inputFiles, options, this.host, reuseProgram);\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/annotations/src/injectable.ts\\\",\\\"line\\\":104,\\\"content\\\":\\\"target: R3FactoryTarget.Injectable,\\\",\\\"contextBefore\\\":[{\\\"line\\\":101,\\\"content\\\":\\\"typeArgumentCount: meta.typeArgumentCount,\\\"},{\\\"line\\\":102,\\\"content\\\":\\\"deps: analysis.ctorDeps,\\\"},{\\\"line\\\":103,\\\"content\\\":\\\"injectFn: Identifiers.inject,\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":105,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":106,\\\"content\\\":\\\"if (analysis.metadataStmt !== null) {\\\"},{\\\"line\\\":107,\\\"content\\\":\\\"factoryRes.statements.push(analysis.metadataStmt);\\\"}],\\\"matches\\\":[\\\"FactoryTarget.Injectable\\\"]},{\\\"file\\\":\\\"ngtsc/annotations/src/injectable.ts\\\",\\\"line\\\":174,\\\"content\\\":\\\"if ((meta.has('useClass') || meta.has('useFactory')) && meta.has('deps')) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":171,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":172,\\\"content\\\":\\\"\\\"},{\\\"line\\\":173,\\\"content\\\":\\\"let userDeps: R3DependencyMetadata[]|undefined = undefined;\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":175,\\\"content\\\":\\\"const depsExpr = meta.get('deps')!;\\\"},{\\\"line\\\":176,\\\"content\\\":\\\"if (!ts.isArrayLiteralExpression(depsExpr)) {\\\"},{\\\"line\\\":177,\\\"content\\\":\\\"throw new FatalDiagnosticError(\\\"}],\\\"matches\\\":[\\\"useClass\\\"]},{\\\"file\\\":\\\"ngtsc/annotations/src/injectable.ts\\\",\\\"line\\\":202,\\\"content\\\":\\\"} else if (meta.has('useClass')) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":199,\\\"content\\\":\\\"providedIn,\\\"},{\\\"line\\\":200,\\\"content\\\":\\\"useExisting: new WrappedNodeExpr(unwrapForwardRef(meta.get('useExisting')!, reflector)),\\\"},{\\\"line\\\":201,\\\"content\\\":\\\"};\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":203,\\\"content\\\":\\\"return {\\\"},{\\\"line\\\":204,\\\"content\\\":\\\"name,\\\"},{\\\"line\\\":205,\\\"content\\\":\\\"type,\\\"}],\\\"matches\\\":[\\\"useClass\\\"]},{\\\"file\\\":\\\"ngtsc/annotations/src/injectable.ts\\\",\\\"line\\\":209,\\\"content\\\":\\\"useClass: new WrappedNodeExpr(unwrapForwardRef(meta.get('useClass')!, reflector)),\\\",\\\"contextBefore\\\":[{\\\"line\\\":206,\\\"content\\\":\\\"typeArgumentCount,\\\"},{\\\"line\\\":207,\\\"content\\\":\\\"internalType,\\\"},{\\\"line\\\":208,\\\"content\\\":\\\"providedIn,\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":210,\\\"content\\\":\\\"userDeps,\\\"},{\\\"line\\\":211,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":212,\\\"content\\\":\\\"} else if (meta.has('useFactory')) {\\\"}],\\\"matches\\\":[\\\"useClass\\\"]},{\\\"file\\\":\\\"ngtsc/annotations/src/injectable.ts\\\",\\\"line\\\":266,\\\"content\\\":\\\"meta.useClass === undefined && meta.useFactory === undefined) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":263,\\\"content\\\":\\\"const rawCtorDeps = getConstructorDependencies(clazz, reflector, defaultImportRecorder, isCore);\\\"},{\\\"line\\\":264,\\\"content\\\":\\\"\\\"},{\\\"line\\\":265,\\\"content\\\":\\\"if (strictCtorDeps && meta.useValue === undefined && meta.useExisting === undefined &&\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":267,\\\"content\\\":\\\"// Since use* was not provided, validate the deps according to strictCtorDeps.\\\"},{\\\"line\\\":268,\\\"content\\\":\\\"ctorDeps = validateConstructorDependencies(clazz, rawCtorDeps);\\\"},{\\\"line\\\":269,\\\"content\\\":\\\"} else {\\\"}],\\\"matches\\\":[\\\"useClass\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/compiler.ts\\\",\\\"line\\\":674,\\\"content\\\":\\\"// before injectable factories (so injectable factories can delegate to them)\\\",\\\"contextBefore\\\":[{\\\"line\\\":671,\\\"content\\\":\\\") as Readonly>,\\\"},{\\\"line\\\":672,\\\"content\\\":\\\"// clang-format on\\\"},{\\\"line\\\":673,\\\"content\\\":\\\"// Pipe handler must be before injectable handler in list so pipe factories are printed\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":675,\\\"content\\\":\\\"new PipeDecoratorHandler(\\\"},{\\\"line\\\":676,\\\"content\\\":\\\"reflector, evaluator, metaRegistry, scopeRegistry, defaultImportTracker,\\\"},{\\\"line\\\":677,\\\"content\\\":\\\"injectableRegistry, isCore),\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/annotations/src/util.ts\\\",\\\"line\\\":455,\\\"content\\\":\\\"} else if (provider instanceof Map && provider.has('useClass') && !provider.has('deps')) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":452,\\\"content\\\":\\\"provider.forEach(processProviders);\\\"},{\\\"line\\\":453,\\\"content\\\":\\\"} else if (provider instanceof Reference) {\\\"},{\\\"line\\\":454,\\\"content\\\":\\\"tokenClass = provider;\\\"}],\\\"matches\\\":[\\\"useClass\\\"]},{\\\"file\\\":\\\"ngtsc/annotations/src/util.ts\\\",\\\"line\\\":456,\\\"content\\\":\\\"const useExisting = provider.get('useClass')!;\\\",\\\"contextAfter\\\":[{\\\"line\\\":457,\\\"content\\\":\\\"if (useExisting instanceof Reference) {\\\"},{\\\"line\\\":458,\\\"content\\\":\\\"tokenClass = useExisting;\\\"},{\\\"line\\\":459,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"useClass\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":22,\\\"content\\\":\\\"// the delegating host doesn't implement or delegate them. This causes subtle runtime failures. No\\\",\\\"contextBefore\\\":[{\\\"line\\\":19,\\\"content\\\":\\\"\\\"},{\\\"line\\\":20,\\\"content\\\":\\\"// A persistent source of bugs in CompilerHost delegation has been the addition by TS of new,\\\"},{\\\"line\\\":21,\\\"content\\\":\\\"// optional methods on ts.CompilerHost. Since these methods are optional, it's not a type error that\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":23,\\\"content\\\":\\\"// more. This infrastructure ensures that failing to delegate a method is a compile-time error.\\\",\\\"contextAfter\\\":[{\\\"line\\\":24,\\\"content\\\":\\\"\\\"},{\\\"line\\\":25,\\\"content\\\":\\\"/**\\\"},{\\\"line\\\":26,\\\"content\\\":\\\"* Represents the `ExtendedTsCompilerHost` interface, with a transformation applied that turns all\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":35,\\\"content\\\":\\\"* Delegates all methods of `ExtendedTsCompilerHost` to a delegate, with the exception of\\\",\\\"contextBefore\\\":[{\\\"line\\\":32,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":33,\\\"content\\\":\\\"\\\"},{\\\"line\\\":34,\\\"content\\\":\\\"/**\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":36,\\\"content\\\":\\\"* `getSourceFile` and `fileExists` which are implemented in `NgCompilerHost`.\\\"},{\\\"line\\\":37,\\\"content\\\":\\\"*\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":38,\\\"content\\\":\\\"* If a new method is added to `ts.CompilerHost` which is not delegated, a type error will be\\\",\\\"contextBefore\\\":[{\\\"line\\\":36,\\\"content\\\":\\\"* `getSourceFile` and `fileExists` which are implemented in `NgCompilerHost`.\\\"},{\\\"line\\\":37,\\\"content\\\":\\\"*\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":39,\\\"content\\\":\\\"* generated for this class.\\\"},{\\\"line\\\":40,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":41,\\\"content\\\":\\\"export class DelegatingCompilerHost implements\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":43,\\\"content\\\":\\\"constructor(protected delegate: ExtendedTsCompilerHost) {}\\\",\\\"contextBefore\\\":[{\\\"line\\\":40,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":41,\\\"content\\\":\\\"export class DelegatingCompilerHost implements\\\"},{\\\"line\\\":42,\\\"content\\\":\\\"Omit {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":44,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":45,\\\"content\\\":\\\"private delegateMethod(name: M):\\\",\\\"contextBefore\\\":[{\\\"line\\\":44,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":46,\\\"content\\\":\\\"ExtendedTsCompilerHost[M] {\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":47,\\\"content\\\":\\\"return this.delegate[name] !== undefined ? (this.delegate[name] as any).bind(this.delegate) :\\\",\\\"contextBefore\\\":[{\\\"line\\\":46,\\\"content\\\":\\\"ExtendedTsCompilerHost[M] {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":48,\\\"content\\\":\\\"undefined;\\\"},{\\\"line\\\":49,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":50,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":53,\\\"content\\\":\\\"createHash = this.delegateMethod('createHash');\\\",\\\"contextBefore\\\":[{\\\"line\\\":50,\\\"content\\\":\\\"\\\"},{\\\"line\\\":51,\\\"content\\\":\\\"// Excluded are 'getSourceFile' and 'fileExists', which are actually implemented by NgCompilerHost\\\"},{\\\"line\\\":52,\\\"content\\\":\\\"// below.\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":54,\\\"content\\\":\\\"directoryExists = this.delegateMethod('directoryExists');\\\",\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":55,\\\"content\\\":\\\"fileNameToModuleName = this.delegateMethod('fileNameToModuleName');\\\",\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":56,\\\"content\\\":\\\"getCancellationToken = this.delegateMethod('getCancellationToken');\\\",\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":57,\\\"content\\\":\\\"getCanonicalFileName = this.delegateMethod('getCanonicalFileName');\\\",\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":58,\\\"content\\\":\\\"getCurrentDirectory = this.delegateMethod('getCurrentDirectory');\\\",\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":59,\\\"content\\\":\\\"getDefaultLibFileName = this.delegateMethod('getDefaultLibFileName');\\\",\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":60,\\\"content\\\":\\\"getDefaultLibLocation = this.delegateMethod('getDefaultLibLocation');\\\",\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":61,\\\"content\\\":\\\"getDirectories = this.delegateMethod('getDirectories');\\\",\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":62,\\\"content\\\":\\\"getEnvironmentVariable = this.delegateMethod('getEnvironmentVariable');\\\",\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":63,\\\"content\\\":\\\"getModifiedResourceFiles = this.delegateMethod('getModifiedResourceFiles');\\\",\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":64,\\\"content\\\":\\\"getNewLine = this.delegateMethod('getNewLine');\\\",\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":65,\\\"content\\\":\\\"getParsedCommandLine = this.delegateMethod('getParsedCommandLine');\\\",\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":66,\\\"content\\\":\\\"getSourceFileByPath = this.delegateMethod('getSourceFileByPath');\\\",\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":67,\\\"content\\\":\\\"readDirectory = this.delegateMethod('readDirectory');\\\",\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":68,\\\"content\\\":\\\"readFile = this.delegateMethod('readFile');\\\",\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":69,\\\"content\\\":\\\"readResource = this.delegateMethod('readResource');\\\",\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":70,\\\"content\\\":\\\"realpath = this.delegateMethod('realpath');\\\",\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":71,\\\"content\\\":\\\"resolveModuleNames = this.delegateMethod('resolveModuleNames');\\\",\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":72,\\\"content\\\":\\\"resolveTypeReferenceDirectives = this.delegateMethod('resolveTypeReferenceDirectives');\\\",\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":73,\\\"content\\\":\\\"resourceNameToFileName = this.delegateMethod('resourceNameToFileName');\\\",\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":74,\\\"content\\\":\\\"trace = this.delegateMethod('trace');\\\",\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":75,\\\"content\\\":\\\"useCaseSensitiveFileNames = this.delegateMethod('useCaseSensitiveFileNames');\\\",\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":76,\\\"content\\\":\\\"writeFile = this.delegateMethod('writeFile');\\\",\\\"contextAfter\\\":[{\\\"line\\\":77,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":78,\\\"content\\\":\\\"\\\"},{\\\"line\\\":79,\\\"content\\\":\\\"/**\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":87,\\\"content\\\":\\\"* The interface implementations here ensure that `NgCompilerHost` fully delegates to\\\",\\\"contextBefore\\\":[{\\\"line\\\":84,\\\"content\\\":\\\"* summaries, the template type-checking file, etc) to the compilation. `NgCompilerHost` is the\\\"},{\\\"line\\\":85,\\\"content\\\":\\\"* host implementation which supports this.\\\"},{\\\"line\\\":86,\\\"content\\\":\\\"*\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":88,\\\"content\\\":\\\"* `ExtendedTsCompilerHost` methods whenever present.\\\"},{\\\"line\\\":89,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":90,\\\"content\\\":\\\"export class NgCompilerHost extends DelegatingCompilerHost implements\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":103,\\\"content\\\":\\\"delegate: ExtendedTsCompilerHost, inputFiles: ReadonlyArray,\\\",\\\"contextBefore\\\":[{\\\"line\\\":100,\\\"content\\\":\\\"readonly summaryFiles: AbsoluteFsPath[];\\\"},{\\\"line\\\":101,\\\"content\\\":\\\"\\\"},{\\\"line\\\":102,\\\"content\\\":\\\"constructor(\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":104,\\\"content\\\":\\\"rootDirs: ReadonlyArray, private shims: ShimGenerator[],\\\"},{\\\"line\\\":105,\\\"content\\\":\\\"entryPoint: AbsoluteFsPath|null, typeCheckFile: AbsoluteFsPath,\\\"},{\\\"line\\\":106,\\\"content\\\":\\\"factoryFiles: AbsoluteFsPath[], summaryFiles: AbsoluteFsPath[],\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":108,\\\"content\\\":\\\"super(delegate);\\\",\\\"contextBefore\\\":[{\\\"line\\\":105,\\\"content\\\":\\\"entryPoint: AbsoluteFsPath|null, typeCheckFile: AbsoluteFsPath,\\\"},{\\\"line\\\":106,\\\"content\\\":\\\"factoryFiles: AbsoluteFsPath[], summaryFiles: AbsoluteFsPath[],\\\"},{\\\"line\\\":107,\\\"content\\\":\\\"factoryTracker: FactoryTracker|null, diagnostics: ts.Diagnostic[]) {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":109,\\\"content\\\":\\\"\\\"},{\\\"line\\\":110,\\\"content\\\":\\\"this.factoryTracker = factoryTracker;\\\"},{\\\"line\\\":111,\\\"content\\\":\\\"this.entryPoint = entryPoint;\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":121,\\\"content\\\":\\\"* Create an `NgCompilerHost` from a delegate host, an array of input filenames, and the full set\\\",\\\"contextBefore\\\":[{\\\"line\\\":118,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":119,\\\"content\\\":\\\"\\\"},{\\\"line\\\":120,\\\"content\\\":\\\"/**\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":122,\\\"content\\\":\\\"* of TypeScript and Angular compiler options.\\\"},{\\\"line\\\":123,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":124,\\\"content\\\":\\\"static wrap(\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":125,\\\"content\\\":\\\"delegate: ts.CompilerHost, inputFiles: ReadonlyArray,\\\",\\\"contextBefore\\\":[{\\\"line\\\":122,\\\"content\\\":\\\"* of TypeScript and Angular compiler options.\\\"},{\\\"line\\\":123,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":124,\\\"content\\\":\\\"static wrap(\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":126,\\\"content\\\":\\\"options: NgCompilerOptions): NgCompilerHost {\\\"},{\\\"line\\\":127,\\\"content\\\":\\\"// TODO(alxhub): remove the fallback to allowEmptyCodegenFiles after verifying that the rest of\\\"},{\\\"line\\\":128,\\\"content\\\":\\\"// our build tooling is no longer relying on it.\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":175,\\\"content\\\":\\\"const rootDirs = getRootDirs(delegate, options as ts.CompilerOptions);\\\",\\\"contextBefore\\\":[{\\\"line\\\":172,\\\"content\\\":\\\"rootFiles.push(...summaryFiles);\\\"},{\\\"line\\\":173,\\\"content\\\":\\\"\\\"},{\\\"line\\\":174,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":176,\\\"content\\\":\\\"\\\"},{\\\"line\\\":177,\\\"content\\\":\\\"const typeCheckFile = typeCheckFilePath(rootDirs);\\\"},{\\\"line\\\":178,\\\"content\\\":\\\"generators.push(new TypeCheckShimGenerator(typeCheckFile));\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":215,\\\"content\\\":\\\"delegate, rootFiles, rootDirs, generators, entryPoint, typeCheckFile, factoryFiles,\\\",\\\"contextBefore\\\":[{\\\"line\\\":212,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":213,\\\"content\\\":\\\"\\\"},{\\\"line\\\":214,\\\"content\\\":\\\"return new NgCompilerHost(\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":216,\\\"content\\\":\\\"summaryFiles, factoryTracker, diagnostics);\\\"},{\\\"line\\\":217,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":218,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":229,\\\"content\\\":\\\"return this.delegate.getSourceFile(\\\",\\\"contextBefore\\\":[{\\\"line\\\":226,\\\"content\\\":\\\"const absoluteFsPath = resolve(fileName);\\\"},{\\\"line\\\":227,\\\"content\\\":\\\"if (generator.recognize(absoluteFsPath)) {\\\"},{\\\"line\\\":228,\\\"content\\\":\\\"const readFile = (originalFile: string) => {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":230,\\\"content\\\":\\\"originalFile, languageVersion, onError, shouldCreateNewSourceFile) ||\\\"},{\\\"line\\\":231,\\\"content\\\":\\\"null;\\\"},{\\\"line\\\":232,\\\"content\\\":\\\"};\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":238,\\\"content\\\":\\\"return this.delegate.getSourceFile(\\\",\\\"contextBefore\\\":[{\\\"line\\\":235,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":236,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":237,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":239,\\\"content\\\":\\\"fileName, languageVersion, onError, shouldCreateNewSourceFile);\\\"},{\\\"line\\\":240,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":241,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":244,\\\"content\\\":\\\"//  1) it really does exist in the delegate host, or\\\",\\\"contextBefore\\\":[{\\\"line\\\":241,\\\"content\\\":\\\"\\\"},{\\\"line\\\":242,\\\"content\\\":\\\"fileExists(fileName: string): boolean {\\\"},{\\\"line\\\":243,\\\"content\\\":\\\"// Consider the file as existing whenever\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":245,\\\"content\\\":\\\"//  2) at least one of the shim generators recognizes it\\\"},{\\\"line\\\":246,\\\"content\\\":\\\"// Note that we can pass the file name as branded absolute fs path because TypeScript\\\"},{\\\"line\\\":247,\\\"content\\\":\\\"// internally only passes POSIX-like paths.\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/core/src/host.ts\\\",\\\"line\\\":248,\\\"content\\\":\\\"return this.delegate.fileExists(fileName) ||\\\",\\\"contextBefore\\\":[{\\\"line\\\":245,\\\"content\\\":\\\"//  2) at least one of the shim generators recognizes it\\\"},{\\\"line\\\":246,\\\"content\\\":\\\"// Note that we can pass the file name as branded absolute fs path because TypeScript\\\"},{\\\"line\\\":247,\\\"content\\\":\\\"// internally only passes POSIX-like paths.\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":249,\\\"content\\\":\\\"this.shims.some(shim => shim.recognize(resolve(fileName)));\\\"},{\\\"line\\\":250,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":251,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/annotations/src/factory.ts\\\",\\\"line\\\":9,\\\"content\\\":\\\"import {compileFactoryFunction, R3FactoryMetadata} from '@angular/compiler';\\\",\\\"contextBefore\\\":[{\\\"line\\\":6,\\\"content\\\":\\\"* found in the LICENSE file at https://angular.io/license\\\"},{\\\"line\\\":7,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":8,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":10,\\\"content\\\":\\\"\\\"},{\\\"line\\\":11,\\\"content\\\":\\\"import {CompileResult} from '../../transform';\\\"},{\\\"line\\\":12,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"compileFactoryFunction\\\"]},{\\\"file\\\":\\\"ngtsc/annotations/src/factory.ts\\\",\\\"line\\\":14,\\\"content\\\":\\\"const res = compileFactoryFunction(metadata);\\\",\\\"contextBefore\\\":[{\\\"line\\\":11,\\\"content\\\":\\\"import {CompileResult} from '../../transform';\\\"},{\\\"line\\\":12,\\\"content\\\":\\\"\\\"},{\\\"line\\\":13,\\\"content\\\":\\\"export function compileNgFactoryDefField(metadata: R3FactoryMetadata): CompileResult {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":15,\\\"content\\\":\\\"return {name: 'ɵfac', initializer: res.factory, statements: res.statements, type: res.type};\\\"},{\\\"line\\\":16,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"compileFactoryFunction\\\"]},{\\\"file\\\":\\\"ngtsc/metadata/src/registry.ts\\\",\\\"line\\\":46,\\\"content\\\":\\\"* A `MetadataRegistry` which registers metdata with multiple delegate `MetadataRegistry` instances.\\\",\\\"contextBefore\\\":[{\\\"line\\\":43,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":44,\\\"content\\\":\\\"\\\"},{\\\"line\\\":45,\\\"content\\\":\\\"/**\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":47,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":48,\\\"content\\\":\\\"export class CompoundMetadataRegistry implements MetadataRegistry {\\\"},{\\\"line\\\":49,\\\"content\\\":\\\"constructor(private registries: MetadataRegistry[]) {}\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/resource/src/loader.ts\\\",\\\"line\\\":19,\\\"content\\\":\\\"* `ResourceLoader` which delegates to a `CompilerHost` resource loading method.\\\",\\\"contextBefore\\\":[{\\\"line\\\":16,\\\"content\\\":\\\"const CSS_PREPROCESSOR_EXT = /(\\\\\\\\.scss|\\\\\\\\.sass|\\\\\\\\.less|\\\\\\\\.styl)$/;\\\"},{\\\"line\\\":17,\\\"content\\\":\\\"\\\"},{\\\"line\\\":18,\\\"content\\\":\\\"/**\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":20,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":21,\\\"content\\\":\\\"export class HostResourceLoader implements ResourceLoader {\\\"},{\\\"line\\\":22,\\\"content\\\":\\\"private cache = new Map();\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/file_system/test/node_js_file_system_spec.ts\\\",\\\"line\\\":29,\\\"content\\\":\\\"it('should delegate to fs.existsSync()', () => {\\\",\\\"contextBefore\\\":[{\\\"line\\\":26,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":27,\\\"content\\\":\\\"\\\"},{\\\"line\\\":28,\\\"content\\\":\\\"describe('exists()', () => {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":30,\\\"content\\\":\\\"const spy = spyOn(realFs, 'existsSync').and.returnValues(true, false);\\\"},{\\\"line\\\":31,\\\"content\\\":\\\"expect(fs.exists(abcPath)).toBe(true);\\\"},{\\\"line\\\":32,\\\"content\\\":\\\"expect(spy).toHaveBeenCalledWith(abcPath);\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/file_system/test/node_js_file_system_spec.ts\\\",\\\"line\\\":39,\\\"content\\\":\\\"it('should delegate to fs.readFileSync()', () => {\\\",\\\"contextBefore\\\":[{\\\"line\\\":36,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":37,\\\"content\\\":\\\"\\\"},{\\\"line\\\":38,\\\"content\\\":\\\"describe('readFile()', () => {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":40,\\\"content\\\":\\\"const spy = spyOn(realFs, 'readFileSync').and.returnValue('Some contents');\\\"},{\\\"line\\\":41,\\\"content\\\":\\\"const result = fs.readFile(abcPath);\\\"},{\\\"line\\\":42,\\\"content\\\":\\\"expect(result).toBe('Some contents');\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/file_system/test/node_js_file_system_spec.ts\\\",\\\"line\\\":48,\\\"content\\\":\\\"it('should delegate to fs.readFileSync()', () => {\\\",\\\"contextBefore\\\":[{\\\"line\\\":45,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":46,\\\"content\\\":\\\"\\\"},{\\\"line\\\":47,\\\"content\\\":\\\"describe('readFileBuffer()', () => {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":49,\\\"content\\\":\\\"const buffer = new Buffer('Some contents');\\\"},{\\\"line\\\":50,\\\"content\\\":\\\"const spy = spyOn(realFs, 'readFileSync').and.returnValue(buffer);\\\"},{\\\"line\\\":51,\\\"content\\\":\\\"const result = fs.readFileBuffer(abcPath);\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/file_system/test/node_js_file_system_spec.ts\\\",\\\"line\\\":58,\\\"content\\\":\\\"it('should delegate to fs.writeFileSync()', () => {\\\",\\\"contextBefore\\\":[{\\\"line\\\":55,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":56,\\\"content\\\":\\\"\\\"},{\\\"line\\\":57,\\\"content\\\":\\\"describe('writeFile()', () => {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":59,\\\"content\\\":\\\"const spy = spyOn(realFs, 'writeFileSync');\\\"},{\\\"line\\\":60,\\\"content\\\":\\\"fs.writeFile(abcPath, 'Some contents');\\\"},{\\\"line\\\":61,\\\"content\\\":\\\"expect(spy).toHaveBeenCalledWith(abcPath, 'Some contents', undefined);\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/file_system/test/node_js_file_system_spec.ts\\\",\\\"line\\\":69,\\\"content\\\":\\\"it('should delegate to fs.unlink()', () => {\\\",\\\"contextBefore\\\":[{\\\"line\\\":66,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":67,\\\"content\\\":\\\"\\\"},{\\\"line\\\":68,\\\"content\\\":\\\"describe('removeFile()', () => {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":70,\\\"content\\\":\\\"const spy = spyOn(realFs, 'unlinkSync');\\\"},{\\\"line\\\":71,\\\"content\\\":\\\"fs.removeFile(abcPath);\\\"},{\\\"line\\\":72,\\\"content\\\":\\\"expect(spy).toHaveBeenCalledWith(abcPath);\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/file_system/test/node_js_file_system_spec.ts\\\",\\\"line\\\":77,\\\"content\\\":\\\"it('should delegate to fs.readdirSync()', () => {\\\",\\\"contextBefore\\\":[{\\\"line\\\":74,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":75,\\\"content\\\":\\\"\\\"},{\\\"line\\\":76,\\\"content\\\":\\\"describe('readdir()', () => {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":78,\\\"content\\\":\\\"const spy = spyOn(realFs, 'readdirSync').and.returnValue(['x', 'y/z'] as any);\\\"},{\\\"line\\\":79,\\\"content\\\":\\\"const result = fs.readdir(abcPath);\\\"},{\\\"line\\\":80,\\\"content\\\":\\\"expect(result).toEqual([relativeFrom('x'), relativeFrom('y/z')]);\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/file_system/test/node_js_file_system_spec.ts\\\",\\\"line\\\":88,\\\"content\\\":\\\"it('should delegate to fs.lstatSync()', () => {\\\",\\\"contextBefore\\\":[{\\\"line\\\":85,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":86,\\\"content\\\":\\\"\\\"},{\\\"line\\\":87,\\\"content\\\":\\\"describe('lstat()', () => {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":89,\\\"content\\\":\\\"const stats = new realFs.Stats();\\\"},{\\\"line\\\":90,\\\"content\\\":\\\"const spy = spyOn(realFs, 'lstatSync').and.returnValue(stats);\\\"},{\\\"line\\\":91,\\\"content\\\":\\\"const result = fs.lstat(abcPath);\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/file_system/test/node_js_file_system_spec.ts\\\",\\\"line\\\":98,\\\"content\\\":\\\"it('should delegate to fs.statSync()', () => {\\\",\\\"contextBefore\\\":[{\\\"line\\\":95,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":96,\\\"content\\\":\\\"\\\"},{\\\"line\\\":97,\\\"content\\\":\\\"describe('stat()', () => {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":99,\\\"content\\\":\\\"const stats = new realFs.Stats();\\\"},{\\\"line\\\":100,\\\"content\\\":\\\"const spy = spyOn(realFs, 'statSync').and.returnValue(stats);\\\"},{\\\"line\\\":101,\\\"content\\\":\\\"const result = fs.stat(abcPath);\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/file_system/test/node_js_file_system_spec.ts\\\",\\\"line\\\":110,\\\"content\\\":\\\"it('should delegate to process.cwd()', () => {\\\",\\\"contextBefore\\\":[{\\\"line\\\":107,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":108,\\\"content\\\":\\\"\\\"},{\\\"line\\\":109,\\\"content\\\":\\\"describe('pwd()', () => {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":111,\\\"content\\\":\\\"const spy = spyOn(process, 'cwd').and.returnValue(abcPath);\\\"},{\\\"line\\\":112,\\\"content\\\":\\\"const result = fs.pwd();\\\"},{\\\"line\\\":113,\\\"content\\\":\\\"expect(result).toEqual(abcPath);\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/file_system/test/node_js_file_system_spec.ts\\\",\\\"line\\\":119,\\\"content\\\":\\\"it('should delegate to fs.copyFileSync()', () => {\\\",\\\"contextBefore\\\":[{\\\"line\\\":116,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":117,\\\"content\\\":\\\"\\\"},{\\\"line\\\":118,\\\"content\\\":\\\"describe('copyFile()', () => {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":120,\\\"content\\\":\\\"const spy = spyOn(realFs, 'copyFileSync');\\\"},{\\\"line\\\":121,\\\"content\\\":\\\"fs.copyFile(abcPath, xyzPath);\\\"},{\\\"line\\\":122,\\\"content\\\":\\\"expect(spy).toHaveBeenCalledWith(abcPath, xyzPath);\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/file_system/test/node_js_file_system_spec.ts\\\",\\\"line\\\":127,\\\"content\\\":\\\"it('should delegate to fs.renameSync()', () => {\\\",\\\"contextBefore\\\":[{\\\"line\\\":124,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":125,\\\"content\\\":\\\"\\\"},{\\\"line\\\":126,\\\"content\\\":\\\"describe('moveFile()', () => {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":128,\\\"content\\\":\\\"const spy = spyOn(realFs, 'renameSync');\\\"},{\\\"line\\\":129,\\\"content\\\":\\\"fs.moveFile(abcPath, xyzPath);\\\"},{\\\"line\\\":130,\\\"content\\\":\\\"expect(spy).toHaveBeenCalledWith(abcPath, xyzPath);\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/file_system/test/node_js_file_system_spec.ts\\\",\\\"line\\\":167,\\\"content\\\":\\\"it('should delegate to fsExtra.remove()', () => {\\\",\\\"contextBefore\\\":[{\\\"line\\\":164,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":165,\\\"content\\\":\\\"\\\"},{\\\"line\\\":166,\\\"content\\\":\\\"describe('removeDeep()', () => {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":168,\\\"content\\\":\\\"const spy = spyOn(fsExtra, 'removeSync');\\\"},{\\\"line\\\":169,\\\"content\\\":\\\"fs.removeDeep(abcPath);\\\"},{\\\"line\\\":170,\\\"content\\\":\\\"expect(spy).toHaveBeenCalledWith(abcPath);\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/typecheck/src/host.ts\\\",\\\"line\\\":24,\\\"content\\\":\\\"constructor(sfMap: Map, private delegate: ts.CompilerHost) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":21,\\\"content\\\":\\\"\\\"},{\\\"line\\\":22,\\\"content\\\":\\\"readonly resolveModuleNames?: ts.CompilerHost['resolveModuleNames'];\\\"},{\\\"line\\\":23,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":25,\\\"content\\\":\\\"this.sfMap = sfMap;\\\"},{\\\"line\\\":26,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/typecheck/src/host.ts\\\",\\\"line\\\":27,\\\"content\\\":\\\"if (delegate.getDirectories !== undefined) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":25,\\\"content\\\":\\\"this.sfMap = sfMap;\\\"},{\\\"line\\\":26,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/typecheck/src/host.ts\\\",\\\"line\\\":28,\\\"content\\\":\\\"this.getDirectories = (path: string) => delegate.getDirectories!(path);\\\",\\\"contextAfter\\\":[{\\\"line\\\":29,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":30,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/typecheck/src/host.ts\\\",\\\"line\\\":31,\\\"content\\\":\\\"if (delegate.resolveModuleNames !== undefined) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":29,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":30,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/typecheck/src/host.ts\\\",\\\"line\\\":32,\\\"content\\\":\\\"this.resolveModuleNames = delegate.resolveModuleNames;\\\",\\\"contextAfter\\\":[{\\\"line\\\":33,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":34,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":35,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/typecheck/src/host.ts\\\",\\\"line\\\":43,\\\"content\\\":\\\"// There should be no cache misses, but just in case, delegate getSourceFile in the event of\\\",\\\"contextBefore\\\":[{\\\"line\\\":40,\\\"content\\\":\\\"// Look in the cache for the source file.\\\"},{\\\"line\\\":41,\\\"content\\\":\\\"let sf: ts.SourceFile|undefined = this.sfMap.get(fileName);\\\"},{\\\"line\\\":42,\\\"content\\\":\\\"if (sf === undefined) {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":44,\\\"content\\\":\\\"// a cache miss.\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/typecheck/src/host.ts\\\",\\\"line\\\":45,\\\"content\\\":\\\"sf = this.delegate.getSourceFile(\\\",\\\"contextBefore\\\":[{\\\"line\\\":44,\\\"content\\\":\\\"// a cache miss.\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":46,\\\"content\\\":\\\"fileName, languageVersion, onError, shouldCreateNewSourceFile);\\\"},{\\\"line\\\":47,\\\"content\\\":\\\"sf && this.sfMap.set(fileName, sf);\\\"},{\\\"line\\\":48,\\\"content\\\":\\\"} else {\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/typecheck/src/host.ts\\\",\\\"line\\\":59,\\\"content\\\":\\\"// The rest of the methods simply delegate to the underlying `ts.CompilerHost`.\\\",\\\"contextBefore\\\":[{\\\"line\\\":56,\\\"content\\\":\\\"return sf;\\\"},{\\\"line\\\":57,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":58,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":60,\\\"content\\\":\\\"\\\"},{\\\"line\\\":61,\\\"content\\\":\\\"getDefaultLibFileName(options: ts.CompilerOptions): string {\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/typecheck/src/host.ts\\\",\\\"line\\\":62,\\\"content\\\":\\\"return this.delegate.getDefaultLibFileName(options);\\\",\\\"contextBefore\\\":[{\\\"line\\\":60,\\\"content\\\":\\\"\\\"},{\\\"line\\\":61,\\\"content\\\":\\\"getDefaultLibFileName(options: ts.CompilerOptions): string {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":63,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":64,\\\"content\\\":\\\"\\\"},{\\\"line\\\":65,\\\"content\\\":\\\"writeFile(\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/typecheck/src/host.ts\\\",\\\"line\\\":73,\\\"content\\\":\\\"return this.delegate.getCurrentDirectory();\\\",\\\"contextBefore\\\":[{\\\"line\\\":70,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":71,\\\"content\\\":\\\"\\\"},{\\\"line\\\":72,\\\"content\\\":\\\"getCurrentDirectory(): string {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":74,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":75,\\\"content\\\":\\\"\\\"},{\\\"line\\\":76,\\\"content\\\":\\\"getDirectories?: (path: string) => string[];\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/typecheck/src/host.ts\\\",\\\"line\\\":79,\\\"content\\\":\\\"return this.delegate.getCanonicalFileName(fileName);\\\",\\\"contextBefore\\\":[{\\\"line\\\":76,\\\"content\\\":\\\"getDirectories?: (path: string) => string[];\\\"},{\\\"line\\\":77,\\\"content\\\":\\\"\\\"},{\\\"line\\\":78,\\\"content\\\":\\\"getCanonicalFileName(fileName: string): string {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":80,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":81,\\\"content\\\":\\\"\\\"},{\\\"line\\\":82,\\\"content\\\":\\\"useCaseSensitiveFileNames(): boolean {\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/typecheck/src/host.ts\\\",\\\"line\\\":83,\\\"content\\\":\\\"return this.delegate.useCaseSensitiveFileNames();\\\",\\\"contextBefore\\\":[{\\\"line\\\":80,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":81,\\\"content\\\":\\\"\\\"},{\\\"line\\\":82,\\\"content\\\":\\\"useCaseSensitiveFileNames(): boolean {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":84,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":85,\\\"content\\\":\\\"\\\"},{\\\"line\\\":86,\\\"content\\\":\\\"getNewLine(): string {\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/typecheck/src/host.ts\\\",\\\"line\\\":87,\\\"content\\\":\\\"return this.delegate.getNewLine();\\\",\\\"contextBefore\\\":[{\\\"line\\\":84,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":85,\\\"content\\\":\\\"\\\"},{\\\"line\\\":86,\\\"content\\\":\\\"getNewLine(): string {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":88,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":89,\\\"content\\\":\\\"\\\"},{\\\"line\\\":90,\\\"content\\\":\\\"fileExists(fileName: string): boolean {\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/typecheck/src/host.ts\\\",\\\"line\\\":91,\\\"content\\\":\\\"return this.sfMap.has(fileName) || this.delegate.fileExists(fileName);\\\",\\\"contextBefore\\\":[{\\\"line\\\":88,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":89,\\\"content\\\":\\\"\\\"},{\\\"line\\\":90,\\\"content\\\":\\\"fileExists(fileName: string): boolean {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":92,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":93,\\\"content\\\":\\\"\\\"},{\\\"line\\\":94,\\\"content\\\":\\\"readFile(fileName: string): string|undefined {\\\"}],\\\"matches\\\":[\\\"delegate\\\"]},{\\\"file\\\":\\\"ngtsc/typecheck/src/host.ts\\\",\\\"line\\\":95,\\\"content\\\":\\\"return this.delegate.readFile(fileName);\\\",\\\"contextBefore\\\":[{\\\"line\\\":92,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":93,\\\"content\\\":\\\"\\\"},{\\\"line\\\":94,\\\"content\\\":\\\"readFile(fileName: string): string|undefined {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":96,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":97,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"delegate\\\"]}]}\"}"
+> > > }
+> > > ```
+> > > 
+> > > 74. **Sub-agent event: tool_output**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_output",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "read_file",
+> > >   "toolCallId": "call_koHkT1usCLYszw01heTMAtdj|fc_032f22962d24028b016ab56e597dfc87d1b71267d4fbb83555",
+> > >   "isError": false,
+> > >   "output": "{\"results\":[{\"status\":\"success\",\"message\":\"[MULTIPLE_MATCHES] Multiple files were found with the name:injectable.ts\\n          Please ask the user to select the correct file path using the request_user_input tool.\\n          Here are the available options:\\n          1. /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/core/src/di/injectable.ts2. /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/core/src/di/jit/injectable.ts3. /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/compiler-cli/src/ngtsc/annotations/src/injectable.ts\\n          User Instruction: Please reply with the exact file path you want to use from the list above.\"},{\"status\":\"success\",\"message\":\"\\nFile successfully read, file name r3_factory.ts with file path: enc_file_sovfhn/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/compiler/src/render3/r3_factory.ts\\n\\n**File Read Information:**\\n- Lines read: 1 to 427 (427 lines)\\n- Total lines in file: 427\\n- Remaining lines: 0\\n\\nContent:\\n/**\\n * @license\\n * Copyright Google Inc. All Rights Reserved.\\n *\\n * Use of this source code is governed by an MIT-style license that can be\\n * found in the LICENSE file at https://angular.io/license\\n */\\n\\nimport {StaticSymbol} from '../aot/static_symbol';\\nimport {CompileTypeMetadata, tokenReference} from '../compile_metadata';\\nimport {CompileReflector} from '../compile_reflector';\\nimport {InjectFlags} from '../core';\\nimport {Identifiers} from '../identifiers';\\nimport * as o from '../output/output_ast';\\nimport {Identifiers as R3} from '../render3/r3_identifiers';\\nimport {OutputContext} from '../util';\\n\\nimport {R3Reference, typeWithParameters} from './util';\\nimport {unsupported} from './view/util';\\n\\n\\n\\n/**\\n * Metadata required by the factory generator to generate a `factory` function for a type.\\n */\\nexport interface R3ConstructorFactoryMetadata {\\n  /**\\n   * String name of the type being generated (used to name the factory function).\\n   */\\n  name: string;\\n\\n  /**\\n   * An expression representing the interface type being constructed.\\n   */\\n  type: R3Reference;\\n\\n  /**\\n   * An expression representing the constructor type, intended for use within a class definition\\n   * itself.\\n   *\\n   * This can differ from the outer `type` if the class is being compiled by ngcc and is inside\\n   * an IIFE structure that uses a different name internally.\\n   */\\n  internalType: o.Expression;\\n\\n  /** Number of arguments for the `type`. */\\n  typeArgumentCount: number;\\n\\n  /**\\n   * Regardless of whether `fnOrClass` is a constructor function or a user-defined factory, it\\n   * may have 0 or more parameters, which will be injected according to the `R3DependencyMetadata`\\n   * for those parameters. If this is `null`, then the type's constructor is nonexistent and will\\n   * be inherited from `fnOrClass` which is interpreted as the current type. If this is `'invalid'`,\\n   * then one or more of the parameters wasn't resolvable and any attempt to use these deps will\\n   * result in a runtime error.\\n   */\\n  deps: R3DependencyMetadata[]|'invalid'|null;\\n\\n  /**\\n   * An expression for the function which will be used to inject dependencies. The API of this\\n   * function could be different, and other options control how it will be invoked.\\n   */\\n  injectFn: o.ExternalReference;\\n\\n  /**\\n   * Type of the target being created by the factory.\\n   */\\n  target: R3FactoryTarget;\\n}\\n\\nexport enum R3FactoryDelegateType {\\n  Class,\\n  Function,\\n  Factory,\\n}\\n\\nexport interface R3DelegatedFactoryMetadata extends R3ConstructorFactoryMetadata {\\n  delegate: o.Expression;\\n  delegateType: R3FactoryDelegateType.Factory;\\n}\\n\\nexport interface R3DelegatedFnOrClassMetadata extends R3ConstructorFactoryMetadata {\\n  delegate: o.Expression;\\n  delegateType: R3FactoryDelegateType.Class|R3FactoryDelegateType.Function;\\n  delegateDeps: R3DependencyMetadata[];\\n}\\n\\nexport interface R3ExpressionFactoryMetadata extends R3ConstructorFactoryMetadata {\\n  expression: o.Expression;\\n}\\n\\nexport type R3FactoryMetadata = R3ConstructorFactoryMetadata|R3DelegatedFactoryMetadata|\\n    R3DelegatedFnOrClassMetadata|R3ExpressionFactoryMetadata;\\n\\nexport enum R3FactoryTarget {\\n  Directive = 0,\\n  Component = 1,\\n  Injectable = 2,\\n  Pipe = 3,\\n  NgModule = 4,\\n}\\n\\n/**\\n * Resolved type of a dependency.\\n *\\n * Occasionally, dependencies will have special significance which is known statically. In that\\n * case the `R3ResolvedDependencyType` informs the factory generator that a particular dependency\\n * should be generated specially (usually by calling a special injection function instead of the\\n * standard one).\\n */\\nexport enum R3ResolvedDependencyType {\\n  /**\\n   * A normal token dependency.\\n   */\\n  Token = 0,\\n\\n  /**\\n   * The dependency is for an attribute.\\n   *\\n   * The token expression is a string representing the attribute name.\\n   */\\n  Attribute = 1,\\n\\n  /**\\n   * Injecting the `ChangeDetectorRef` token. Needs special handling when injected into a pipe.\\n   */\\n  ChangeDetectorRef = 2,\\n\\n  /**\\n   * An invalid dependency (no token could be determined). An error should be thrown at runtime.\\n   */\\n  Invalid = 3,\\n}\\n\\n/**\\n * Metadata representing a single dependency to be injected into a constructor or function call.\\n */\\nexport interface R3DependencyMetadata {\\n  /**\\n   * An expression representing the token or value to be injected.\\n   */\\n  token: o.Expression;\\n\\n  /**\\n   * If an @Attribute decorator is present, this is the literal type of the attribute name, or\\n   * the unknown type if no literal type is available (e.g. the attribute name is an expression).\\n   * Will be null otherwise.\\n   */\\n  attribute: o.Expression|null;\\n\\n  /**\\n   * An enum indicating whether this dependency has special meaning to Angular and needs to be\\n   * injected specially.\\n   */\\n  resolved: R3ResolvedDependencyType;\\n\\n  /**\\n   * Whether the dependency has an @Host qualifier.\\n   */\\n  host: boolean;\\n\\n  /**\\n   * Whether the dependency has an @Optional qualifier.\\n   */\\n  optional: boolean;\\n\\n  /**\\n   * Whether the dependency has an @Self qualifier.\\n   */\\n  self: boolean;\\n\\n  /**\\n   * Whether the dependency has an @SkipSelf qualifier.\\n   */\\n  skipSelf: boolean;\\n}\\n\\nexport interface R3FactoryFn {\\n  factory: o.Expression;\\n  statements: o.Statement[];\\n  type: o.ExpressionType;\\n}\\n\\n/**\\n * Construct a factory function expression for the given `R3FactoryMetadata`.\\n */\\nexport function compileFactoryFunction(meta: R3FactoryMetadata): R3FactoryFn {\\n  const t = o.variable('t');\\n  const statements: o.Statement[] = [];\\n  let ctorDepsType: o.Type = o.NONE_TYPE;\\n\\n  // The type to instantiate via constructor invocation. If there is no delegated factory, meaning\\n  // this type is always created by constructor invocation, then this is the type-to-create\\n  // parameter provided by the user (t) if specified, or the current type if not. If there is a\\n  // delegated factory (which is used to create the current type) then this is only the type-to-\\n  // create parameter (t).\\n  const typeForCtor = !isDelegatedMetadata(meta) ?\\n      new o.BinaryOperatorExpr(o.BinaryOperator.Or, t, meta.internalType) :\\n      t;\\n\\n  let ctorExpr: o.Expression|null = null;\\n  if (meta.deps !== null) {\\n    // There is a constructor (either explicitly or implicitly defined).\\n    if (meta.deps !== 'invalid') {\\n      ctorExpr = new o.InstantiateExpr(\\n          typeForCtor,\\n          injectDependencies(meta.deps, meta.injectFn, meta.target === R3FactoryTarget.Pipe));\\n\\n      ctorDepsType = createCtorDepsType(meta.deps);\\n    }\\n  } else {\\n    const baseFactory = o.variable(`ɵ${meta.name}_BaseFactory`);\\n    const getInheritedFactory = o.importExpr(R3.getInheritedFactory);\\n    const baseFactoryStmt =\\n        baseFactory.set(getInheritedFactory.callFn([meta.internalType]))\\n            .toDeclStmt(o.INFERRED_TYPE, [o.StmtModifier.Exported, o.StmtModifier.Final]);\\n    statements.push(baseFactoryStmt);\\n\\n    // There is no constructor, use the base class' factory to construct typeForCtor.\\n    ctorExpr = baseFactory.callFn([typeForCtor]);\\n  }\\n  const ctorExprFinal = ctorExpr;\\n\\n  const body: o.Statement[] = [];\\n  let retExpr: o.Expression|null = null;\\n\\n  function makeConditionalFactory(nonCtorExpr: o.Expression): o.ReadVarExpr {\\n    const r = o.variable('r');\\n    body.push(r.set(o.NULL_EXPR).toDeclStmt());\\n    let ctorStmt: o.Statement|null = null;\\n    if (ctorExprFinal !== null) {\\n      ctorStmt = r.set(ctorExprFinal).toStmt();\\n    } else {\\n      ctorStmt = o.importExpr(R3.invalidFactory).callFn([]).toStmt();\\n    }\\n    body.push(o.ifStmt(t, [ctorStmt], [r.set(nonCtorExpr).toStmt()]));\\n    return r;\\n  }\\n\\n  if (isDelegatedMetadata(meta) && meta.delegateType === R3FactoryDelegateType.Factory) {\\n    const delegateFactory = o.variable(`ɵ${meta.name}_BaseFactory`);\\n    const getFactoryOf = o.importExpr(R3.getFactoryOf);\\n    if (meta.delegate.isEquivalent(meta.internalType)) {\\n      throw new Error(`Illegal state: compiling factory that delegates to itself`);\\n    }\\n    const delegateFactoryStmt =\\n        delegateFactory.set(getFactoryOf.callFn([meta.delegate])).toDeclStmt(o.INFERRED_TYPE, [\\n          o.StmtModifier.Exported, o.StmtModifier.Final\\n        ]);\\n\\n    statements.push(delegateFactoryStmt);\\n    retExpr = makeConditionalFactory(delegateFactory.callFn([]));\\n  } else if (isDelegatedMetadata(meta)) {\\n    // This type is created with a delegated factory. If a type parameter is not specified, call\\n    // the factory instead.\\n    const delegateArgs =\\n        injectDependencies(meta.delegateDeps, meta.injectFn, meta.target === R3FactoryTarget.Pipe);\\n    // Either call `new delegate(...)` or `delegate(...)` depending on meta.delegateType.\\n    const factoryExpr = new (\\n        meta.delegateType === R3FactoryDelegateType.Class ?\\n            o.InstantiateExpr :\\n            o.InvokeFunctionExpr)(meta.delegate, delegateArgs);\\n    retExpr = makeConditionalFactory(factoryExpr);\\n  } else if (isExpressionFactoryMetadata(meta)) {\\n    // TODO(alxhub): decide whether to lower the value here or in the caller\\n    retExpr = makeConditionalFactory(meta.expression);\\n  } else {\\n    retExpr = ctorExpr;\\n  }\\n\\n  if (retExpr !== null) {\\n    body.push(new o.ReturnStatement(retExpr));\\n  } else {\\n    body.push(o.importExpr(R3.invalidFactory).callFn([]).toStmt());\\n  }\\n\\n  return {\\n    factory: o.fn(\\n        [new o.FnParam('t', o.DYNAMIC_TYPE)], body, o.INFERRED_TYPE, undefined,\\n        `${meta.name}_Factory`),\\n    statements,\\n    type: o.expressionType(o.importExpr(\\n        R3.FactoryDef, [typeWithParameters(meta.type.type, meta.typeArgumentCount), ctorDepsType]))\\n  };\\n}\\n\\nfunction injectDependencies(\\n    deps: R3DependencyMetadata[], injectFn: o.ExternalReference, isPipe: boolean): o.Expression[] {\\n  return deps.map((dep, index) => compileInjectDependency(dep, injectFn, isPipe, index));\\n}\\n\\nfunction compileInjectDependency(\\n    dep: R3DependencyMetadata, injectFn: o.ExternalReference, isPipe: boolean,\\n    index: number): o.Expression {\\n  // Interpret the dependency according to its resolved type.\\n  switch (dep.resolved) {\\n    case R3ResolvedDependencyType.Token:\\n    case R3ResolvedDependencyType.ChangeDetectorRef:\\n      // Build up the injection flags according to the metadata.\\n      const flags = InjectFlags.Default | (dep.self ? InjectFlags.Self : 0) |\\n          (dep.skipSelf ? InjectFlags.SkipSelf : 0) | (dep.host ? InjectFlags.Host : 0) |\\n          (dep.optional ? InjectFlags.Optional : 0);\\n\\n      // If this dependency is optional or otherwise has non-default flags, then additional\\n      // parameters describing how to inject the dependency must be passed to the inject function\\n      // that's being used.\\n      let flagsParam: o.LiteralExpr|null =\\n          (flags !== InjectFlags.Default || dep.optional) ? o.literal(flags) : null;\\n\\n      // We have a separate instruction for injecting ChangeDetectorRef into a pipe.\\n      if (isPipe && dep.resolved === R3ResolvedDependencyType.ChangeDetectorRef) {\\n        return o.importExpr(R3.injectPipeChangeDetectorRef).callFn(flagsParam ? [flagsParam] : []);\\n      }\\n\\n      // Build up the arguments to the injectFn call.\\n      const injectArgs = [dep.token];\\n      if (flagsParam) {\\n        injectArgs.push(flagsParam);\\n      }\\n      return o.importExpr(injectFn).callFn(injectArgs);\\n    case R3ResolvedDependencyType.Attribute:\\n      // In the case of attributes, the attribute name in question is given as the token.\\n      return o.importExpr(R3.injectAttribute).callFn([dep.token]);\\n    case R3ResolvedDependencyType.Invalid:\\n      return o.importExpr(R3.invalidFactoryDep).callFn([o.literal(index)]);\\n    default:\\n      return unsupported(\\n          `Unknown R3ResolvedDependencyType: ${R3ResolvedDependencyType[dep.resolved]}`);\\n  }\\n}\\n\\nfunction createCtorDepsType(deps: R3DependencyMetadata[]): o.Type {\\n  let hasTypes = false;\\n  const attributeTypes = deps.map(dep => {\\n    const type = createCtorDepType(dep);\\n    if (type !== null) {\\n      hasTypes = true;\\n      return type;\\n    } else {\\n      return o.literal(null);\\n    }\\n  });\\n\\n  if (hasTypes) {\\n    return o.expressionType(o.literalArr(attributeTypes));\\n  } else {\\n    return o.NONE_TYPE;\\n  }\\n}\\n\\nfunction createCtorDepType(dep: R3DependencyMetadata): o.LiteralMapExpr|null {\\n  const entries: {key: string, quoted: boolean, value: o.Expression}[] = [];\\n\\n  if (dep.resolved === R3ResolvedDependencyType.Attribute) {\\n    if (dep.attribute !== null) {\\n      entries.push({key: 'attribute', value: dep.attribute, quoted: false});\\n    }\\n  }\\n  if (dep.optional) {\\n    entries.push({key: 'optional', value: o.literal(true), quoted: false});\\n  }\\n  if (dep.host) {\\n    entries.push({key: 'host', value: o.literal(true), quoted: false});\\n  }\\n  if (dep.self) {\\n    entries.push({key: 'self', value: o.literal(true), quoted: false});\\n  }\\n  if (dep.skipSelf) {\\n    entries.push({key: 'skipSelf', value: o.literal(true), quoted: false});\\n  }\\n\\n  return entries.length > 0 ? o.literalMap(entries) : null;\\n}\\n\\n/**\\n * A helper function useful for extracting `R3DependencyMetadata` from a Render2\\n * `CompileTypeMetadata` instance.\\n */\\nexport function dependenciesFromGlobalMetadata(\\n    type: CompileTypeMetadata, outputCtx: OutputContext,\\n    reflector: CompileReflector): R3DependencyMetadata[] {\\n  // Use the `CompileReflector` to look up references to some well-known Angular types. These will\\n  // be compared with the token to statically determine whether the token has significance to\\n  // Angular, and set the correct `R3ResolvedDependencyType` as a result.\\n  const injectorRef = reflector.resolveExternalReference(Identifiers.Injector);\\n\\n  // Iterate through the type's DI dependencies and produce `R3DependencyMetadata` for each of them.\\n  const deps: R3DependencyMetadata[] = [];\\n  for (let dependency of type.diDeps) {\\n    if (dependency.token) {\\n      const tokenRef = tokenReference(dependency.token);\\n      let resolved: R3ResolvedDependencyType = dependency.isAttribute ?\\n          R3ResolvedDependencyType.Attribute :\\n          R3ResolvedDependencyType.Token;\\n\\n      // In the case of most dependencies, the token will be a reference to a type. Sometimes,\\n      // however, it can be a string, in the case of older Angular code or @Attribute injection.\\n      const token =\\n          tokenRef instanceof StaticSymbol ? outputCtx.importExpr(tokenRef) : o.literal(tokenRef);\\n\\n      // Construct the dependency.\\n      deps.push({\\n        token,\\n        attribute: null,\\n        resolved,\\n        host: !!dependency.isHost,\\n        optional: !!dependency.isOptional,\\n        self: !!dependency.isSelf,\\n        skipSelf: !!dependency.isSkipSelf,\\n      });\\n    } else {\\n      unsupported('dependency without a token');\\n    }\\n  }\\n\\n  return deps;\\n}\\n\\nfunction isDelegatedMetadata(meta: R3FactoryMetadata): meta is R3DelegatedFactoryMetadata|\\n    R3DelegatedFnOrClassMetadata {\\n  return (meta as any).delegateType !== undefined;\\n}\\n\\nfunction isExpressionFactoryMetadata(meta: R3FactoryMetadata): meta is R3ExpressionFactoryMetadata {\\n  return (meta as any).expression !== undefined;\\n}\\n\\n\",\"fileReadMetaData\":{\"startLine\":1,\"endLine\":427,\"totalLines\":427,\"remainingLines\":0},\"updatedFilePath\":\"/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/compiler/src/render3/r3_factory.ts\"},{\"status\":\"success\",\"message\":\"\\nFile successfully read, file name factory.ts with file path: enc_file_sovfhn/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/compiler-cli/src/ngtsc/annotations/src/factory.ts\\n\\n**File Read Information:**\\n- Lines read: 1 to 17 (17 lines)\\n- Total lines in file: 17\\n- Remaining lines: 0\\n\\nContent:\\n/**\\n * @license\\n * Copyright Google Inc. All Rights Reserved.\\n *\\n * Use of this source code is governed by an MIT-style license that can be\\n * found in the LICENSE file at https://angular.io/license\\n */\\n\\nimport {compileFactoryFunction, R3FactoryMetadata} from '@angular/compiler';\\n\\nimport {CompileResult} from '../../transform';\\n\\nexport function compileNgFactoryDefField(metadata: R3FactoryMetadata): CompileResult {\\n  const res = compileFactoryFunction(metadata);\\n  return {name: 'ɵfac', initializer: res.factory, statements: res.statements, type: res.type};\\n}\\n\\n\",\"fileReadMetaData\":{\"startLine\":1,\"endLine\":17,\"totalLines\":17,\"remainingLines\":0},\"updatedFilePath\":\"/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561/packages/compiler-cli/src/ngtsc/annotations/src/factory.ts\"}]}"
+> > > }
+> > > ```
+> > > 
+> > > 75. **Sub-agent event: tool_output**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_output",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "run_terminal_command",
+> > >   "toolCallId": "call_mWZ4mqbZF6iBxoZmgWv4zWOW|fc_032f22962d24028b016ab56e597e2487d1a05e8a7fc9b9c86e",
+> > >   "isError": false,
+> > >   "output": "{\"status\":\"success\",\"message\":\"I ran all provided commands and below are the outcomes for each command with their status. Please analyze each output carefully and run the commands again for which you see errors to get their output by correcting the command and other parameters.\\n\\n=== EXECUTION SUMMARY ===\\nTotal Commands: 1\\nNumber of Successful Commands: 1\\nNumber of Failed Commands: 0\\nNumber of Timed Out Commands: 0\\n========================\\n\\n╔══════════════════════════════════════════════════════════════════════╗\\n║ COMMAND 1 of 1                                                        ║\\n╚══════════════════════════════════════════════════════════════════════╝\\nCommand: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc 'git --no-pager show -s --format='\\\"'\\\"'%H%n%P%n%s'\\\"'\\\"' f799725 && git --no-pager rev-parse HEAD'\\nStatus: SUCCESS\\n─────────────────────────────────────────────────────────────────────────\\nOutput:\\nCommand success.\\n\\n--- Full Output ---\\nf7997256fc23e202e08df39997afd360d202f9f1\\n\\nrelease: cut the v9.1.11 release\\nf7997256fc23e202e08df39997afd360d202f9f1\\n__CMD_FINISHED__ 0\\n--- End of Full Output ---\\n═════════════════════════════════════════════════════════════════════════\\n\\n\"}"
+> > > }
+> > > ```
+> > > 
+> > > 76. **Sub-agent event: token_usage**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "token_usage",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "tokenUsage": {
+> > >     "inputTokens": 814,
+> > >     "outputTokens": 640,
+> > >     "totalTokens": 17634,
+> > >     "cost": {
+> > >       "total": 0.01541376
+> > >     }
+> > >   },
+> > >   "cumulativeTokenUsage": {
+> > >     "inputTokens": 7322,
+> > >     "outputTokens": 1975,
+> > >     "totalTokens": 84921,
+> > >     "cost": {
+> > >       "total": 0.06603648000000001
+> > >     }
+> > >   },
+> > >   "status": "running"
+> > > }
+> > > ```
+> > > 
+> > > 77. **Sub-agent event: tool_call**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_call",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "grep",
+> > >   "toolCallId": "call_HZJEQx0D9TWw1TJz8IcGRfS4|fc_032f22962d24028b016ab56e60749087d1901f92fb4479ce5e",
+> > >   "input": {
+> > >     "pattern": "^|.",
+> > >     "searchPath": "/angular__angular-37561/packages/compiler-cli/src/ngtsc/annotations/src/injectable.ts",
+> > >     "outputMode": "matches",
+> > >     "headLimit": 500,
+> > >     "toolPurpose": "The file reader could not disambiguate the explicitly provided full path, so I need to inspect the complete production `injectable.ts` file through a path-scoped content search."
+> > >   },
+> > >   "toolIcon": "\n      \n      \n",
+> > >   "toolLabel": "Searching",
+> > >   "isPillTool": false,
+> > >   "toolPurpose": "The file reader could not disambiguate the explicitly provided full path, so I need to inspect the complete production `injectable.ts` file through a path-scoped content search."
+> > > }
+> > > ```
+> > > 
+> > > 78. **Sub-agent event: tool_call**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_call",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "grep",
+> > >   "toolCallId": "call_qk4y9ofcORAsw39IfNA1MQDq|fc_032f22962d24028b016ab56e6074a487d187369149edc7ca0f",
+> > >   "input": {
+> > >     "pattern": "ɵfac =|Factory = function|function \\w+_Factory|\\(t \\|\\|",
+> > >     "searchPath": "/angular__angular-37561/packages/compiler-cli/test",
+> > >     "glob": [
+> > >       "**/*.ts"
+> > >     ],
+> > >     "outputMode": "matches",
+> > >     "context": 8,
+> > >     "headLimit": 300,
+> > >     "toolPurpose": "I need to inspect tests only as behavioral contracts for generated factory signatures and dynamic type construction."
+> > >   },
+> > >   "toolIcon": "\n      \n      \n",
+> > >   "toolLabel": "Searching",
+> > >   "isPillTool": false,
+> > >   "toolPurpose": "I need to inspect tests only as behavioral contracts for generated factory signatures and dynamic type construction."
+> > > }
+> > > ```
+> > > 
+> > > 79. **Sub-agent event: tool_call**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_call",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "grep",
+> > >   "toolCallId": "call_y60rNwB2kc4UtVjOxCFQx8Ah|fc_032f22962d24028b016ab56e6074ac87d1a274c54711757a38",
+> > >   "input": {
+> > >     "pattern": "Injectable\\(|class.*extends|decorator",
+> > >     "searchPath": "/angular__angular-37561/packages/compiler-cli/test/ngtsc",
+> > >     "glob": [
+> > >       "**/*.ts"
+> > >     ],
+> > >     "outputMode": "files",
+> > >     "headLimit": 100,
+> > >     "toolPurpose": "I need to identify focused ngtsc tests whose source fixtures may reproduce injectable classes and subclassing/decorator behavior."
+> > >   },
+> > >   "toolIcon": "\n      \n      \n",
+> > >   "toolLabel": "Searching",
+> > >   "isPillTool": false,
+> > >   "toolPurpose": "I need to identify focused ngtsc tests whose source fixtures may reproduce injectable classes and subclassing/decorator behavior."
+> > > }
+> > > ```
+> > > 
+> > > 80. **Sub-agent event: tool_call**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_call",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "grep",
+> > >   "toolCallId": "call_oWFYAEF2FVoF3DpkPW4qd7E5|fc_032f22962d24028b016ab56e6074b487d1b94809577efb3c25",
+> > >   "input": {
+> > >     "pattern": "typeForCtor|compileFactoryFunction|new \\(t \\|\\|",
+> > >     "searchPath": "/angular__angular-37561/packages/compiler/test",
+> > >     "glob": [
+> > >       "**/*.ts"
+> > >     ],
+> > >     "outputMode": "matches",
+> > >     "context": 6,
+> > >     "headLimit": 200,
+> > >     "toolPurpose": "I need to find compiler unit tests that establish the contract for the factory compiler's optional dynamic type parameter."
+> > >   },
+> > >   "toolIcon": "\n      \n      \n",
+> > >   "toolLabel": "Searching",
+> > >   "isPillTool": false,
+> > >   "toolPurpose": "I need to find compiler unit tests that establish the contract for the factory compiler's optional dynamic type parameter."
+> > > }
+> > > ```
+> > > 
+> > > 81. **Sub-agent event: tool_output**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_output",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "grep",
+> > >   "toolCallId": "call_HZJEQx0D9TWw1TJz8IcGRfS4|fc_032f22962d24028b016ab56e60749087d1901f92fb4479ce5e",
+> > >   "isError": false,
+> > >   "output": "{\"status\":\"error\",\"message\":\"{\\\"success\\\":false,\\\"error\\\":\\\"Search failed\\\",\\\"details\\\":\\\"spawn ENOTDIR\\\",\\\"code\\\":\\\"ENOTDIR\\\",\\\"context\\\":\\\"Error occurred while searching: /angular__angular-37561/packages/compiler-cli/src/ngtsc/annotations/src/injectable.ts\\\"}\"}"
+> > > }
+> > > ```
+> > > 
+> > > 82. **Sub-agent event: tool_output**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_output",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "grep",
+> > >   "toolCallId": "call_qk4y9ofcORAsw39IfNA1MQDq|fc_032f22962d24028b016ab56e6074a487d187369149edc7ca0f",
+> > >   "isError": false,
+> > >   "output": "{\"status\":\"success\",\"message\":\"{\\\"success\\\":true,\\\"mode\\\":\\\"content\\\",\\\"numFiles\\\":6,\\\"numLines\\\":74,\\\"pagination\\\":{\\\"offset\\\":0,\\\"limit\\\":300,\\\"returned\\\":74,\\\"total\\\":74,\\\"hasMore\\\":false},\\\"matches\\\":[{\\\"file\\\":\\\"compliance/r3_view_compiler_providers_spec.ts\\\",\\\"line\\\":147,\\\"content\\\":\\\"MyComponent.ɵfac = function MyComponent_Factory(t) { return new (t || MyComponent)(); };\\\",\\\"contextBefore\\\":[{\\\"line\\\":139,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":140,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":141,\\\"content\\\":\\\"\\\"},{\\\"line\\\":142,\\\"content\\\":\\\"const result = compile(files, angularFiles);\\\"},{\\\"line\\\":143,\\\"content\\\":\\\"expectEmit(\\\"},{\\\"line\\\":144,\\\"content\\\":\\\"result.source, `\\\"},{\\\"line\\\":145,\\\"content\\\":\\\"export class MyComponent {\\\"},{\\\"line\\\":146,\\\"content\\\":\\\"}\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":148,\\\"content\\\":\\\"MyComponent.ɵcmp = i0.ɵɵdefineComponent({\\\"},{\\\"line\\\":149,\\\"content\\\":\\\"type: MyComponent,\\\"},{\\\"line\\\":150,\\\"content\\\":\\\"selectors: [[\\\\\\\"my-component\\\\\\\"]],\\\"},{\\\"line\\\":151,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":152,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":153,\\\"content\\\":\\\"template: function MyComponent_Template(rf, ctx) {\\\"},{\\\"line\\\":154,\\\"content\\\":\\\"if (rf & 1) {\\\"},{\\\"line\\\":155,\\\"content\\\":\\\"i0.ɵɵelement(0, \\\\\\\"div\\\\\\\");\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyComponent_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_view_compiler_listener_spec.ts\\\",\\\"line\\\":222,\\\"content\\\":\\\"MyComponent.ɵfac = function MyComponent_Factory(t) { return new (t || MyComponent)(); };\\\",\\\"contextBefore\\\":[{\\\"line\\\":214,\\\"content\\\":\\\"$r3$.ɵɵelement(2, \\\\\\\"input\\\\\\\", null, 1);\\\"},{\\\"line\\\":215,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":216,\\\"content\\\":\\\"},\\\"},{\\\"line\\\":217,\\\"content\\\":\\\"encapsulation: 2\\\"},{\\\"line\\\":218,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":219,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":220,\\\"content\\\":\\\"\\\"},{\\\"line\\\":221,\\\"content\\\":\\\"const MyComponentFactory = `\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":223,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":224,\\\"content\\\":\\\"\\\"},{\\\"line\\\":225,\\\"content\\\":\\\"const result = compile(files, angularFiles);\\\"},{\\\"line\\\":226,\\\"content\\\":\\\"const source = result.source;\\\"},{\\\"line\\\":227,\\\"content\\\":\\\"\\\"},{\\\"line\\\":228,\\\"content\\\":\\\"expectEmit(source, MyComponentDefinition, 'Incorrect MyComponent.ɵcmp');\\\"},{\\\"line\\\":229,\\\"content\\\":\\\"expectEmit(source, MyComponentFactory, 'Incorrect MyComponent.ɵfac');\\\"},{\\\"line\\\":230,\\\"content\\\":\\\"});\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyComponent_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_view_compiler_directives_spec.ts\\\",\\\"line\\\":54,\\\"content\\\":\\\"MyComponent.ɵfac = function MyComponent_Factory(t) { return new (t || MyComponent)(); };\\\",\\\"contextBefore\\\":[{\\\"line\\\":46,\\\"content\\\":\\\"$r3$.ɵɵelement(0, \\\\\\\"div\\\\\\\");\\\"},{\\\"line\\\":47,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":48,\\\"content\\\":\\\"},\\\"},{\\\"line\\\":49,\\\"content\\\":\\\"encapsulation: 2\\\"},{\\\"line\\\":50,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":51,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":52,\\\"content\\\":\\\"\\\"},{\\\"line\\\":53,\\\"content\\\":\\\"const MyComponentFactory = `\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":55,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":56,\\\"content\\\":\\\"\\\"},{\\\"line\\\":57,\\\"content\\\":\\\"const result = compile(files, angularFiles);\\\"},{\\\"line\\\":58,\\\"content\\\":\\\"const source = result.source;\\\"},{\\\"line\\\":59,\\\"content\\\":\\\"\\\"},{\\\"line\\\":60,\\\"content\\\":\\\"expectEmit(source, MyComponentDefinition, 'Incorrect ChildComponent.ɵcmp');\\\"},{\\\"line\\\":61,\\\"content\\\":\\\"expectEmit(source, MyComponentFactory, 'Incorrect ChildComponent.ɵfac');\\\"},{\\\"line\\\":62,\\\"content\\\":\\\"});\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyComponent_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_view_compiler_directives_spec.ts\\\",\\\"line\\\":104,\\\"content\\\":\\\"MyComponent.ɵfac = function MyComponent_Factory(t) { return new (t || MyComponent)(); };\\\",\\\"contextBefore\\\":[{\\\"line\\\":96,\\\"content\\\":\\\"$r3$.ɵɵelement(0, \\\\\\\"div\\\\\\\");\\\"},{\\\"line\\\":97,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":98,\\\"content\\\":\\\"},\\\"},{\\\"line\\\":99,\\\"content\\\":\\\"encapsulation: 2\\\"},{\\\"line\\\":100,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":101,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":102,\\\"content\\\":\\\"\\\"},{\\\"line\\\":103,\\\"content\\\":\\\"const MyComponentFactory = `\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":105,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":106,\\\"content\\\":\\\"\\\"},{\\\"line\\\":107,\\\"content\\\":\\\"const result = compile(files, angularFiles);\\\"},{\\\"line\\\":108,\\\"content\\\":\\\"const source = result.source;\\\"},{\\\"line\\\":109,\\\"content\\\":\\\"\\\"},{\\\"line\\\":110,\\\"content\\\":\\\"expectEmit(source, MyComponentDefinition, 'Incorrect ChildComponent.ɵcmp');\\\"},{\\\"line\\\":111,\\\"content\\\":\\\"expectEmit(source, MyComponentFactory, 'Incorrect ChildComponent.ɵfac');\\\"},{\\\"line\\\":112,\\\"content\\\":\\\"});\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyComponent_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":118,\\\"content\\\":\\\"'Service.ɵfac = function Service_Factory(t) { return new (t || Service)(i0.ɵɵinject(Dep)); };');\\\",\\\"contextBefore\\\":[{\\\"line\\\":110,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":111,\\\"content\\\":\\\"\\\"},{\\\"line\\\":112,\\\"content\\\":\\\"\\\"},{\\\"line\\\":113,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":114,\\\"content\\\":\\\"expect(jsContents).toContain('Dep.ɵprov =');\\\"},{\\\"line\\\":115,\\\"content\\\":\\\"expect(jsContents).toContain('Service.ɵprov =');\\\"},{\\\"line\\\":116,\\\"content\\\":\\\"expect(jsContents)\\\"},{\\\"line\\\":117,\\\"content\\\":\\\".toContain(\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":119,\\\"content\\\":\\\"expect(jsContents).toContain('providedIn: \\\\\\\\'root\\\\\\\\' })');\\\"},{\\\"line\\\":120,\\\"content\\\":\\\"expect(jsContents).not.toContain('__decorate');\\\"},{\\\"line\\\":121,\\\"content\\\":\\\"const dtsContents = env.getContents('test.d.ts');\\\"},{\\\"line\\\":122,\\\"content\\\":\\\"expect(dtsContents).toContain('static ɵprov: i0.ɵɵInjectableDef;');\\\"},{\\\"line\\\":123,\\\"content\\\":\\\"expect(dtsContents).toContain('static ɵprov: i0.ɵɵInjectableDef;');\\\"},{\\\"line\\\":124,\\\"content\\\":\\\"expect(dtsContents).toContain('static ɵfac: i0.ɵɵFactoryDef;');\\\"},{\\\"line\\\":125,\\\"content\\\":\\\"expect(dtsContents).toContain('static ɵfac: i0.ɵɵFactoryDef;');\\\"},{\\\"line\\\":126,\\\"content\\\":\\\"});\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction Service_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":145,\\\"content\\\":\\\"expect(jsContents).toContain('Service_Factory(t) { return new (t || Service)(); }');\\\",\\\"contextBefore\\\":[{\\\"line\\\":137,\\\"content\\\":\\\"\\\"},{\\\"line\\\":138,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":139,\\\"content\\\":\\\"\\\"},{\\\"line\\\":140,\\\"content\\\":\\\"\\\"},{\\\"line\\\":141,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":142,\\\"content\\\":\\\"expect(jsContents).toContain('Service.ɵprov =');\\\"},{\\\"line\\\":143,\\\"content\\\":\\\"expect(jsContents)\\\"},{\\\"line\\\":144,\\\"content\\\":\\\".toContain('factory: function () { return (function () { return new Service(); })(); }');\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":146,\\\"content\\\":\\\"expect(jsContents).toContain(', providedIn: \\\\\\\\'root\\\\\\\\' });');\\\"},{\\\"line\\\":147,\\\"content\\\":\\\"expect(jsContents).not.toContain('__decorate');\\\"},{\\\"line\\\":148,\\\"content\\\":\\\"const dtsContents = env.getContents('test.d.ts');\\\"},{\\\"line\\\":149,\\\"content\\\":\\\"expect(dtsContents).toContain('static ɵprov: i0.ɵɵInjectableDef;');\\\"},{\\\"line\\\":150,\\\"content\\\":\\\"expect(dtsContents).toContain('static ɵfac: i0.ɵɵFactoryDef;');\\\"},{\\\"line\\\":151,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":152,\\\"content\\\":\\\"\\\"},{\\\"line\\\":153,\\\"content\\\":\\\"it('should compile Injectables with providedIn and factory with deps without errors', () => {\\\"}],\\\"matches\\\":[\\\"(t ||\\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":171,\\\"content\\\":\\\"expect(jsContents).toContain('factory: function Service_Factory(t) { var r = null; if (t) {');\\\",\\\"contextBefore\\\":[{\\\"line\\\":163,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":164,\\\"content\\\":\\\"`);\\\"},{\\\"line\\\":165,\\\"content\\\":\\\"\\\"},{\\\"line\\\":166,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":167,\\\"content\\\":\\\"\\\"},{\\\"line\\\":168,\\\"content\\\":\\\"\\\"},{\\\"line\\\":169,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":170,\\\"content\\\":\\\"expect(jsContents).toContain('Service.ɵprov =');\\\"}],\\\"matches\\\":[\\\"function Service_Factory\\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":172,\\\"content\\\":\\\"expect(jsContents).toContain('return new (t || Service)(i0.ɵɵinject(Dep));');\\\",\\\"contextAfter\\\":[{\\\"line\\\":173,\\\"content\\\":\\\"expect(jsContents)\\\"},{\\\"line\\\":174,\\\"content\\\":\\\".toContain('r = (function (dep) { return new Service(dep); })(i0.ɵɵinject(Dep));');\\\"},{\\\"line\\\":175,\\\"content\\\":\\\"expect(jsContents).toContain('return r; }, providedIn: \\\\\\\\'root\\\\\\\\' });');\\\"},{\\\"line\\\":176,\\\"content\\\":\\\"expect(jsContents).not.toContain('__decorate');\\\"},{\\\"line\\\":177,\\\"content\\\":\\\"const dtsContents = env.getContents('test.d.ts');\\\"},{\\\"line\\\":178,\\\"content\\\":\\\"expect(dtsContents).toContain('static ɵprov: i0.ɵɵInjectableDef;');\\\"},{\\\"line\\\":179,\\\"content\\\":\\\"expect(dtsContents).toContain('static ɵfac: i0.ɵɵFactoryDef;');\\\"},{\\\"line\\\":180,\\\"content\\\":\\\"});\\\"}],\\\"matches\\\":[\\\"(t ||\\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":221,\\\"content\\\":\\\"`Service.ɵfac = function Service_Factory(t) { ` +\\\",\\\"contextBefore\\\":[{\\\"line\\\":213,\\\"content\\\":\\\"constructor(dep: Dep, @Optional() optionalDep?: OptionalDep) {}\\\"},{\\\"line\\\":214,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":215,\\\"content\\\":\\\"`);\\\"},{\\\"line\\\":216,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":217,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":218,\\\"content\\\":\\\"\\\"},{\\\"line\\\":219,\\\"content\\\":\\\"expect(jsContents)\\\"},{\\\"line\\\":220,\\\"content\\\":\\\".toContain(\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction Service_Factory(\\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":222,\\\"content\\\":\\\"`return new (t || Service)(i0.ɵɵinject(Dep), i0.ɵɵinject(OptionalDep, 8)); };`);\\\",\\\"contextAfter\\\":[{\\\"line\\\":223,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":224,\\\"content\\\":\\\"\\\"},{\\\"line\\\":225,\\\"content\\\":\\\"it('should compile Directives without errors', () => {\\\"},{\\\"line\\\":226,\\\"content\\\":\\\"env.write('test.ts', `\\\"},{\\\"line\\\":227,\\\"content\\\":\\\"import {Directive} from '@angular/core';\\\"},{\\\"line\\\":228,\\\"content\\\":\\\"\\\"},{\\\"line\\\":229,\\\"content\\\":\\\"@Directive({selector: '[dir]'})\\\"},{\\\"line\\\":230,\\\"content\\\":\\\"export class TestDir {}\\\"}],\\\"matches\\\":[\\\"(t ||\\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":237,\\\"content\\\":\\\"expect(jsContents).toContain('TestDir.ɵfac = function');\\\",\\\"contextBefore\\\":[{\\\"line\\\":229,\\\"content\\\":\\\"@Directive({selector: '[dir]'})\\\"},{\\\"line\\\":230,\\\"content\\\":\\\"export class TestDir {}\\\"},{\\\"line\\\":231,\\\"content\\\":\\\"`);\\\"},{\\\"line\\\":232,\\\"content\\\":\\\"\\\"},{\\\"line\\\":233,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":234,\\\"content\\\":\\\"\\\"},{\\\"line\\\":235,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":236,\\\"content\\\":\\\"expect(jsContents).toContain('TestDir.ɵdir = i0.ɵɵdefineDirective');\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":238,\\\"content\\\":\\\"expect(jsContents).not.toContain('__decorate');\\\"},{\\\"line\\\":239,\\\"content\\\":\\\"\\\"},{\\\"line\\\":240,\\\"content\\\":\\\"const dtsContents = env.getContents('test.d.ts');\\\"},{\\\"line\\\":241,\\\"content\\\":\\\"expect(dtsContents)\\\"},{\\\"line\\\":242,\\\"content\\\":\\\".toContain(\\\"},{\\\"line\\\":243,\\\"content\\\":\\\"'static ɵdir: i0.ɵɵDirectiveDefWithMeta');\\\"},{\\\"line\\\":244,\\\"content\\\":\\\"expect(dtsContents).toContain('static ɵfac: i0.ɵɵFactoryDef');\\\"},{\\\"line\\\":245,\\\"content\\\":\\\"});\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":259,\\\"content\\\":\\\"expect(jsContents).toContain('TestDir.ɵfac = function');\\\",\\\"contextBefore\\\":[{\\\"line\\\":251,\\\"content\\\":\\\"@Directive()\\\"},{\\\"line\\\":252,\\\"content\\\":\\\"export class TestDir {}\\\"},{\\\"line\\\":253,\\\"content\\\":\\\"`);\\\"},{\\\"line\\\":254,\\\"content\\\":\\\"\\\"},{\\\"line\\\":255,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":256,\\\"content\\\":\\\"\\\"},{\\\"line\\\":257,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":258,\\\"content\\\":\\\"expect(jsContents).toContain('TestDir.ɵdir = i0.ɵɵdefineDirective');\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":260,\\\"content\\\":\\\"expect(jsContents).not.toContain('__decorate');\\\"},{\\\"line\\\":261,\\\"content\\\":\\\"\\\"},{\\\"line\\\":262,\\\"content\\\":\\\"const dtsContents = env.getContents('test.d.ts');\\\"},{\\\"line\\\":263,\\\"content\\\":\\\"expect(dtsContents)\\\"},{\\\"line\\\":264,\\\"content\\\":\\\".toContain(\\\"},{\\\"line\\\":265,\\\"content\\\":\\\"'static ɵdir: i0.ɵɵDirectiveDefWithMeta');\\\"},{\\\"line\\\":266,\\\"content\\\":\\\"expect(dtsContents).toContain('static ɵfac: i0.ɵɵFactoryDef');\\\"},{\\\"line\\\":267,\\\"content\\\":\\\"});\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":284,\\\"content\\\":\\\"expect(jsContents).toContain('TestCmp.ɵfac = function');\\\",\\\"contextBefore\\\":[{\\\"line\\\":276,\\\"content\\\":\\\"})\\\"},{\\\"line\\\":277,\\\"content\\\":\\\"export class TestCmp {}\\\"},{\\\"line\\\":278,\\\"content\\\":\\\"`);\\\"},{\\\"line\\\":279,\\\"content\\\":\\\"\\\"},{\\\"line\\\":280,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":281,\\\"content\\\":\\\"\\\"},{\\\"line\\\":282,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":283,\\\"content\\\":\\\"expect(jsContents).toContain('TestCmp.ɵcmp = i0.ɵɵdefineComponent');\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":285,\\\"content\\\":\\\"expect(jsContents).not.toContain('__decorate');\\\"},{\\\"line\\\":286,\\\"content\\\":\\\"\\\"},{\\\"line\\\":287,\\\"content\\\":\\\"const dtsContents = env.getContents('test.d.ts');\\\"},{\\\"line\\\":288,\\\"content\\\":\\\"expect(dtsContents)\\\"},{\\\"line\\\":289,\\\"content\\\":\\\".toContain(\\\"},{\\\"line\\\":290,\\\"content\\\":\\\"'static ɵcmp: i0.ɵɵComponentDefWithMeta');\\\"},{\\\"line\\\":291,\\\"content\\\":\\\"expect(dtsContents).toContain('static ɵfac: i0.ɵɵFactoryDef');\\\"},{\\\"line\\\":292,\\\"content\\\":\\\"});\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":309,\\\"content\\\":\\\"expect(jsContents).toContain('TestCmp.ɵfac = function');\\\",\\\"contextBefore\\\":[{\\\"line\\\":301,\\\"content\\\":\\\"})\\\"},{\\\"line\\\":302,\\\"content\\\":\\\"export class TestCmp {}\\\"},{\\\"line\\\":303,\\\"content\\\":\\\"`);\\\"},{\\\"line\\\":304,\\\"content\\\":\\\"\\\"},{\\\"line\\\":305,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":306,\\\"content\\\":\\\"\\\"},{\\\"line\\\":307,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":308,\\\"content\\\":\\\"expect(jsContents).toContain('TestCmp.ɵcmp = i0.ɵɵdefineComponent');\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":310,\\\"content\\\":\\\"expect(jsContents).not.toContain('__decorate');\\\"},{\\\"line\\\":311,\\\"content\\\":\\\"\\\"},{\\\"line\\\":312,\\\"content\\\":\\\"const dtsContents = env.getContents('test.d.ts');\\\"},{\\\"line\\\":313,\\\"content\\\":\\\"\\\"},{\\\"line\\\":314,\\\"content\\\":\\\"expect(dtsContents)\\\"},{\\\"line\\\":315,\\\"content\\\":\\\".toContain(\\\"},{\\\"line\\\":316,\\\"content\\\":\\\"'static ɵcmp: i0.ɵɵComponentDefWithMeta' +\\\"},{\\\"line\\\":317,\\\"content\\\":\\\"'');\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":339,\\\"content\\\":\\\"expect(jsContents).toContain('TestCmp.ɵfac = function');\\\",\\\"contextBefore\\\":[{\\\"line\\\":331,\\\"content\\\":\\\"})\\\"},{\\\"line\\\":332,\\\"content\\\":\\\"export class TestCmp {}\\\"},{\\\"line\\\":333,\\\"content\\\":\\\"`);\\\"},{\\\"line\\\":334,\\\"content\\\":\\\"\\\"},{\\\"line\\\":335,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":336,\\\"content\\\":\\\"\\\"},{\\\"line\\\":337,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":338,\\\"content\\\":\\\"expect(jsContents).toContain('TestCmp.ɵcmp = i0.ɵɵdefineComponent');\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":340,\\\"content\\\":\\\"expect(jsContents).not.toContain('__decorate');\\\"},{\\\"line\\\":341,\\\"content\\\":\\\"\\\"},{\\\"line\\\":342,\\\"content\\\":\\\"const dtsContents = env.getContents('test.d.ts');\\\"},{\\\"line\\\":343,\\\"content\\\":\\\"expect(dtsContents)\\\"},{\\\"line\\\":344,\\\"content\\\":\\\".toContain(\\\"},{\\\"line\\\":345,\\\"content\\\":\\\"'static ɵcmp: i0.ɵɵComponentDefWithMeta');\\\"},{\\\"line\\\":346,\\\"content\\\":\\\"expect(dtsContents).toContain('static ɵfac: i0.ɵɵFactoryDef');\\\"},{\\\"line\\\":347,\\\"content\\\":\\\"});\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":936,\\\"content\\\":\\\"'function TestModule_Factory(t) { return new (t || TestModule)(); } });');\\\",\\\"contextBefore\\\":[{\\\"line\\\":928,\\\"content\\\":\\\"expect(jsContents)\\\"},{\\\"line\\\":929,\\\"content\\\":\\\".toContain('i0.ɵɵdefineNgModule({ type: TestModule, bootstrap: [TestCmp] });');\\\"},{\\\"line\\\":930,\\\"content\\\":\\\"expect(jsContents)\\\"},{\\\"line\\\":931,\\\"content\\\":\\\".toContain(\\\"},{\\\"line\\\":932,\\\"content\\\":\\\"'function () { (typeof ngJitMode === \\\\\\\"undefined\\\\\\\" || ngJitMode) && i0.ɵɵsetNgModuleScope(TestModule, { declarations: [TestCmp] }); })();');\\\"},{\\\"line\\\":933,\\\"content\\\":\\\"expect(jsContents)\\\"},{\\\"line\\\":934,\\\"content\\\":\\\".toContain(\\\"},{\\\"line\\\":935,\\\"content\\\":\\\"'i0.ɵɵdefineInjector({ factory: ' +\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":937,\\\"content\\\":\\\"\\\"},{\\\"line\\\":938,\\\"content\\\":\\\"const dtsContents = env.getContents('test.d.ts');\\\"},{\\\"line\\\":939,\\\"content\\\":\\\"expect(dtsContents)\\\"},{\\\"line\\\":940,\\\"content\\\":\\\".toContain(\\\"},{\\\"line\\\":941,\\\"content\\\":\\\"'static ɵcmp: i0.ɵɵComponentDefWithMeta');\\\"},{\\\"line\\\":942,\\\"content\\\":\\\"expect(dtsContents)\\\"},{\\\"line\\\":943,\\\"content\\\":\\\".toContain(\\\"},{\\\"line\\\":944,\\\"content\\\":\\\"'static ɵmod: i0.ɵɵNgModuleDefWithMeta');\\\"}],\\\"matches\\\":[\\\"function TestModule_Factory\\\",\\\"(t ||\\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":1048,\\\"content\\\":\\\"'i0.ɵɵdefineInjector({ factory: function TestModule_Factory(t) ' +\\\",\\\"contextBefore\\\":[{\\\"line\\\":1040,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1041,\\\"content\\\":\\\"`);\\\"},{\\\"line\\\":1042,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1043,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":1044,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1045,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":1046,\\\"content\\\":\\\"expect(jsContents)\\\"},{\\\"line\\\":1047,\\\"content\\\":\\\".toContain(\\\"}],\\\"matches\\\":[\\\"nction TestModule_Factory(t\\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":1049,\\\"content\\\":\\\"'{ return new (t || TestModule)(); }, imports: [[OtherModule, RouterModule.forRoot()],' +\\\",\\\"contextAfter\\\":[{\\\"line\\\":1050,\\\"content\\\":\\\"'\\\\\\\\n            OtherModule,\\\\\\\\n            RouterModule] });');\\\"},{\\\"line\\\":1051,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1052,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1053,\\\"content\\\":\\\"it('should compile NgModules with services without errors', () => {\\\"},{\\\"line\\\":1054,\\\"content\\\":\\\"env.write('test.ts', `\\\"},{\\\"line\\\":1055,\\\"content\\\":\\\"import {Component, NgModule} from '@angular/core';\\\"},{\\\"line\\\":1056,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1057,\\\"content\\\":\\\"export class Token {}\\\"}],\\\"matches\\\":[\\\"(t ||\\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":1083,\\\"content\\\":\\\"`function TestModule_Factory(t) { return new (t || TestModule)(); }, providers: [{ provide: ` +\\\",\\\"contextBefore\\\":[{\\\"line\\\":1075,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1076,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":1077,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1078,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":1079,\\\"content\\\":\\\"expect(jsContents).toContain('i0.ɵɵdefineNgModule({ type: TestModule });');\\\"},{\\\"line\\\":1080,\\\"content\\\":\\\"expect(jsContents)\\\"},{\\\"line\\\":1081,\\\"content\\\":\\\".toContain(\\\"},{\\\"line\\\":1082,\\\"content\\\":\\\"`TestModule.ɵinj = i0.ɵɵdefineInjector({ factory: ` +\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1084,\\\"content\\\":\\\"`Token, useValue: 'test' }], imports: [[OtherModule]] });`);\\\"},{\\\"line\\\":1085,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1086,\\\"content\\\":\\\"const dtsContents = env.getContents('test.d.ts');\\\"},{\\\"line\\\":1087,\\\"content\\\":\\\"expect(dtsContents)\\\"},{\\\"line\\\":1088,\\\"content\\\":\\\".toContain(\\\"},{\\\"line\\\":1089,\\\"content\\\":\\\"'static ɵmod: i0.ɵɵNgModuleDefWithMeta');\\\"},{\\\"line\\\":1090,\\\"content\\\":\\\"expect(dtsContents).toContain('static ɵinj: i0.ɵɵInjectorDef');\\\"},{\\\"line\\\":1091,\\\"content\\\":\\\"});\\\"}],\\\"matches\\\":[\\\"function TestModule_Factory\\\",\\\"(t ||\\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":1123,\\\"content\\\":\\\"`function TestModule_Factory(t) { return new (t || TestModule)(); }, providers: [{ provide: ` +\\\",\\\"contextBefore\\\":[{\\\"line\\\":1115,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1116,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":1117,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1118,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":1119,\\\"content\\\":\\\"expect(jsContents).toContain('i0.ɵɵdefineNgModule({ type: TestModule });');\\\"},{\\\"line\\\":1120,\\\"content\\\":\\\"expect(jsContents)\\\"},{\\\"line\\\":1121,\\\"content\\\":\\\".toContain(\\\"},{\\\"line\\\":1122,\\\"content\\\":\\\"`TestModule.ɵinj = i0.ɵɵdefineInjector({ factory: ` +\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1124,\\\"content\\\":\\\"`Token, useFactory: function () { return new Token(); } }], imports: [[OtherModule]] });`);\\\"},{\\\"line\\\":1125,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1126,\\\"content\\\":\\\"const dtsContents = env.getContents('test.d.ts');\\\"},{\\\"line\\\":1127,\\\"content\\\":\\\"expect(dtsContents)\\\"},{\\\"line\\\":1128,\\\"content\\\":\\\".toContain(\\\"},{\\\"line\\\":1129,\\\"content\\\":\\\"'static ɵmod: i0.ɵɵNgModuleDefWithMeta');\\\"},{\\\"line\\\":1130,\\\"content\\\":\\\"expect(dtsContents).toContain('static ɵinj: i0.ɵɵInjectorDef');\\\"},{\\\"line\\\":1131,\\\"content\\\":\\\"});\\\"}],\\\"matches\\\":[\\\"function TestModule_Factory\\\",\\\"(t ||\\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":1167,\\\"content\\\":\\\"`function TestModule_Factory(t) { return new (t || TestModule)(); }, providers: [{ provide: ` +\\\",\\\"contextBefore\\\":[{\\\"line\\\":1159,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1160,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":1161,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1162,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":1163,\\\"content\\\":\\\"expect(jsContents).toContain('i0.ɵɵdefineNgModule({ type: TestModule });');\\\"},{\\\"line\\\":1164,\\\"content\\\":\\\"expect(jsContents)\\\"},{\\\"line\\\":1165,\\\"content\\\":\\\".toContain(\\\"},{\\\"line\\\":1166,\\\"content\\\":\\\"`TestModule.ɵinj = i0.ɵɵdefineInjector({ factory: ` +\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1168,\\\"content\\\":\\\"`Token, useFactory: function (dep) { return new Token(dep); }, deps: [Dep] }], imports: [[OtherModule]] });`);\\\"},{\\\"line\\\":1169,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1170,\\\"content\\\":\\\"const dtsContents = env.getContents('test.d.ts');\\\"},{\\\"line\\\":1171,\\\"content\\\":\\\"expect(dtsContents)\\\"},{\\\"line\\\":1172,\\\"content\\\":\\\".toContain(\\\"},{\\\"line\\\":1173,\\\"content\\\":\\\"'static ɵmod: i0.ɵɵNgModuleDefWithMeta');\\\"},{\\\"line\\\":1174,\\\"content\\\":\\\"expect(dtsContents).toContain('static ɵinj: i0.ɵɵInjectorDef');\\\"},{\\\"line\\\":1175,\\\"content\\\":\\\"});\\\"}],\\\"matches\\\":[\\\"function TestModule_Factory\\\",\\\"(t ||\\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":1331,\\\"content\\\":\\\"'TestPipe.ɵfac = function TestPipe_Factory(t) { return new (t || TestPipe)(); }');\\\",\\\"contextBefore\\\":[{\\\"line\\\":1323,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":1324,\\\"content\\\":\\\"const dtsContents = env.getContents('test.d.ts');\\\"},{\\\"line\\\":1325,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1326,\\\"content\\\":\\\"expect(jsContents)\\\"},{\\\"line\\\":1327,\\\"content\\\":\\\".toContain(\\\"},{\\\"line\\\":1328,\\\"content\\\":\\\"'TestPipe.ɵpipe = i0.ɵɵdefinePipe({ name: \\\\\\\"test-pipe\\\\\\\", type: TestPipe, pure: false })');\\\"},{\\\"line\\\":1329,\\\"content\\\":\\\"expect(jsContents)\\\"},{\\\"line\\\":1330,\\\"content\\\":\\\".toContain(\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1332,\\\"content\\\":\\\"expect(dtsContents).toContain('static ɵpipe: i0.ɵɵPipeDefWithMeta;');\\\"},{\\\"line\\\":1333,\\\"content\\\":\\\"expect(dtsContents).toContain('static ɵfac: i0.ɵɵFactoryDef;');\\\"},{\\\"line\\\":1334,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1335,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1336,\\\"content\\\":\\\"it('should compile pure Pipes without errors', () => {\\\"},{\\\"line\\\":1337,\\\"content\\\":\\\"env.write('test.ts', `\\\"},{\\\"line\\\":1338,\\\"content\\\":\\\"import {Pipe} from '@angular/core';\\\"},{\\\"line\\\":1339,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction TestPipe_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":1356,\\\"content\\\":\\\"'TestPipe.ɵfac = function TestPipe_Factory(t) { return new (t || TestPipe)(); }');\\\",\\\"contextBefore\\\":[{\\\"line\\\":1348,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":1349,\\\"content\\\":\\\"const dtsContents = env.getContents('test.d.ts');\\\"},{\\\"line\\\":1350,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1351,\\\"content\\\":\\\"expect(jsContents)\\\"},{\\\"line\\\":1352,\\\"content\\\":\\\".toContain(\\\"},{\\\"line\\\":1353,\\\"content\\\":\\\"'TestPipe.ɵpipe = i0.ɵɵdefinePipe({ name: \\\\\\\"test-pipe\\\\\\\", type: TestPipe, pure: true })');\\\"},{\\\"line\\\":1354,\\\"content\\\":\\\"expect(jsContents)\\\"},{\\\"line\\\":1355,\\\"content\\\":\\\".toContain(\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1357,\\\"content\\\":\\\"expect(dtsContents).toContain('static ɵpipe: i0.ɵɵPipeDefWithMeta;');\\\"},{\\\"line\\\":1358,\\\"content\\\":\\\"expect(dtsContents).toContain('static ɵfac: i0.ɵɵFactoryDef;');\\\"},{\\\"line\\\":1359,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1360,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1361,\\\"content\\\":\\\"it('should compile Pipes with dependencies', () => {\\\"},{\\\"line\\\":1362,\\\"content\\\":\\\"env.write('test.ts', `\\\"},{\\\"line\\\":1363,\\\"content\\\":\\\"import {Pipe} from '@angular/core';\\\"},{\\\"line\\\":1364,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction TestPipe_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":1379,\\\"content\\\":\\\"expect(jsContents).toContain('return new (t || TestPipe)(i0.ɵɵdirectiveInject(Dep));');\\\",\\\"contextBefore\\\":[{\\\"line\\\":1371,\\\"content\\\":\\\"export class TestPipe {\\\"},{\\\"line\\\":1372,\\\"content\\\":\\\"constructor(dep: Dep) {}\\\"},{\\\"line\\\":1373,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1374,\\\"content\\\":\\\"`);\\\"},{\\\"line\\\":1375,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1376,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":1377,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1378,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1380,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1381,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1382,\\\"content\\\":\\\"it('should compile Pipes with generic types', () => {\\\"},{\\\"line\\\":1383,\\\"content\\\":\\\"env.write('test.ts', `\\\"},{\\\"line\\\":1384,\\\"content\\\":\\\"import {Pipe} from '@angular/core';\\\"},{\\\"line\\\":1385,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1386,\\\"content\\\":\\\"@Pipe({\\\"},{\\\"line\\\":1387,\\\"content\\\":\\\"name: 'test-pipe',\\\"}],\\\"matches\\\":[\\\"(t ||\\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":2045,\\\"content\\\":\\\".toMatch(/function Test_Factory\\\\\\\\(t\\\\\\\\) { i0\\\\\\\\.ɵɵinvalidFactory\\\\\\\\(\\\\\\\\)/ms);\\\",\\\"contextBefore\\\":[{\\\"line\\\":2037,\\\"content\\\":\\\"export class Test {\\\"},{\\\"line\\\":2038,\\\"content\\\":\\\"constructor(private notInjectable: string) {}\\\"},{\\\"line\\\":2039,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":2040,\\\"content\\\":\\\"`);\\\"},{\\\"line\\\":2041,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2042,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":2043,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":2044,\\\"content\\\":\\\"expect(jsContents)\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":2046,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":2047,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2048,\\\"content\\\":\\\"it('should not give a compile-time error if an invalid @Injectable is used with useFactory',\\\"},{\\\"line\\\":2049,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":2050,\\\"content\\\":\\\"env.tsconfig({strictInjectionParameters: true});\\\"},{\\\"line\\\":2051,\\\"content\\\":\\\"env.write('test.ts', `\\\"},{\\\"line\\\":2052,\\\"content\\\":\\\"import {Injectable} from '@angular/core';\\\"},{\\\"line\\\":2053,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"function Test_Factory\\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":2066,\\\"content\\\":\\\".toMatch(/function Test_Factory\\\\\\\\(t\\\\\\\\) { i0\\\\\\\\.ɵɵinvalidFactory\\\\\\\\(\\\\\\\\)/ms);\\\",\\\"contextBefore\\\":[{\\\"line\\\":2058,\\\"content\\\":\\\"export class Test {\\\"},{\\\"line\\\":2059,\\\"content\\\":\\\"constructor(private notInjectable: string) {}\\\"},{\\\"line\\\":2060,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":2061,\\\"content\\\":\\\"`);\\\"},{\\\"line\\\":2062,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2063,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":2064,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":2065,\\\"content\\\":\\\"expect(jsContents)\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":2067,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":2068,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2069,\\\"content\\\":\\\"it('should not give a compile-time error if an invalid @Injectable is used with useExisting',\\\"},{\\\"line\\\":2070,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":2071,\\\"content\\\":\\\"env.tsconfig({strictInjectionParameters: true});\\\"},{\\\"line\\\":2072,\\\"content\\\":\\\"env.write('test.ts', `\\\"},{\\\"line\\\":2073,\\\"content\\\":\\\"import {Injectable} from '@angular/core';\\\"},{\\\"line\\\":2074,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"function Test_Factory\\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":2089,\\\"content\\\":\\\".toMatch(/function Test_Factory\\\\\\\\(t\\\\\\\\) { i0\\\\\\\\.ɵɵinvalidFactory\\\\\\\\(\\\\\\\\)/ms);\\\",\\\"contextBefore\\\":[{\\\"line\\\":2081,\\\"content\\\":\\\"export class Test {\\\"},{\\\"line\\\":2082,\\\"content\\\":\\\"constructor(private notInjectable: string) {}\\\"},{\\\"line\\\":2083,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":2084,\\\"content\\\":\\\"`);\\\"},{\\\"line\\\":2085,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2086,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":2087,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":2088,\\\"content\\\":\\\"expect(jsContents)\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":2090,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":2091,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2092,\\\"content\\\":\\\"it('should not give a compile-time error if an invalid @Injectable is used with useClass',\\\"},{\\\"line\\\":2093,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":2094,\\\"content\\\":\\\"env.tsconfig({strictInjectionParameters: true});\\\"},{\\\"line\\\":2095,\\\"content\\\":\\\"env.write('test.ts', `\\\"},{\\\"line\\\":2096,\\\"content\\\":\\\"import {Injectable} from '@angular/core';\\\"},{\\\"line\\\":2097,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"function Test_Factory\\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":2112,\\\"content\\\":\\\".toMatch(/function Test_Factory\\\\\\\\(t\\\\\\\\) { i0\\\\\\\\.ɵɵinvalidFactory\\\\\\\\(\\\\\\\\)/ms);\\\",\\\"contextBefore\\\":[{\\\"line\\\":2104,\\\"content\\\":\\\"export class Test {\\\"},{\\\"line\\\":2105,\\\"content\\\":\\\"constructor(private notInjectable: string) {}\\\"},{\\\"line\\\":2106,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":2107,\\\"content\\\":\\\"`);\\\"},{\\\"line\\\":2108,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2109,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":2110,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":2111,\\\"content\\\":\\\"expect(jsContents)\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":2113,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":2114,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":2115,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2116,\\\"content\\\":\\\"describe('with strictInjectionParameters = false', () => {\\\"},{\\\"line\\\":2117,\\\"content\\\":\\\"it('should compile an @Injectable on a class with a non-injectable constructor', () => {\\\"},{\\\"line\\\":2118,\\\"content\\\":\\\"env.tsconfig({strictInjectionParameters: false});\\\"},{\\\"line\\\":2119,\\\"content\\\":\\\"env.write('test.ts', `\\\"},{\\\"line\\\":2120,\\\"content\\\":\\\"import {Injectable} from '@angular/core';\\\"}],\\\"matches\\\":[\\\"function Test_Factory\\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":2131,\\\"content\\\":\\\".toContain('Test.ɵfac = function Test_Factory(t) { i0.ɵɵinvalidFactory()');\\\",\\\"contextBefore\\\":[{\\\"line\\\":2123,\\\"content\\\":\\\"export class Test {\\\"},{\\\"line\\\":2124,\\\"content\\\":\\\"constructor(private notInjectable: string) {}\\\"},{\\\"line\\\":2125,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":2126,\\\"content\\\":\\\"`);\\\"},{\\\"line\\\":2127,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2128,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":2129,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":2130,\\\"content\\\":\\\"expect(jsContents)\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":2132,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":2133,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2134,\\\"content\\\":\\\"it('should compile an @Injectable provided in the root on a class with a non-injectable constructor',\\\"},{\\\"line\\\":2135,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":2136,\\\"content\\\":\\\"env.tsconfig({strictInjectionParameters: false});\\\"},{\\\"line\\\":2137,\\\"content\\\":\\\"env.write('test.ts', `\\\"},{\\\"line\\\":2138,\\\"content\\\":\\\"import {Injectable} from '@angular/core';\\\"},{\\\"line\\\":2139,\\\"content\\\":\\\"@Injectable({providedIn: 'root'})\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction Test_Factory(\\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":2148,\\\"content\\\":\\\".toContain('Test.ɵfac = function Test_Factory(t) { i0.ɵɵinvalidFactory()');\\\",\\\"contextBefore\\\":[{\\\"line\\\":2140,\\\"content\\\":\\\"export class Test {\\\"},{\\\"line\\\":2141,\\\"content\\\":\\\"constructor(private notInjectable: string) {}\\\"},{\\\"line\\\":2142,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":2143,\\\"content\\\":\\\"`);\\\"},{\\\"line\\\":2144,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2145,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":2146,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":2147,\\\"content\\\":\\\"expect(jsContents)\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":2149,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":2150,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":2151,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":2152,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2153,\\\"content\\\":\\\"describe('compiling invalid @Directives', () => {\\\"},{\\\"line\\\":2154,\\\"content\\\":\\\"describe('directives with a selector', () => {\\\"},{\\\"line\\\":2155,\\\"content\\\":\\\"it('should give a compile-time error if an invalid constructor is used', () => {\\\"},{\\\"line\\\":2156,\\\"content\\\":\\\"env.tsconfig({strictInjectionParameters: true});\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction Test_Factory(\\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":2187,\\\"content\\\":\\\".toContain('Test.ɵfac = function Test_Factory(t) { i0.ɵɵinvalidFactory()');\\\",\\\"contextBefore\\\":[{\\\"line\\\":2179,\\\"content\\\":\\\"export class Test {\\\"},{\\\"line\\\":2180,\\\"content\\\":\\\"constructor(private notInjectable: string) {}\\\"},{\\\"line\\\":2181,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":2182,\\\"content\\\":\\\"`);\\\"},{\\\"line\\\":2183,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2184,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":2185,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":2186,\\\"content\\\":\\\"expect(jsContents)\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":2188,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":2189,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":2190,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2191,\\\"content\\\":\\\"it('should generate a factory function that throws, even under strictInjectionParameters',\\\"},{\\\"line\\\":2192,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":2193,\\\"content\\\":\\\"env.tsconfig({strictInjectionParameters: true});\\\"},{\\\"line\\\":2194,\\\"content\\\":\\\"env.write('test.ts', `\\\"},{\\\"line\\\":2195,\\\"content\\\":\\\"import {Directive} from '@angular/core';\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction Test_Factory(\\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":2206,\\\"content\\\":\\\".toContain('Test.ɵfac = function Test_Factory(t) { i0.ɵɵinvalidFactory()');\\\",\\\"contextBefore\\\":[{\\\"line\\\":2198,\\\"content\\\":\\\"export class Test {\\\"},{\\\"line\\\":2199,\\\"content\\\":\\\"constructor(private notInjectable: string) {}\\\"},{\\\"line\\\":2200,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":2201,\\\"content\\\":\\\"`);\\\"},{\\\"line\\\":2202,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2203,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":2204,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":2205,\\\"content\\\":\\\"expect(jsContents)\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":2207,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":2208,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":2209,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2210,\\\"content\\\":\\\"describe('templateUrl and styleUrls processing', () => {\\\"},{\\\"line\\\":2211,\\\"content\\\":\\\"const testsForResource = (resource: string) => [\\\"},{\\\"line\\\":2212,\\\"content\\\":\\\"// [component location, resource location, resource reference]\\\"},{\\\"line\\\":2213,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2214,\\\"content\\\":\\\"// component and resource are in the same folder\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction Test_Factory(\\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":2577,\\\"content\\\":\\\"`FooCmp.ɵfac = function FooCmp_Factory(t) { return new (t || FooCmp)(i0.ɵɵinjectAttribute(\\\\\\\"test\\\\\\\"), i0.ɵɵdirectiveInject(i0.ChangeDetectorRef), i0.ɵɵdirectiveInject(i0.ElementRef), i0.ɵɵdirectiveInject(i0.Injector), i0.ɵɵdirectiveInject(i0.Renderer2), i0.ɵɵdirectiveInject(i0.TemplateRef), i0.ɵɵdirectiveInject(i0.ViewContainerRef)); }`);\\\",\\\"contextBefore\\\":[{\\\"line\\\":2569,\\\"content\\\":\\\") {}\\\"},{\\\"line\\\":2570,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":2571,\\\"content\\\":\\\"`);\\\"},{\\\"line\\\":2572,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2573,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":2574,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":2575,\\\"content\\\":\\\"expect(jsContents)\\\"},{\\\"line\\\":2576,\\\"content\\\":\\\".toContain(\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":2578,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":2579,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2580,\\\"content\\\":\\\"it('should include constructor dependency metadata for directives/components/pipes', () => {\\\"},{\\\"line\\\":2581,\\\"content\\\":\\\"env.write(`test.ts`, `\\\"},{\\\"line\\\":2582,\\\"content\\\":\\\"import {Attribute, Component, Directive, Pipe, Self, SkipSelf, Host, Optional} from '@angular/core';\\\"},{\\\"line\\\":2583,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2584,\\\"content\\\":\\\"export class MyService {}\\\"},{\\\"line\\\":2585,\\\"content\\\":\\\"export function dynamic() {};\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction FooCmp_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":3663,\\\"content\\\":\\\".toContain('function Base_Factory(t) { return new (t || Base)(i0.ɵɵinject(Dep)); }');\\\",\\\"contextBefore\\\":[{\\\"line\\\":3655,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":3656,\\\"content\\\":\\\"`);\\\"},{\\\"line\\\":3657,\\\"content\\\":\\\"\\\"},{\\\"line\\\":3658,\\\"content\\\":\\\"\\\"},{\\\"line\\\":3659,\\\"content\\\":\\\"env.driveMain();\\\"},{\\\"line\\\":3660,\\\"content\\\":\\\"const jsContents = env.getContents('test.js');\\\"},{\\\"line\\\":3661,\\\"content\\\":\\\"\\\"},{\\\"line\\\":3662,\\\"content\\\":\\\"expect(jsContents)\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":3664,\\\"content\\\":\\\"expect(jsContents).toContain('var \\\\\\\\u0275Child_BaseFactory = i0.ɵɵgetInheritedFactory(Child)');\\\"},{\\\"line\\\":3665,\\\"content\\\":\\\"expect(jsContents)\\\"}],\\\"matches\\\":[\\\"function Base_Factory\\\",\\\"(t ||\\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":3666,\\\"content\\\":\\\".toContain('function Child_Factory(t) { return \\\\\\\\u0275Child_BaseFactory(t || Child); }');\\\",\\\"contextBefore\\\":[{\\\"line\\\":3664,\\\"content\\\":\\\"expect(jsContents).toContain('var \\\\\\\\u0275Child_BaseFactory = i0.ɵɵgetInheritedFactory(Child)');\\\"},{\\\"line\\\":3665,\\\"content\\\":\\\"expect(jsContents)\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":3667,\\\"content\\\":\\\"expect(jsContents)\\\"}],\\\"matches\\\":[\\\"function Child_Factory\\\",\\\"(t ||\\\"]},{\\\"file\\\":\\\"ngtsc/ngtsc_spec.ts\\\",\\\"line\\\":3668,\\\"content\\\":\\\".toContain('function GrandChild_Factory(t) { return new (t || GrandChild)(); }');\\\",\\\"contextBefore\\\":[{\\\"line\\\":3667,\\\"content\\\":\\\"expect(jsContents)\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":3669,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":3670,\\\"content\\\":\\\"\\\"},{\\\"line\\\":3671,\\\"content\\\":\\\"it('generates base factories for directives', () => {\\\"},{\\\"line\\\":3672,\\\"content\\\":\\\"env.write(`test.ts`, `\\\"},{\\\"line\\\":3673,\\\"content\\\":\\\"import {Directive} from '@angular/core';\\\"},{\\\"line\\\":3674,\\\"content\\\":\\\"\\\"},{\\\"line\\\":3675,\\\"content\\\":\\\"@Directive({\\\"},{\\\"line\\\":3676,\\\"content\\\":\\\"selector: '[base]',\\\"}],\\\"matches\\\":[\\\"function GrandChild_Factory\\\",\\\"(t ||\\\"]},{\\\"file\\\":\\\"compliance/r3_view_compiler_di_spec.ts\\\",\\\"line\\\":51,\\\"content\\\":\\\"MyComponent.ɵfac = function MyComponent_Factory(t) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":43,\\\"content\\\":\\\"\\\"},{\\\"line\\\":44,\\\"content\\\":\\\"@NgModule({declarations: [MyComponent], providers: [MyService]})\\\"},{\\\"line\\\":45,\\\"content\\\":\\\"export class MyModule {}\\\"},{\\\"line\\\":46,\\\"content\\\":\\\"`\\\"},{\\\"line\\\":47,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":48,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":49,\\\"content\\\":\\\"\\\"},{\\\"line\\\":50,\\\"content\\\":\\\"const factory = `\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyComponent_Factory(\\\"]},{\\\"file\\\":\\\"compliance/r3_view_compiler_di_spec.ts\\\",\\\"line\\\":52,\\\"content\\\":\\\"return new (t || MyComponent)(\\\",\\\"contextAfter\\\":[{\\\"line\\\":53,\\\"content\\\":\\\"$r3$.ɵɵinjectAttribute('name'),\\\"},{\\\"line\\\":54,\\\"content\\\":\\\"$r3$.ɵɵdirectiveInject(MyService),\\\"},{\\\"line\\\":55,\\\"content\\\":\\\"$r3$.ɵɵdirectiveInject(MyService, 1),\\\"},{\\\"line\\\":56,\\\"content\\\":\\\"$r3$.ɵɵdirectiveInject(MyService, 2),\\\"},{\\\"line\\\":57,\\\"content\\\":\\\"$r3$.ɵɵdirectiveInject(MyService, 4),\\\"},{\\\"line\\\":58,\\\"content\\\":\\\"$r3$.ɵɵdirectiveInject(MyService, 8),\\\"},{\\\"line\\\":59,\\\"content\\\":\\\"$r3$.ɵɵdirectiveInject(MyService, 10)\\\"},{\\\"line\\\":60,\\\"content\\\":\\\");\\\"}],\\\"matches\\\":[\\\"(t ||\\\"]},{\\\"file\\\":\\\"compliance/r3_view_compiler_di_spec.ts\\\",\\\"line\\\":86,\\\"content\\\":\\\"MyService.ɵfac = function MyService_Factory(t) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":78,\\\"content\\\":\\\"export class MyService {\\\"},{\\\"line\\\":79,\\\"content\\\":\\\"constructor(dep: MyDependency) {}\\\"},{\\\"line\\\":80,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":81,\\\"content\\\":\\\"`\\\"},{\\\"line\\\":82,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":83,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":84,\\\"content\\\":\\\"\\\"},{\\\"line\\\":85,\\\"content\\\":\\\"const factory = `\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyService_Factory(\\\"]},{\\\"file\\\":\\\"compliance/r3_view_compiler_di_spec.ts\\\",\\\"line\\\":87,\\\"content\\\":\\\"return new (t || MyService)($r3$.ɵɵinject(MyDependency));\\\",\\\"contextAfter\\\":[{\\\"line\\\":88,\\\"content\\\":\\\"}`;\\\"},{\\\"line\\\":89,\\\"content\\\":\\\"\\\"},{\\\"line\\\":90,\\\"content\\\":\\\"const def = `\\\"},{\\\"line\\\":91,\\\"content\\\":\\\"MyService.ɵprov = $r3$.ɵɵdefineInjectable({\\\"},{\\\"line\\\":92,\\\"content\\\":\\\"token: MyService,\\\"},{\\\"line\\\":93,\\\"content\\\":\\\"factory: MyService.ɵfac\\\"},{\\\"line\\\":94,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":95,\\\"content\\\":\\\"`;\\\"}],\\\"matches\\\":[\\\"(t ||\\\"]},{\\\"file\\\":\\\"compliance/r3_view_compiler_di_spec.ts\\\",\\\"line\\\":121,\\\"content\\\":\\\"MyService.ɵfac = function MyService_Factory(t) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":113,\\\"content\\\":\\\"constructor(dep: MyDependency);\\\"},{\\\"line\\\":114,\\\"content\\\":\\\"constructor(dep: MyDependency, @Optional() optionalDep?: MyOptionalDependency) {}\\\"},{\\\"line\\\":115,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":116,\\\"content\\\":\\\"`\\\"},{\\\"line\\\":117,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":118,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":119,\\\"content\\\":\\\"\\\"},{\\\"line\\\":120,\\\"content\\\":\\\"const factory = `\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyService_Factory(\\\"]},{\\\"file\\\":\\\"compliance/r3_view_compiler_di_spec.ts\\\",\\\"line\\\":122,\\\"content\\\":\\\"return new (t || MyService)($r3$.ɵɵinject(MyDependency), $r3$.ɵɵinject(MyOptionalDependency, 8));\\\",\\\"contextAfter\\\":[{\\\"line\\\":123,\\\"content\\\":\\\"}`;\\\"},{\\\"line\\\":124,\\\"content\\\":\\\"\\\"},{\\\"line\\\":125,\\\"content\\\":\\\"const def = `\\\"},{\\\"line\\\":126,\\\"content\\\":\\\"MyService.ɵprov = $r3$.ɵɵdefineInjectable({\\\"},{\\\"line\\\":127,\\\"content\\\":\\\"token: MyService,\\\"},{\\\"line\\\":128,\\\"content\\\":\\\"factory: MyService.ɵfac\\\"},{\\\"line\\\":129,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":130,\\\"content\\\":\\\"`;\\\"}],\\\"matches\\\":[\\\"(t ||\\\"]},{\\\"file\\\":\\\"compliance/r3_view_compiler_di_spec.ts\\\",\\\"line\\\":152,\\\"content\\\":\\\"const matches = result.match(/MyPipe\\\\\\\\.ɵfac = function MyPipe_Factory/g);\\\",\\\"contextBefore\\\":[{\\\"line\\\":144,\\\"content\\\":\\\"@Pipe({name: 'my-pipe'})\\\"},{\\\"line\\\":145,\\\"content\\\":\\\"export class MyPipe {\\\"},{\\\"line\\\":146,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":147,\\\"content\\\":\\\"`\\\"},{\\\"line\\\":148,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":149,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":150,\\\"content\\\":\\\"\\\"},{\\\"line\\\":151,\\\"content\\\":\\\"const result = compile(files, angularFiles).source;\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":153,\\\"content\\\":\\\"expect(matches ? matches.length : 0).toBe(1);\\\"},{\\\"line\\\":154,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":155,\\\"content\\\":\\\"\\\"},{\\\"line\\\":156,\\\"content\\\":\\\"it('should delegate directly to the alternate factory when setting `useFactory` without `deps`',\\\"},{\\\"line\\\":157,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":158,\\\"content\\\":\\\"const files = {\\\"},{\\\"line\\\":159,\\\"content\\\":\\\"app: {\\\"},{\\\"line\\\":160,\\\"content\\\":\\\"'spec.ts': `\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyPipe_Factory/\\\"]},{\\\"file\\\":\\\"compliance/r3_view_compiler_di_spec.ts\\\",\\\"line\\\":214,\\\"content\\\":\\\"factory: function MyService_Factory(t) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":206,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":207,\\\"content\\\":\\\"`\\\"},{\\\"line\\\":208,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":209,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":210,\\\"content\\\":\\\"\\\"},{\\\"line\\\":211,\\\"content\\\":\\\"const def = `\\\"},{\\\"line\\\":212,\\\"content\\\":\\\"MyService.ɵprov = $r3$.ɵɵdefineInjectable({\\\"},{\\\"line\\\":213,\\\"content\\\":\\\"token: MyService,\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":215,\\\"content\\\":\\\"var r = null;\\\"},{\\\"line\\\":216,\\\"content\\\":\\\"if (t) {\\\"},{\\\"line\\\":217,\\\"content\\\":\\\"r = new t();\\\"},{\\\"line\\\":218,\\\"content\\\":\\\"} else {\\\"},{\\\"line\\\":219,\\\"content\\\":\\\"r = (() => new MyAlternateFactory())($r3$.ɵɵinject(SomeDep));\\\"},{\\\"line\\\":220,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":221,\\\"content\\\":\\\"return r;\\\"},{\\\"line\\\":222,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"function MyService_Factory\\\"]},{\\\"file\\\":\\\"compliance/r3_view_compiler_di_spec.ts\\\",\\\"line\\\":287,\\\"content\\\":\\\"factory: function MyService_Factory(t) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":279,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":280,\\\"content\\\":\\\"`\\\"},{\\\"line\\\":281,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":282,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":283,\\\"content\\\":\\\"\\\"},{\\\"line\\\":284,\\\"content\\\":\\\"const factory = `\\\"},{\\\"line\\\":285,\\\"content\\\":\\\"MyService.ɵprov = $r3$.ɵɵdefineInjectable({\\\"},{\\\"line\\\":286,\\\"content\\\":\\\"token: MyService,\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":288,\\\"content\\\":\\\"var r = null;\\\"},{\\\"line\\\":289,\\\"content\\\":\\\"if (t) {\\\"},{\\\"line\\\":290,\\\"content\\\":\\\"r = new t();\\\"},{\\\"line\\\":291,\\\"content\\\":\\\"} else {\\\"},{\\\"line\\\":292,\\\"content\\\":\\\"r = new MyAlternateService($r3$.ɵɵinject(SomeDep));\\\"},{\\\"line\\\":293,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":294,\\\"content\\\":\\\"return r;\\\"},{\\\"line\\\":295,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"function MyService_Factory\\\"]},{\\\"file\\\":\\\"compliance/r3_view_compiler_di_spec.ts\\\",\\\"line\\\":375,\\\"content\\\":\\\"MyPipe.ɵfac = function MyPipe_Factory(t) { return new (t || MyPipe)(i0.ɵɵdirectiveInject(Service)); };\\\",\\\"contextBefore\\\":[{\\\"line\\\":367,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":368,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":369,\\\"content\\\":\\\"\\\"},{\\\"line\\\":370,\\\"content\\\":\\\"const result = compile(files, angularFiles);\\\"},{\\\"line\\\":371,\\\"content\\\":\\\"const source = result.source;\\\"},{\\\"line\\\":372,\\\"content\\\":\\\"\\\"},{\\\"line\\\":373,\\\"content\\\":\\\"// The prov definition must be last so MyPipe.fac is defined\\\"},{\\\"line\\\":374,\\\"content\\\":\\\"const MyPipeDefs = `\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":376,\\\"content\\\":\\\"MyPipe.ɵpipe = i0.ɵɵdefinePipe({ name: \\\\\\\"myPipe\\\\\\\", type: MyPipe, pure: true });\\\"},{\\\"line\\\":377,\\\"content\\\":\\\"MyPipe.ɵprov = i0.ɵɵdefineInjectable({ token: MyPipe, factory: MyPipe.ɵfac });\\\"},{\\\"line\\\":378,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":379,\\\"content\\\":\\\"\\\"},{\\\"line\\\":380,\\\"content\\\":\\\"// The prov definition must be last so MyOtherPipe.fac is defined\\\"},{\\\"line\\\":381,\\\"content\\\":\\\"const MyOtherPipeDefs = `\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyPipe_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_view_compiler_di_spec.ts\\\",\\\"line\\\":382,\\\"content\\\":\\\"MyOtherPipe.ɵfac = function MyOtherPipe_Factory(t) { return new (t || MyOtherPipe)($r3$.ɵɵdirectiveInject(Service)); };\\\",\\\"contextBefore\\\":[{\\\"line\\\":376,\\\"content\\\":\\\"MyPipe.ɵpipe = i0.ɵɵdefinePipe({ name: \\\\\\\"myPipe\\\\\\\", type: MyPipe, pure: true });\\\"},{\\\"line\\\":377,\\\"content\\\":\\\"MyPipe.ɵprov = i0.ɵɵdefineInjectable({ token: MyPipe, factory: MyPipe.ɵfac });\\\"},{\\\"line\\\":378,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":379,\\\"content\\\":\\\"\\\"},{\\\"line\\\":380,\\\"content\\\":\\\"// The prov definition must be last so MyOtherPipe.fac is defined\\\"},{\\\"line\\\":381,\\\"content\\\":\\\"const MyOtherPipeDefs = `\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":383,\\\"content\\\":\\\"MyOtherPipe.ɵpipe = i0.ɵɵdefinePipe({ name: \\\\\\\"myOtherPipe\\\\\\\", type: MyOtherPipe, pure: true });\\\"},{\\\"line\\\":384,\\\"content\\\":\\\"MyOtherPipe.ɵprov = i0.ɵɵdefineInjectable({ token: MyOtherPipe, factory: MyOtherPipe.ɵfac });\\\"},{\\\"line\\\":385,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":386,\\\"content\\\":\\\"\\\"},{\\\"line\\\":387,\\\"content\\\":\\\"expectEmit(source, MyPipeDefs, 'Invalid pipe factory function');\\\"},{\\\"line\\\":388,\\\"content\\\":\\\"expectEmit(source, MyOtherPipeDefs, 'Invalid pipe factory function');\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyOtherPipe_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_view_compiler_di_spec.ts\\\",\\\"line\\\":389,\\\"content\\\":\\\"expect(source.match(/MyPipe\\\\\\\\.ɵfac =/g)!.length).toBe(1);\\\",\\\"contextBefore\\\":[{\\\"line\\\":383,\\\"content\\\":\\\"MyOtherPipe.ɵpipe = i0.ɵɵdefinePipe({ name: \\\\\\\"myOtherPipe\\\\\\\", type: MyOtherPipe, pure: true });\\\"},{\\\"line\\\":384,\\\"content\\\":\\\"MyOtherPipe.ɵprov = i0.ɵɵdefineInjectable({ token: MyOtherPipe, factory: MyOtherPipe.ɵfac });\\\"},{\\\"line\\\":385,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":386,\\\"content\\\":\\\"\\\"},{\\\"line\\\":387,\\\"content\\\":\\\"expectEmit(source, MyPipeDefs, 'Invalid pipe factory function');\\\"},{\\\"line\\\":388,\\\"content\\\":\\\"expectEmit(source, MyOtherPipeDefs, 'Invalid pipe factory function');\\\"}],\\\"matches\\\":[\\\"ɵfac =/\\\"]},{\\\"file\\\":\\\"compliance/r3_view_compiler_di_spec.ts\\\",\\\"line\\\":390,\\\"content\\\":\\\"expect(source.match(/MyOtherPipe\\\\\\\\.ɵfac =/g)!.length).toBe(1);\\\",\\\"contextAfter\\\":[{\\\"line\\\":391,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":392,\\\"content\\\":\\\"});\\\"}],\\\"matches\\\":[\\\"ɵfac =/\\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":46,\\\"content\\\":\\\"'MyComponent.ɵfac = function MyComponent_Factory(t) { return new (t || MyComponent)(); }';\\\",\\\"contextBefore\\\":[{\\\"line\\\":38,\\\"content\\\":\\\"@NgModule({declarations: [MyComponent]})\\\"},{\\\"line\\\":39,\\\"content\\\":\\\"export class MyModule {}\\\"},{\\\"line\\\":40,\\\"content\\\":\\\"`\\\"},{\\\"line\\\":41,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":42,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":43,\\\"content\\\":\\\"\\\"},{\\\"line\\\":44,\\\"content\\\":\\\"// The factory should look like this:\\\"},{\\\"line\\\":45,\\\"content\\\":\\\"const factory =\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":47,\\\"content\\\":\\\"\\\"},{\\\"line\\\":48,\\\"content\\\":\\\"// The template should look like this (where IDENT is a wild card for an identifier):\\\"},{\\\"line\\\":49,\\\"content\\\":\\\"const template = `\\\"},{\\\"line\\\":50,\\\"content\\\":\\\"…\\\"},{\\\"line\\\":51,\\\"content\\\":\\\"consts: [[\\\\\\\"title\\\\\\\", \\\\\\\"Hello\\\\\\\", ${\\\"},{\\\"line\\\":52,\\\"content\\\":\\\"AttributeMarker.Classes}, \\\\\\\"my-app\\\\\\\"], [\\\\\\\"cx\\\\\\\", \\\\\\\"20\\\\\\\", \\\\\\\"cy\\\\\\\", \\\\\\\"30\\\\\\\", \\\\\\\"r\\\\\\\", \\\\\\\"50\\\\\\\"]],\\\"},{\\\"line\\\":53,\\\"content\\\":\\\"template: function MyComponent_Template(rf, ctx) {\\\"},{\\\"line\\\":54,\\\"content\\\":\\\"if (rf & 1) {\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyComponent_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":96,\\\"content\\\":\\\"'MyComponent.ɵfac = function MyComponent_Factory(t) { return new (t || MyComponent)(); }';\\\",\\\"contextBefore\\\":[{\\\"line\\\":88,\\\"content\\\":\\\"@NgModule({declarations: [MyComponent]})\\\"},{\\\"line\\\":89,\\\"content\\\":\\\"export class MyModule {}\\\"},{\\\"line\\\":90,\\\"content\\\":\\\"`\\\"},{\\\"line\\\":91,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":92,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":93,\\\"content\\\":\\\"\\\"},{\\\"line\\\":94,\\\"content\\\":\\\"// The factory should look like this:\\\"},{\\\"line\\\":95,\\\"content\\\":\\\"const factory =\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":97,\\\"content\\\":\\\"\\\"},{\\\"line\\\":98,\\\"content\\\":\\\"// The template should look like this (where IDENT is a wild card for an identifier):\\\"},{\\\"line\\\":99,\\\"content\\\":\\\"const template = `\\\"},{\\\"line\\\":100,\\\"content\\\":\\\"…\\\"},{\\\"line\\\":101,\\\"content\\\":\\\"consts: [[\\\\\\\"title\\\\\\\", \\\\\\\"Hello\\\\\\\", ${AttributeMarker.Classes}, \\\\\\\"my-app\\\\\\\"]],\\\"},{\\\"line\\\":102,\\\"content\\\":\\\"template: function MyComponent_Template(rf, ctx) {\\\"},{\\\"line\\\":103,\\\"content\\\":\\\"if (rf & 1) {\\\"},{\\\"line\\\":104,\\\"content\\\":\\\"$r3$.ɵɵelementStart(0, \\\\\\\"div\\\\\\\", 0);\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyComponent_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":144,\\\"content\\\":\\\"'MyComponent.ɵfac = function MyComponent_Factory(t) { return new (t || MyComponent)(); }';\\\",\\\"contextBefore\\\":[{\\\"line\\\":136,\\\"content\\\":\\\"@NgModule({declarations: [MyComponent]})\\\"},{\\\"line\\\":137,\\\"content\\\":\\\"export class MyModule {}\\\"},{\\\"line\\\":138,\\\"content\\\":\\\"`\\\"},{\\\"line\\\":139,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":140,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":141,\\\"content\\\":\\\"\\\"},{\\\"line\\\":142,\\\"content\\\":\\\"// The factory should look like this:\\\"},{\\\"line\\\":143,\\\"content\\\":\\\"const factory =\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":145,\\\"content\\\":\\\"\\\"},{\\\"line\\\":146,\\\"content\\\":\\\"// The template should look like this (where IDENT is a wild card for an identifier):\\\"},{\\\"line\\\":147,\\\"content\\\":\\\"const template = `\\\"},{\\\"line\\\":148,\\\"content\\\":\\\"…\\\"},{\\\"line\\\":149,\\\"content\\\":\\\"consts: [[\\\\\\\"title\\\\\\\", \\\\\\\"Hello\\\\\\\", ${AttributeMarker.Classes}, \\\\\\\"my-app\\\\\\\"]],\\\"},{\\\"line\\\":150,\\\"content\\\":\\\"template: function MyComponent_Template(rf, ctx) {\\\"},{\\\"line\\\":151,\\\"content\\\":\\\"if (rf & 1) {\\\"},{\\\"line\\\":152,\\\"content\\\":\\\"$r3$.ɵɵelementStart(0, \\\\\\\"div\\\\\\\", 0);\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyComponent_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":192,\\\"content\\\":\\\"'MyComponent.ɵfac = function MyComponent_Factory(t) { return new (t || MyComponent)(); }';\\\",\\\"contextBefore\\\":[{\\\"line\\\":184,\\\"content\\\":\\\"@NgModule({declarations: [MyComponent]})\\\"},{\\\"line\\\":185,\\\"content\\\":\\\"export class MyModule {}\\\"},{\\\"line\\\":186,\\\"content\\\":\\\"`\\\"},{\\\"line\\\":187,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":188,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":189,\\\"content\\\":\\\"\\\"},{\\\"line\\\":190,\\\"content\\\":\\\"// The factory should look like this:\\\"},{\\\"line\\\":191,\\\"content\\\":\\\"const factory =\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":193,\\\"content\\\":\\\"\\\"},{\\\"line\\\":194,\\\"content\\\":\\\"// The template should look like this (where IDENT is a wild card for an identifier):\\\"},{\\\"line\\\":195,\\\"content\\\":\\\"const template = `\\\"},{\\\"line\\\":196,\\\"content\\\":\\\"…\\\"},{\\\"line\\\":197,\\\"content\\\":\\\"consts: [[\\\\\\\"class\\\\\\\", \\\\\\\"my-app\\\\\\\", 0, \\\\\\\"http://someuri/foo\\\\\\\", \\\\\\\"foo:bar\\\\\\\", \\\\\\\"baz\\\\\\\", \\\\\\\"title\\\\\\\", \\\\\\\"Hello\\\\\\\", 0, \\\\\\\"http://someuri/foo\\\\\\\", \\\\\\\"foo:qux\\\\\\\", \\\\\\\"quacks\\\\\\\"]],\\\"},{\\\"line\\\":198,\\\"content\\\":\\\"template: function MyComponent_Template(rf, ctx) {\\\"},{\\\"line\\\":199,\\\"content\\\":\\\"if (rf & 1) {\\\"},{\\\"line\\\":200,\\\"content\\\":\\\"$r3$.ɵɵelementStart(0, \\\\\\\"div\\\\\\\", 0);\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyComponent_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":308,\\\"content\\\":\\\"'MyComponent.ɵfac = function MyComponent_Factory(t) { return new (t || MyComponent)(); }';\\\",\\\"contextBefore\\\":[{\\\"line\\\":300,\\\"content\\\":\\\"\\\"},{\\\"line\\\":301,\\\"content\\\":\\\"@NgModule({declarations: [MyComponent]})\\\"},{\\\"line\\\":302,\\\"content\\\":\\\"export class MyModule {}\\\"},{\\\"line\\\":303,\\\"content\\\":\\\"`\\\"},{\\\"line\\\":304,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":305,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":306,\\\"content\\\":\\\"\\\"},{\\\"line\\\":307,\\\"content\\\":\\\"const factory =\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":309,\\\"content\\\":\\\"const template = `\\\"},{\\\"line\\\":310,\\\"content\\\":\\\"…\\\"},{\\\"line\\\":311,\\\"content\\\":\\\"consts: [[${AttributeMarker.Bindings}, \\\\\\\"id\\\\\\\"]],\\\"},{\\\"line\\\":312,\\\"content\\\":\\\"template: function MyComponent_Template(rf, ctx) {\\\"},{\\\"line\\\":313,\\\"content\\\":\\\"if (rf & 1) {\\\"},{\\\"line\\\":314,\\\"content\\\":\\\"$r3$.ɵɵelement(0, \\\\\\\"div\\\\\\\", 0);\\\"},{\\\"line\\\":315,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":316,\\\"content\\\":\\\"if (rf & 2) {\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyComponent_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":363,\\\"content\\\":\\\"'MyComponent.ɵfac = function MyComponent_Factory(t) { return new (t || MyComponent)(); }';\\\",\\\"contextBefore\\\":[{\\\"line\\\":355,\\\"content\\\":\\\"// TODO(FW-1273): The code generated below is adding extra parens, and we need to stop\\\"},{\\\"line\\\":356,\\\"content\\\":\\\"// generating those.\\\"},{\\\"line\\\":357,\\\"content\\\":\\\"//\\\"},{\\\"line\\\":358,\\\"content\\\":\\\"// For example:\\\"},{\\\"line\\\":359,\\\"content\\\":\\\"// `$r3$.ɵɵproperty(\\\\\\\"ternary\\\\\\\", (ctx.cond ? $r3$.ɵɵpureFunction1(8, $c0$, ctx.a): $c1$));`\\\"},{\\\"line\\\":360,\\\"content\\\":\\\"///////////////\\\"},{\\\"line\\\":361,\\\"content\\\":\\\"\\\"},{\\\"line\\\":362,\\\"content\\\":\\\"const factory =\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":364,\\\"content\\\":\\\"const template = `\\\"},{\\\"line\\\":365,\\\"content\\\":\\\"template: function MyComponent_Template(rf, ctx) {\\\"},{\\\"line\\\":366,\\\"content\\\":\\\"if (rf & 1) {\\\"},{\\\"line\\\":367,\\\"content\\\":\\\"$r3$.ɵɵelement(0, \\\\\\\"div\\\\\\\", 0);\\\"},{\\\"line\\\":368,\\\"content\\\":\\\"$r3$.ɵɵpipe(1, \\\\\\\"pipe\\\\\\\");\\\"},{\\\"line\\\":369,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":370,\\\"content\\\":\\\"if (rf & 2) {\\\"},{\\\"line\\\":371,\\\"content\\\":\\\"$r3$.ɵɵproperty(\\\\\\\"ternary\\\\\\\", ctx.cond ? $r3$.ɵɵpureFunction1(8, $c0$, ctx.a): $r3$.ɵɵpureFunction0(10, $c1$))(\\\\\\\"pipe\\\\\\\", $r3$.ɵɵpipeBind3(1, 4, ctx.value, 1, 2))(\\\\\\\"and\\\\\\\", ctx.cond && $r3$.ɵɵpureFunction1(11, $c0$, ctx.b))(\\\\\\\"or\\\\\\\", ctx.cond || $r3$.ɵɵpureFunction1(13, $c0$, ctx.c));\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyComponent_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":476,\\\"content\\\":\\\"'MyComponent.ɵfac = function MyComponent_Factory(t) { return new (t || MyComponent)(); }';\\\",\\\"contextBefore\\\":[{\\\"line\\\":468,\\\"content\\\":\\\"\\\"},{\\\"line\\\":469,\\\"content\\\":\\\"@NgModule({declarations: [MyComponent]})\\\"},{\\\"line\\\":470,\\\"content\\\":\\\"export class MyModule {}\\\"},{\\\"line\\\":471,\\\"content\\\":\\\"`\\\"},{\\\"line\\\":472,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":473,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":474,\\\"content\\\":\\\"\\\"},{\\\"line\\\":475,\\\"content\\\":\\\"const factory =\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":477,\\\"content\\\":\\\"const template = `\\\"},{\\\"line\\\":478,\\\"content\\\":\\\"MyComponent.ɵcmp = i0.ɵɵdefineComponent({type:MyComponent,selectors:[[\\\\\\\"my-component\\\\\\\"]],\\\"},{\\\"line\\\":479,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":480,\\\"content\\\":\\\"vars: 4,\\\"},{\\\"line\\\":481,\\\"content\\\":\\\"template: function MyComponent_Template(rf,ctx){\\\"},{\\\"line\\\":482,\\\"content\\\":\\\"if (rf & 1) {\\\"},{\\\"line\\\":483,\\\"content\\\":\\\"$r3$.ɵɵelement(0, \\\\\\\"div\\\\\\\");\\\"},{\\\"line\\\":484,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyComponent_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":579,\\\"content\\\":\\\"`ChildComponent.ɵfac = function ChildComponent_Factory(t) { return new (t || ChildComponent)(); };`;\\\",\\\"contextBefore\\\":[{\\\"line\\\":571,\\\"content\\\":\\\"if (rf & 1) {\\\"},{\\\"line\\\":572,\\\"content\\\":\\\"$r3$.ɵɵtext(0, \\\\\\\"child-view\\\\\\\");\\\"},{\\\"line\\\":573,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":574,\\\"content\\\":\\\"},\\\"},{\\\"line\\\":575,\\\"content\\\":\\\"encapsulation: 2\\\"},{\\\"line\\\":576,\\\"content\\\":\\\"});`;\\\"},{\\\"line\\\":577,\\\"content\\\":\\\"\\\"},{\\\"line\\\":578,\\\"content\\\":\\\"const ChildComponentFactory =\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":580,\\\"content\\\":\\\"\\\"},{\\\"line\\\":581,\\\"content\\\":\\\"// SomeDirective definition should be:\\\"},{\\\"line\\\":582,\\\"content\\\":\\\"const SomeDirectiveDefinition = `\\\"},{\\\"line\\\":583,\\\"content\\\":\\\"SomeDirective.ɵdir = $r3$.ɵɵdefineDirective({\\\"},{\\\"line\\\":584,\\\"content\\\":\\\"type: SomeDirective,\\\"},{\\\"line\\\":585,\\\"content\\\":\\\"selectors: [[\\\\\\\"\\\\\\\", \\\\\\\"some-directive\\\\\\\", \\\\\\\"\\\\\\\"]]\\\"},{\\\"line\\\":586,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":587,\\\"content\\\":\\\"`;\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction ChildComponent_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":590,\\\"content\\\":\\\"`SomeDirective.ɵfac = function SomeDirective_Factory(t) {return new (t || SomeDirective)(); };`;\\\",\\\"contextBefore\\\":[{\\\"line\\\":582,\\\"content\\\":\\\"const SomeDirectiveDefinition = `\\\"},{\\\"line\\\":583,\\\"content\\\":\\\"SomeDirective.ɵdir = $r3$.ɵɵdefineDirective({\\\"},{\\\"line\\\":584,\\\"content\\\":\\\"type: SomeDirective,\\\"},{\\\"line\\\":585,\\\"content\\\":\\\"selectors: [[\\\\\\\"\\\\\\\", \\\\\\\"some-directive\\\\\\\", \\\\\\\"\\\\\\\"]]\\\"},{\\\"line\\\":586,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":587,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":588,\\\"content\\\":\\\"\\\"},{\\\"line\\\":589,\\\"content\\\":\\\"const SomeDirectiveFactory =\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":591,\\\"content\\\":\\\"\\\"},{\\\"line\\\":592,\\\"content\\\":\\\"// MyComponent definition should be:\\\"},{\\\"line\\\":593,\\\"content\\\":\\\"const MyComponentDefinition = `\\\"},{\\\"line\\\":594,\\\"content\\\":\\\"…\\\"},{\\\"line\\\":595,\\\"content\\\":\\\"MyComponent.ɵcmp = $r3$.ɵɵdefineComponent({\\\"},{\\\"line\\\":596,\\\"content\\\":\\\"type: MyComponent,\\\"},{\\\"line\\\":597,\\\"content\\\":\\\"selectors: [[\\\\\\\"my-component\\\\\\\"]],\\\"},{\\\"line\\\":598,\\\"content\\\":\\\"decls: 2,\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction SomeDirective_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":613,\\\"content\\\":\\\"`MyComponent.ɵfac = function MyComponent_Factory(t) { return new (t || MyComponent)(); };`;\\\",\\\"contextBefore\\\":[{\\\"line\\\":605,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":606,\\\"content\\\":\\\"},\\\"},{\\\"line\\\":607,\\\"content\\\":\\\"directives: [ChildComponent, SomeDirective],\\\"},{\\\"line\\\":608,\\\"content\\\":\\\"encapsulation: 2\\\"},{\\\"line\\\":609,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":610,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":611,\\\"content\\\":\\\"\\\"},{\\\"line\\\":612,\\\"content\\\":\\\"const MyComponentFactory =\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":614,\\\"content\\\":\\\"\\\"},{\\\"line\\\":615,\\\"content\\\":\\\"const result = compile(files, angularFiles);\\\"},{\\\"line\\\":616,\\\"content\\\":\\\"const source = result.source;\\\"},{\\\"line\\\":617,\\\"content\\\":\\\"\\\"},{\\\"line\\\":618,\\\"content\\\":\\\"expectEmit(source, ChildComponentDefinition, 'Incorrect ChildComponent.ɵcmp');\\\"},{\\\"line\\\":619,\\\"content\\\":\\\"expectEmit(source, ChildComponentFactory, 'Incorrect ChildComponent.ɵfac');\\\"},{\\\"line\\\":620,\\\"content\\\":\\\"expectEmit(source, SomeDirectiveDefinition, 'Incorrect SomeDirective.ɵdir');\\\"},{\\\"line\\\":621,\\\"content\\\":\\\"expectEmit(source, SomeDirectiveFactory, 'Incorrect SomeDirective.ɵfac');\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyComponent_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":653,\\\"content\\\":\\\"`SomeDirective.ɵfac = function SomeDirective_Factory(t) {return new (t || SomeDirective)(); };`;\\\",\\\"contextBefore\\\":[{\\\"line\\\":645,\\\"content\\\":\\\"const SomeDirectiveDefinition = `\\\"},{\\\"line\\\":646,\\\"content\\\":\\\"SomeDirective.ɵdir = $r3$.ɵɵdefineDirective({\\\"},{\\\"line\\\":647,\\\"content\\\":\\\"type: SomeDirective,\\\"},{\\\"line\\\":648,\\\"content\\\":\\\"selectors: [[\\\\\\\"div\\\\\\\", \\\\\\\"some-directive\\\\\\\", \\\\\\\"\\\\\\\", 8, \\\\\\\"foo\\\\\\\", 3, \\\\\\\"title\\\\\\\", \\\\\\\"\\\\\\\", 9, \\\\\\\"baz\\\\\\\"]]\\\"},{\\\"line\\\":649,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":650,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":651,\\\"content\\\":\\\"\\\"},{\\\"line\\\":652,\\\"content\\\":\\\"const SomeDirectiveFactory =\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":654,\\\"content\\\":\\\"\\\"},{\\\"line\\\":655,\\\"content\\\":\\\"// OtherDirective definition should be:\\\"},{\\\"line\\\":656,\\\"content\\\":\\\"const OtherDirectiveDefinition = `\\\"},{\\\"line\\\":657,\\\"content\\\":\\\"OtherDirective.ɵdir = $r3$.ɵɵdefineDirective({\\\"},{\\\"line\\\":658,\\\"content\\\":\\\"type: OtherDirective,\\\"},{\\\"line\\\":659,\\\"content\\\":\\\"selectors: [[\\\\\\\"\\\\\\\", 5, \\\\\\\"span\\\\\\\", \\\\\\\"title\\\\\\\", \\\\\\\"\\\\\\\", 9, \\\\\\\"baz\\\\\\\"]]\\\"},{\\\"line\\\":660,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":661,\\\"content\\\":\\\"`;\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction SomeDirective_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":664,\\\"content\\\":\\\"`OtherDirective.ɵfac = function OtherDirective_Factory(t) {return new (t || OtherDirective)(); };`;\\\",\\\"contextBefore\\\":[{\\\"line\\\":656,\\\"content\\\":\\\"const OtherDirectiveDefinition = `\\\"},{\\\"line\\\":657,\\\"content\\\":\\\"OtherDirective.ɵdir = $r3$.ɵɵdefineDirective({\\\"},{\\\"line\\\":658,\\\"content\\\":\\\"type: OtherDirective,\\\"},{\\\"line\\\":659,\\\"content\\\":\\\"selectors: [[\\\\\\\"\\\\\\\", 5, \\\\\\\"span\\\\\\\", \\\\\\\"title\\\\\\\", \\\\\\\"\\\\\\\", 9, \\\\\\\"baz\\\\\\\"]]\\\"},{\\\"line\\\":660,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":661,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":662,\\\"content\\\":\\\"\\\"},{\\\"line\\\":663,\\\"content\\\":\\\"const OtherDirectiveFactory =\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":665,\\\"content\\\":\\\"\\\"},{\\\"line\\\":666,\\\"content\\\":\\\"const result = compile(files, angularFiles);\\\"},{\\\"line\\\":667,\\\"content\\\":\\\"const source = result.source;\\\"},{\\\"line\\\":668,\\\"content\\\":\\\"\\\"},{\\\"line\\\":669,\\\"content\\\":\\\"expectEmit(source, SomeDirectiveDefinition, 'Incorrect SomeDirective.ɵdir');\\\"},{\\\"line\\\":670,\\\"content\\\":\\\"expectEmit(source, SomeDirectiveFactory, 'Incorrect SomeDirective.ɵfac');\\\"},{\\\"line\\\":671,\\\"content\\\":\\\"expectEmit(source, OtherDirectiveDefinition, 'Incorrect OtherDirective.ɵdir');\\\"},{\\\"line\\\":672,\\\"content\\\":\\\"expectEmit(source, OtherDirectiveFactory, 'Incorrect OtherDirective.ɵfac');\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction OtherDirective_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":737,\\\"content\\\":\\\"`EmptyOutletComponent.ɵfac = function EmptyOutletComponent_Factory(t) { return new (t || EmptyOutletComponent)(); };`;\\\",\\\"contextBefore\\\":[{\\\"line\\\":729,\\\"content\\\":\\\"$r3$.ɵɵelement(0, \\\\\\\"router-outlet\\\\\\\");\\\"},{\\\"line\\\":730,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":731,\\\"content\\\":\\\"},\\\"},{\\\"line\\\":732,\\\"content\\\":\\\"encapsulation: 2\\\"},{\\\"line\\\":733,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":734,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":735,\\\"content\\\":\\\"\\\"},{\\\"line\\\":736,\\\"content\\\":\\\"const EmptyOutletComponentFactory =\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":738,\\\"content\\\":\\\"\\\"},{\\\"line\\\":739,\\\"content\\\":\\\"const result = compile(files, angularFiles);\\\"},{\\\"line\\\":740,\\\"content\\\":\\\"const source = result.source;\\\"},{\\\"line\\\":741,\\\"content\\\":\\\"\\\"},{\\\"line\\\":742,\\\"content\\\":\\\"expectEmit(source, EmptyOutletComponentDefinition, 'Incorrect EmptyOutletComponent.ɵcmp');\\\"},{\\\"line\\\":743,\\\"content\\\":\\\"expectEmit(source, EmptyOutletComponentFactory, 'Incorrect EmptyOutletComponent.ɵfac');\\\"},{\\\"line\\\":744,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":745,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction EmptyOutletComponent_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":778,\\\"content\\\":\\\"const MyComponentFactory = `MyComponent.ɵfac = function MyComponent_Factory(t) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":770,\\\"content\\\":\\\"type: MyComponent,\\\"},{\\\"line\\\":771,\\\"content\\\":\\\"selectors: [[\\\\\\\"my-component\\\\\\\"]],\\\"},{\\\"line\\\":772,\\\"content\\\":\\\"decls: 0,\\\"},{\\\"line\\\":773,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":774,\\\"content\\\":\\\"template:  function MyComponent_Template(rf, ctx) {},\\\"},{\\\"line\\\":775,\\\"content\\\":\\\"encapsulation: 2\\\"},{\\\"line\\\":776,\\\"content\\\":\\\"});`;\\\"},{\\\"line\\\":777,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyComponent_Factory(\\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":779,\\\"content\\\":\\\"return new (t || MyComponent)(\\\",\\\"contextAfter\\\":[{\\\"line\\\":780,\\\"content\\\":\\\"$r3$.ɵɵdirectiveInject($i$.ElementRef), $r3$.ɵɵdirectiveInject($i$.ViewContainerRef),\\\"},{\\\"line\\\":781,\\\"content\\\":\\\"$r3$.ɵɵdirectiveInject($i$.ChangeDetectorRef));\\\"},{\\\"line\\\":782,\\\"content\\\":\\\"};`;\\\"},{\\\"line\\\":783,\\\"content\\\":\\\"\\\"},{\\\"line\\\":784,\\\"content\\\":\\\"const result = compile(files, angularFiles);\\\"},{\\\"line\\\":785,\\\"content\\\":\\\"const source = result.source;\\\"},{\\\"line\\\":786,\\\"content\\\":\\\"\\\"},{\\\"line\\\":787,\\\"content\\\":\\\"expectEmit(source, MyComponentDefinition, 'Incorrect MyComponent.ɵcmp');\\\"}],\\\"matches\\\":[\\\"(t ||\\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":822,\\\"content\\\":\\\"`IfDirective.ɵfac = function IfDirective_Factory(t) { return new (t || IfDirective)($r3$.ɵɵdirectiveInject($i$.TemplateRef)); };`;\\\",\\\"contextBefore\\\":[{\\\"line\\\":814,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":815,\\\"content\\\":\\\"\\\"},{\\\"line\\\":816,\\\"content\\\":\\\"const IfDirectiveDefinition = `\\\"},{\\\"line\\\":817,\\\"content\\\":\\\"IfDirective.ɵdir = $r3$.ɵɵdefineDirective({\\\"},{\\\"line\\\":818,\\\"content\\\":\\\"type: IfDirective,\\\"},{\\\"line\\\":819,\\\"content\\\":\\\"selectors: [[\\\\\\\"\\\\\\\", \\\\\\\"if\\\\\\\", \\\\\\\"\\\\\\\"]]\\\"},{\\\"line\\\":820,\\\"content\\\":\\\"});`;\\\"},{\\\"line\\\":821,\\\"content\\\":\\\"const IfDirectiveFactory =\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":823,\\\"content\\\":\\\"\\\"},{\\\"line\\\":824,\\\"content\\\":\\\"const MyComponentDefinition = `\\\"},{\\\"line\\\":825,\\\"content\\\":\\\"function MyComponent_li_2_Template(rf, ctx) {\\\"},{\\\"line\\\":826,\\\"content\\\":\\\"if (rf & 1) {\\\"},{\\\"line\\\":827,\\\"content\\\":\\\"$r3$.ɵɵelementStart(0, \\\\\\\"li\\\\\\\");\\\"},{\\\"line\\\":828,\\\"content\\\":\\\"$r3$.ɵɵtext(1);\\\"},{\\\"line\\\":829,\\\"content\\\":\\\"$r3$.ɵɵelementEnd();\\\"},{\\\"line\\\":830,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction IfDirective_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":857,\\\"content\\\":\\\"`MyComponent.ɵfac = function MyComponent_Factory(t) { return new (t || MyComponent)(); };`;\\\",\\\"contextBefore\\\":[{\\\"line\\\":849,\\\"content\\\":\\\"$r3$.ɵɵelementEnd();\\\"},{\\\"line\\\":850,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":851,\\\"content\\\":\\\"},\\\"},{\\\"line\\\":852,\\\"content\\\":\\\"directives: [IfDirective],\\\"},{\\\"line\\\":853,\\\"content\\\":\\\"encapsulation: 2\\\"},{\\\"line\\\":854,\\\"content\\\":\\\"});`;\\\"},{\\\"line\\\":855,\\\"content\\\":\\\"\\\"},{\\\"line\\\":856,\\\"content\\\":\\\"const MyComponentFactory =\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":858,\\\"content\\\":\\\"\\\"},{\\\"line\\\":859,\\\"content\\\":\\\"const result = compile(files, angularFiles);\\\"},{\\\"line\\\":860,\\\"content\\\":\\\"const source = result.source;\\\"},{\\\"line\\\":861,\\\"content\\\":\\\"\\\"},{\\\"line\\\":862,\\\"content\\\":\\\"expectEmit(source, IfDirectiveDefinition, 'Incorrect IfDirective.ɵdir');\\\"},{\\\"line\\\":863,\\\"content\\\":\\\"expectEmit(source, IfDirectiveFactory, 'Incorrect IfDirective.ɵfac');\\\"},{\\\"line\\\":864,\\\"content\\\":\\\"expectEmit(source, MyComponentDefinition, 'Incorrect MyComponent.ɵcmp');\\\"},{\\\"line\\\":865,\\\"content\\\":\\\"expectEmit(source, MyComponentFactory, 'Incorrect MyComponent.ɵfac');\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyComponent_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":2093,\\\"content\\\":\\\"MyPipe.ɵfac = function MyPipe_Factory(t) { return new (t || MyPipe)(); };\\\",\\\"contextBefore\\\":[{\\\"line\\\":2085,\\\"content\\\":\\\"MyPipe.ɵpipe = $r3$.ɵɵdefinePipe({\\\"},{\\\"line\\\":2086,\\\"content\\\":\\\"name: \\\\\\\"myPipe\\\\\\\",\\\"},{\\\"line\\\":2087,\\\"content\\\":\\\"type: MyPipe,\\\"},{\\\"line\\\":2088,\\\"content\\\":\\\"pure: false\\\"},{\\\"line\\\":2089,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":2090,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":2091,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2092,\\\"content\\\":\\\"const MyPipeFactoryDef = `\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":2094,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":2095,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2096,\\\"content\\\":\\\"const MyPurePipeDefinition = `\\\"},{\\\"line\\\":2097,\\\"content\\\":\\\"MyPurePipe.ɵpipe = $r3$.ɵɵdefinePipe({\\\"},{\\\"line\\\":2098,\\\"content\\\":\\\"name: \\\\\\\"myPurePipe\\\\\\\",\\\"},{\\\"line\\\":2099,\\\"content\\\":\\\"type: MyPurePipe,\\\"},{\\\"line\\\":2100,\\\"content\\\":\\\"pure: true\\\"},{\\\"line\\\":2101,\\\"content\\\":\\\"});`;\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyPipe_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":2104,\\\"content\\\":\\\"MyPurePipe.ɵfac = function MyPurePipe_Factory(t) { return new (t || MyPurePipe)(); };\\\",\\\"contextBefore\\\":[{\\\"line\\\":2096,\\\"content\\\":\\\"const MyPurePipeDefinition = `\\\"},{\\\"line\\\":2097,\\\"content\\\":\\\"MyPurePipe.ɵpipe = $r3$.ɵɵdefinePipe({\\\"},{\\\"line\\\":2098,\\\"content\\\":\\\"name: \\\\\\\"myPurePipe\\\\\\\",\\\"},{\\\"line\\\":2099,\\\"content\\\":\\\"type: MyPurePipe,\\\"},{\\\"line\\\":2100,\\\"content\\\":\\\"pure: true\\\"},{\\\"line\\\":2101,\\\"content\\\":\\\"});`;\\\"},{\\\"line\\\":2102,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2103,\\\"content\\\":\\\"const MyPurePipeFactoryDef = `\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":2105,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":2106,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2107,\\\"content\\\":\\\"const MyAppDefinition = `\\\"},{\\\"line\\\":2108,\\\"content\\\":\\\"const $c0$ = function ($a0$) {\\\"},{\\\"line\\\":2109,\\\"content\\\":\\\"return [$a0$, 1, 2, 3, 4, 5];\\\"},{\\\"line\\\":2110,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":2111,\\\"content\\\":\\\"// ...\\\"},{\\\"line\\\":2112,\\\"content\\\":\\\"MyApp.ɵcmp = $r3$.ɵɵdefineComponent({\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyPurePipe_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":2258,\\\"content\\\":\\\"MyPipe.ɵfac = function MyPipe_Factory(t) { return new (t || MyPipe)($r3$.ɵɵinjectPipeChangeDetectorRef()); };\\\",\\\"contextBefore\\\":[{\\\"line\\\":2250,\\\"content\\\":\\\"MyPipe.ɵpipe = $r3$.ɵɵdefinePipe({\\\"},{\\\"line\\\":2251,\\\"content\\\":\\\"name: \\\\\\\"myPipe\\\\\\\",\\\"},{\\\"line\\\":2252,\\\"content\\\":\\\"type: MyPipe,\\\"},{\\\"line\\\":2253,\\\"content\\\":\\\"pure: true\\\"},{\\\"line\\\":2254,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":2255,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":2256,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2257,\\\"content\\\":\\\"const MyPipeFactory = `\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":2259,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":2260,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2261,\\\"content\\\":\\\"const MyOtherPipeDefinition = `\\\"},{\\\"line\\\":2262,\\\"content\\\":\\\"MyOtherPipe.ɵpipe = $r3$.ɵɵdefinePipe({\\\"},{\\\"line\\\":2263,\\\"content\\\":\\\"name: \\\\\\\"myOtherPipe\\\\\\\",\\\"},{\\\"line\\\":2264,\\\"content\\\":\\\"type: MyOtherPipe,\\\"},{\\\"line\\\":2265,\\\"content\\\":\\\"pure: true\\\"},{\\\"line\\\":2266,\\\"content\\\":\\\"});`;\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyPipe_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":2269,\\\"content\\\":\\\"MyOtherPipe.ɵfac = function MyOtherPipe_Factory(t) { return new (t || MyOtherPipe)($r3$.ɵɵinjectPipeChangeDetectorRef(8)); };\\\",\\\"contextBefore\\\":[{\\\"line\\\":2261,\\\"content\\\":\\\"const MyOtherPipeDefinition = `\\\"},{\\\"line\\\":2262,\\\"content\\\":\\\"MyOtherPipe.ɵpipe = $r3$.ɵɵdefinePipe({\\\"},{\\\"line\\\":2263,\\\"content\\\":\\\"name: \\\\\\\"myOtherPipe\\\\\\\",\\\"},{\\\"line\\\":2264,\\\"content\\\":\\\"type: MyOtherPipe,\\\"},{\\\"line\\\":2265,\\\"content\\\":\\\"pure: true\\\"},{\\\"line\\\":2266,\\\"content\\\":\\\"});`;\\\"},{\\\"line\\\":2267,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2268,\\\"content\\\":\\\"const MyOtherPipeFactory = `\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":2270,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":2271,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2272,\\\"content\\\":\\\"const result = compile(files, angularFiles);\\\"},{\\\"line\\\":2273,\\\"content\\\":\\\"const source = result.source;\\\"},{\\\"line\\\":2274,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2275,\\\"content\\\":\\\"expectEmit(source, MyPipeDefinition, 'Invalid pipe definition');\\\"},{\\\"line\\\":2276,\\\"content\\\":\\\"expectEmit(source, MyPipeFactory, 'Invalid pipe factory function');\\\"},{\\\"line\\\":2277,\\\"content\\\":\\\"expectEmit(source, MyOtherPipeDefinition, 'Invalid alternate pipe definition');\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction MyOtherPipe_Factory(\\\",\\\"t || \\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":2665,\\\"content\\\":\\\"const ForDirectiveFactory = `ForOfDirective.ɵfac = function ForOfDirective_Factory(t) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":2657,\\\"content\\\":\\\"ForOfDirective.ɵdir = $r3$.ɵɵdefineDirective({\\\"},{\\\"line\\\":2658,\\\"content\\\":\\\"type: ForOfDirective,\\\"},{\\\"line\\\":2659,\\\"content\\\":\\\"selectors: [[\\\\\\\"\\\\\\\", \\\\\\\"forOf\\\\\\\", \\\\\\\"\\\\\\\"]],\\\"},{\\\"line\\\":2660,\\\"content\\\":\\\"features: [$r3$.ɵɵNgOnChangesFeature],\\\"},{\\\"line\\\":2661,\\\"content\\\":\\\"inputs: {forOf: \\\\\\\"forOf\\\\\\\"}\\\"},{\\\"line\\\":2662,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":2663,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":2664,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction ForOfDirective_Factory(\\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":2666,\\\"content\\\":\\\"return new (t || ForOfDirective)($r3$.ɵɵdirectiveInject(ViewContainerRef), $r3$.ɵɵdirectiveInject(TemplateRef));\\\",\\\"contextAfter\\\":[{\\\"line\\\":2667,\\\"content\\\":\\\"};`;\\\"},{\\\"line\\\":2668,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2669,\\\"content\\\":\\\"const MyComponentDefinition = `\\\"},{\\\"line\\\":2670,\\\"content\\\":\\\"function MyComponent__svg_g_1_Template(rf, ctx) {\\\"},{\\\"line\\\":2671,\\\"content\\\":\\\"if (rf & 1) {\\\"},{\\\"line\\\":2672,\\\"content\\\":\\\"$r3$.ɵɵnamespaceSVG();\\\"},{\\\"line\\\":2673,\\\"content\\\":\\\"$r3$.ɵɵelementStart(0,\\\\\\\"g\\\\\\\");\\\"},{\\\"line\\\":2674,\\\"content\\\":\\\"$r3$.ɵɵelement(1,\\\\\\\"circle\\\\\\\");\\\"}],\\\"matches\\\":[\\\"(t ||\\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":2746,\\\"content\\\":\\\"ForOfDirective.ɵfac = function ForOfDirective_Factory(t) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":2738,\\\"content\\\":\\\"type: ForOfDirective,\\\"},{\\\"line\\\":2739,\\\"content\\\":\\\"selectors: [[\\\\\\\"\\\\\\\", \\\\\\\"forOf\\\\\\\", \\\\\\\"\\\\\\\"]],\\\"},{\\\"line\\\":2740,\\\"content\\\":\\\"features: [$r3$.ɵɵNgOnChangesFeature],\\\"},{\\\"line\\\":2741,\\\"content\\\":\\\"inputs: {forOf: \\\\\\\"forOf\\\\\\\"}\\\"},{\\\"line\\\":2742,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":2743,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":2744,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2745,\\\"content\\\":\\\"const ForDirectiveFactory = `\\\"}],\\\"matches\\\":[\\\"ɵfac = \\\",\\\"unction ForOfDirective_Factory(\\\"]},{\\\"file\\\":\\\"compliance/r3_compiler_compliance_spec.ts\\\",\\\"line\\\":2747,\\\"content\\\":\\\"return new (t || ForOfDirective)($r3$.ɵɵdirectiveInject(ViewContainerRef), $r3$.ɵɵdirectiveInject(TemplateRef));\\\",\\\"contextAfter\\\":[{\\\"line\\\":2748,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":2749,\\\"content\\\":\\\"`;\\\"},{\\\"line\\\":2750,\\\"content\\\":\\\"\\\"},{\\\"line\\\":2751,\\\"content\\\":\\\"const MyComponentDefinition = `\\\"},{\\\"line\\\":2752,\\\"content\\\":\\\"function MyComponent_li_1_Template(rf, ctx) {\\\"},{\\\"line\\\":2753,\\\"content\\\":\\\"if (rf & 1) {\\\"},{\\\"line\\\":2754,\\\"content\\\":\\\"$r3$.ɵɵelementStart(0, \\\\\\\"li\\\\\\\");\\\"},{\\\"line\\\":2755,\\\"content\\\":\\\"$r3$.ɵɵtext(1);\\\"}],\\\"matches\\\":[\\\"(t ||\\\"]}]}\"}"
+> > > }
+> > > ```
+> > > 
+> > > 83. **Sub-agent event: tool_output**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_output",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "grep",
+> > >   "toolCallId": "call_y60rNwB2kc4UtVjOxCFQx8Ah|fc_032f22962d24028b016ab56e6074ac87d1a274c54711757a38",
+> > >   "isError": false,
+> > >   "output": "{\"status\":\"success\",\"message\":\"{\\\"success\\\":true,\\\"mode\\\":\\\"files\\\",\\\"files\\\":[{\\\"file\\\":\\\"incremental_spec.ts\\\",\\\"size\\\":16226,\\\"mtime\\\":1790275096973},{\\\"file\\\":\\\"env.ts\\\",\\\"size\\\":11767,\\\"mtime\\\":1790275096973},{\\\"file\\\":\\\"template_typecheck_spec.ts\\\",\\\"size\\\":61001,\\\"mtime\\\":1790275096975},{\\\"file\\\":\\\"ngtsc_spec.ts\\\",\\\"size\\\":227348,\\\"mtime\\\":1790275096974}],\\\"numFiles\\\":4,\\\"pagination\\\":{\\\"offset\\\":0,\\\"limit\\\":100,\\\"returned\\\":4,\\\"total\\\":4,\\\"hasMore\\\":false}}\"}"
+> > > }
+> > > ```
+> > > 
+> > > 84. **Sub-agent event: tool_output**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_output",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "grep",
+> > >   "toolCallId": "call_oWFYAEF2FVoF3DpkPW4qd7E5|fc_032f22962d24028b016ab56e6074b487d1b94809577efb3c25",
+> > >   "isError": false,
+> > >   "output": "{\"status\":\"success\",\"message\":\"{\\\"success\\\":true,\\\"matches\\\":[],\\\"pagination\\\":{\\\"offset\\\":0,\\\"limit\\\":200,\\\"returned\\\":0,\\\"total\\\":0,\\\"hasMore\\\":false},\\\"message\\\":\\\"No matches found for the given pattern\\\",\\\"mode\\\":\\\"content\\\",\\\"numFiles\\\":0,\\\"numLines\\\":0}\"}"
+> > > }
+> > > ```
+> > > 
+> > > 85. **Sub-agent event: token_usage**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "token_usage",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "tokenUsage": {
+> > >     "inputTokens": 16183,
+> > >     "outputTokens": 469,
+> > >     "totalTokens": 33643,
+> > >     "cost": {
+> > >       "total": 0.07114752
+> > >     }
+> > >   },
+> > >   "cumulativeTokenUsage": {
+> > >     "inputTokens": 23505,
+> > >     "outputTokens": 2444,
+> > >     "totalTokens": 118564,
+> > >     "cost": {
+> > >       "total": 0.13718400000000003
+> > >     }
+> > >   },
+> > >   "status": "running"
+> > > }
+> > > ```
+> > > 
+> > > 86. **Sub-agent event: tool_call**
+> > > worker-di-runtime
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_call",
+> > >   "subagentId": "worker-di-runtime",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-di-runtime",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "find_files",
+> > >   "toolCallId": "call_03bnsM5nw90IqZG6JF2lHExV|fc_045b4203620df0b4016ab56e6b613487d1bab9f4d972de707b",
+> > >   "input": {
+> > >     "globPatterns": [
+> > >       "**/packages/core/test/**/[dD][eE][fF][iI][nN][iI][tT][iI][oO][nN]_[sS][pP][eE][cC].[tT][sS]",
+> > >       "**/packages/core/test/di/**/*[sS][pP][eE][cC].[tT][sS]"
+> > >     ],
+> > >     "toolPurpose": "- I want to locate core definition and DI unit test files likely containing own-versus-inherited metadata expectations."
+> > >   },
+> > >   "toolIcon": "\n      \n      \n",
+> > >   "toolLabel": "Searching",
+> > >   "isPillTool": false,
+> > >   "toolPurpose": "- I want to locate core definition and DI unit test files likely containing own-versus-inherited metadata expectations."
+> > > }
+> > > ```
+> > > 
+> > > 87. **Sub-agent event: tool_call**
+> > > worker-di-runtime
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_call",
+> > >   "subagentId": "worker-di-runtime",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-di-runtime",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "grep",
+> > >   "toolCallId": "call_nqWHf7AgOy61JRaoeOr5QXyP|fc_045b4203620df0b4016ab56e6b614887d182d54ed0f0c6c003",
+> > >   "input": {
+> > >     "pattern": "NG_FACTORY_DEF|NG_PROV_DEF|ɵfac|ɵprov",
+> > >     "searchPath": "/",
+> > >     "caseInsensitive": false,
+> > >     "context": 6,
+> > >     "glob": [
+> > >       "packages/core/test/di/**/*.ts",
+> > >       "packages/core/test/render3/definition_spec.ts",
+> > >       "packages/core/test/render3/**/*spec.ts"
+> > >     ],
+> > >     "outputMode": "grouped",
+> > >     "headLimit": 800,
+> > >     "toolPurpose": "- I need to find exact tests that assign or inspect factory and injectable definition fields across inheritance."
+> > >   },
+> > >   "toolIcon": "\n      \n      \n",
+> > >   "toolLabel": "Searching",
+> > >   "isPillTool": false,
+> > >   "toolPurpose": "- I need to find exact tests that assign or inspect factory and injectable definition fields across inheritance."
+> > > }
+> > > ```
+> > > 
+> > > 88. **Sub-agent event: tool_call**
+> > > worker-di-runtime
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_call",
+> > >   "subagentId": "worker-di-runtime",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-di-runtime",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "run_terminal_command",
+> > >   "toolCallId": "call_qJnhvMGxYxqg1kftsgoRPPoR|fc_045b4203620df0b4016ab56e6b615087d18f2bb990cc73044a",
+> > >   "input": {
+> > >     "commands": [
+> > >       {
+> > >         "command": "git grep -n -E \"hasOwnProperty\\(|inherited (injectable|definition|factory)|inherit.*(ɵprov|ɵfac)|own (ɵprov|ɵfac|definition|factory)|get.*Def\" -- packages/core/test/di packages/core/test/render3 | head -500",
+> > >         "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/angular__angular-37561",
+> > >         "profileName": "bash",
+> > >         "readTerminalFullOutput": true,
+> > >         "timeoutMs": 30000,
+> > >         "isInteractive": false
+> > >       }
+> > >     ],
+> > >     "toolPurpose": "- I want to identify exact test descriptions asserting whether DI definitions and factories must be owned or inherited; RTK was unavailable, so I am using the direct command retry."
+> > >   },
+> > >   "toolIcon": "",
+> > >   "toolLabel": "Executing Command",
+> > >   "isPillTool": false,
+> > >   "toolPurpose": "- I want to identify exact test descriptions asserting whether DI definitions and factories must be owned or inherited; RTK was unavailable, so I am using the direct command retry."
+> > > }
+> > > ```
+> > > 
+> > > 89. **Sub-agent event: tool_output**
+> > > worker-di-runtime
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_output",
+> > >   "subagentId": "worker-di-runtime",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-di-runtime",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "grep",
+> > >   "toolCallId": "call_nqWHf7AgOy61JRaoeOr5QXyP|fc_045b4203620df0b4016ab56e6b614887d182d54ed0f0c6c003",
+> > >   "isError": false,
+> > >   "output": "{\"status\":\"success\",\"message\":\"{\\\"success\\\":true,\\\"mode\\\":\\\"content\\\",\\\"numFiles\\\":14,\\\"numLines\\\":132,\\\"pagination\\\":{\\\"offset\\\":0,\\\"limit\\\":800,\\\"returned\\\":132,\\\"total\\\":132,\\\"hasMore\\\":false},\\\"matchesByFile\\\":{\\\"packages/core/test/render3/component_ref_spec.ts\\\":[{\\\"file\\\":\\\"packages/core/test/render3/component_ref_spec.ts\\\",\\\"line\\\":23,\\\"content\\\":\\\"static ɵfac = () => new TestComponent();\\\",\\\"contextBefore\\\":[{\\\"line\\\":17,\\\"content\\\":\\\"describe('ComponentFactory', () => {\\\"},{\\\"line\\\":18,\\\"content\\\":\\\"const cfr = injectComponentFactoryResolver();\\\"},{\\\"line\\\":19,\\\"content\\\":\\\"\\\"},{\\\"line\\\":20,\\\"content\\\":\\\"describe('constructor()', () => {\\\"},{\\\"line\\\":21,\\\"content\\\":\\\"it('should correctly populate default properties', () => {\\\"},{\\\"line\\\":22,\\\"content\\\":\\\"class TestComponent {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":24,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":25,\\\"content\\\":\\\"type: TestComponent,\\\"},{\\\"line\\\":26,\\\"content\\\":\\\"selectors: [['test', 'foo', ''], ['bar']],\\\"},{\\\"line\\\":27,\\\"content\\\":\\\"decls: 0,\\\"},{\\\"line\\\":28,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":29,\\\"content\\\":\\\"template: () => undefined,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/component_ref_spec.ts\\\",\\\"line\\\":44,\\\"content\\\":\\\"static ɵfac = () => new TestComponent();\\\",\\\"contextBefore\\\":[{\\\"line\\\":38,\\\"content\\\":\\\"expect(cf.inputs).toEqual([]);\\\"},{\\\"line\\\":39,\\\"content\\\":\\\"expect(cf.outputs).toEqual([]);\\\"},{\\\"line\\\":40,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":41,\\\"content\\\":\\\"\\\"},{\\\"line\\\":42,\\\"content\\\":\\\"it('should correctly populate defined properties', () => {\\\"},{\\\"line\\\":43,\\\"content\\\":\\\"class TestComponent {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":45,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":46,\\\"content\\\":\\\"type: TestComponent,\\\"},{\\\"line\\\":47,\\\"content\\\":\\\"encapsulation: ViewEncapsulation.None,\\\"},{\\\"line\\\":48,\\\"content\\\":\\\"selectors: [['test', 'foo', ''], ['bar']],\\\"},{\\\"line\\\":49,\\\"content\\\":\\\"decls: 0,\\\"},{\\\"line\\\":50,\\\"content\\\":\\\"vars: 0,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/component_ref_spec.ts\\\",\\\"line\\\":92,\\\"content\\\":\\\"static ɵfac = () => new TestComponent();\\\",\\\"contextBefore\\\":[{\\\"line\\\":86,\\\"content\\\":\\\"beforeEach(() => {\\\"},{\\\"line\\\":87,\\\"content\\\":\\\"createRenderer2Spy =\\\"},{\\\"line\\\":88,\\\"content\\\":\\\"jasmine.createSpy('RendererFactory2#createRenderer').and.returnValue(document),\\\"},{\\\"line\\\":89,\\\"content\\\":\\\"createRenderer3Spy = spyOn(domRendererFactory3, 'createRenderer').and.callThrough();\\\"},{\\\"line\\\":90,\\\"content\\\":\\\"\\\"},{\\\"line\\\":91,\\\"content\\\":\\\"class TestComponent {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":93,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":94,\\\"content\\\":\\\"type: TestComponent,\\\"},{\\\"line\\\":95,\\\"content\\\":\\\"encapsulation: ViewEncapsulation.None,\\\"},{\\\"line\\\":96,\\\"content\\\":\\\"selectors: [['test']],\\\"},{\\\"line\\\":97,\\\"content\\\":\\\"decls: 0,\\\"},{\\\"line\\\":98,\\\"content\\\":\\\"vars: 0,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]}],\\\"packages/core/test/render3/di_spec.ts\\\":[{\\\"file\\\":\\\"packages/core/test/render3/di_spec.ts\\\",\\\"line\\\":30,\\\"content\\\":\\\"static ɵfac = () => new DirB();\\\",\\\"contextBefore\\\":[{\\\"line\\\":24,\\\"content\\\":\\\"\\\"},{\\\"line\\\":25,\\\"content\\\":\\\"describe('di', () => {\\\"},{\\\"line\\\":26,\\\"content\\\":\\\"describe('directive injection', () => {\\\"},{\\\"line\\\":27,\\\"content\\\":\\\"class DirB {\\\"},{\\\"line\\\":28,\\\"content\\\":\\\"value = 'DirB';\\\"},{\\\"line\\\":29,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":31,\\\"content\\\":\\\"static ɵdir =\\\"},{\\\"line\\\":32,\\\"content\\\":\\\"ɵɵdefineDirective({selectors: [['', 'dirB', '']], type: DirB, inputs: {value: 'value'}});\\\"},{\\\"line\\\":33,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":34,\\\"content\\\":\\\"\\\"},{\\\"line\\\":35,\\\"content\\\":\\\"describe('flags', () => {\\\"},{\\\"line\\\":36,\\\"content\\\":\\\"class DirB {\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/di_spec.ts\\\",\\\"line\\\":40,\\\"content\\\":\\\"static ɵfac = () => new DirB();\\\",\\\"contextBefore\\\":[{\\\"line\\\":34,\\\"content\\\":\\\"\\\"},{\\\"line\\\":35,\\\"content\\\":\\\"describe('flags', () => {\\\"},{\\\"line\\\":36,\\\"content\\\":\\\"class DirB {\\\"},{\\\"line\\\":37,\\\"content\\\":\\\"// TODO(issue/24571): remove '!'.\\\"},{\\\"line\\\":38,\\\"content\\\":\\\"value!: string;\\\"},{\\\"line\\\":39,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":41,\\\"content\\\":\\\"static ɵdir =\\\"},{\\\"line\\\":42,\\\"content\\\":\\\"ɵɵdefineDirective({type: DirB, selectors: [['', 'dirB', '']], inputs: {value: 'dirB'}});\\\"},{\\\"line\\\":43,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":44,\\\"content\\\":\\\"\\\"},{\\\"line\\\":45,\\\"content\\\":\\\"describe('Optional', () => {\\\"},{\\\"line\\\":46,\\\"content\\\":\\\"let dirA: DirA|null = null;\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/di_spec.ts\\\",\\\"line\\\":51,\\\"content\\\":\\\"static ɵfac =\\\",\\\"contextBefore\\\":[{\\\"line\\\":45,\\\"content\\\":\\\"describe('Optional', () => {\\\"},{\\\"line\\\":46,\\\"content\\\":\\\"let dirA: DirA|null = null;\\\"},{\\\"line\\\":47,\\\"content\\\":\\\"\\\"},{\\\"line\\\":48,\\\"content\\\":\\\"class DirA {\\\"},{\\\"line\\\":49,\\\"content\\\":\\\"constructor(@Optional() public dirB: DirB|null) {}\\\"},{\\\"line\\\":50,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":52,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":53,\\\"content\\\":\\\"dirA = new DirA(ɵɵdirectiveInject(DirB, InjectFlags.Optional));\\\"},{\\\"line\\\":54,\\\"content\\\":\\\"return dirA;\\\"},{\\\"line\\\":55,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":56,\\\"content\\\":\\\"\\\"},{\\\"line\\\":57,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({type: DirA, selectors: [['', 'dirA', '']]});\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/di_spec.ts\\\",\\\"line\\\":83,\\\"content\\\":\\\"static ɵfac = () => dirA = new DirA(ɵɵdirectiveInject(DirB, InjectFlags.Self));\\\",\\\"contextBefore\\\":[{\\\"line\\\":77,\\\"content\\\":\\\"it('should check only the current node with @Self even with false positive', () => {\\\"},{\\\"line\\\":78,\\\"content\\\":\\\"let dirA: DirA;\\\"},{\\\"line\\\":79,\\\"content\\\":\\\"\\\"},{\\\"line\\\":80,\\\"content\\\":\\\"class DirA {\\\"},{\\\"line\\\":81,\\\"content\\\":\\\"constructor(@Self() public dirB: DirB) {}\\\"},{\\\"line\\\":82,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":84,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({type: DirA, selectors: [['', 'dirA', '']]});\\\"},{\\\"line\\\":85,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":86,\\\"content\\\":\\\"\\\"},{\\\"line\\\":87,\\\"content\\\":\\\"const DirC = createDirective('dirC');\\\"},{\\\"line\\\":88,\\\"content\\\":\\\"\\\"},{\\\"line\\\":89,\\\"content\\\":\\\"/**\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/di_spec.ts\\\",\\\"line\\\":119,\\\"content\\\":\\\"static ɵfac = () => new MyComp(ɵɵdirectiveInject(Renderer2 as any));\\\",\\\"contextBefore\\\":[{\\\"line\\\":113,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":114,\\\"content\\\":\\\"\\\"},{\\\"line\\\":115,\\\"content\\\":\\\"describe('Renderer2', () => {\\\"},{\\\"line\\\":116,\\\"content\\\":\\\"class MyComp {\\\"},{\\\"line\\\":117,\\\"content\\\":\\\"constructor(public renderer: Renderer2) {}\\\"},{\\\"line\\\":118,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":120,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":121,\\\"content\\\":\\\"type: MyComp,\\\"},{\\\"line\\\":122,\\\"content\\\":\\\"selectors: [['my-comp']],\\\"},{\\\"line\\\":123,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":124,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":125,\\\"content\\\":\\\"template:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]}],\\\"packages/core/test/render3/query_spec.ts\\\":[{\\\"file\\\":\\\"packages/core/test/render3/query_spec.ts\\\",\\\"line\\\":220,\\\"content\\\":\\\"static ɵfac = function MyDirective_Factory() {\\\",\\\"contextBefore\\\":[{\\\"line\\\":214,\\\"content\\\":\\\"\\\"},{\\\"line\\\":215,\\\"content\\\":\\\"let directive: MyDirective|null = null;\\\"},{\\\"line\\\":216,\\\"content\\\":\\\"\\\"},{\\\"line\\\":217,\\\"content\\\":\\\"class MyDirective {\\\"},{\\\"line\\\":218,\\\"content\\\":\\\"constructor(public service: Service) {}\\\"},{\\\"line\\\":219,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":221,\\\"content\\\":\\\"return directive = new MyDirective(ɵɵdirectiveInject(Service));\\\"},{\\\"line\\\":222,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":223,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({\\\"},{\\\"line\\\":224,\\\"content\\\":\\\"type: MyDirective,\\\"},{\\\"line\\\":225,\\\"content\\\":\\\"selectors: [['', 'myDir', '']],\\\"},{\\\"line\\\":226,\\\"content\\\":\\\"features: [ɵɵProvidersFeature([Service, {provide: Alias, useExisting: Service}])],\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/query_spec.ts\\\",\\\"line\\\":247,\\\"content\\\":\\\"static ɵfac = function App_Factory() {\\\",\\\"contextBefore\\\":[{\\\"line\\\":241,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":242,\\\"content\\\":\\\"class App {\\\"},{\\\"line\\\":243,\\\"content\\\":\\\"directive?: MyDirective;\\\"},{\\\"line\\\":244,\\\"content\\\":\\\"service?: Service;\\\"},{\\\"line\\\":245,\\\"content\\\":\\\"alias?: Alias;\\\"},{\\\"line\\\":246,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":248,\\\"content\\\":\\\"return new App();\\\"},{\\\"line\\\":249,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":250,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":251,\\\"content\\\":\\\"type: App,\\\"},{\\\"line\\\":252,\\\"content\\\":\\\"selectors: [['app']],\\\"},{\\\"line\\\":253,\\\"content\\\":\\\"decls: 1,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/query_spec.ts\\\",\\\"line\\\":298,\\\"content\\\":\\\"static ɵfac = function App_Factory() {\\\",\\\"contextBefore\\\":[{\\\"line\\\":292,\\\"content\\\":\\\"*  @ViewChild(MyDirective, {read: Alias}}) service: Service;\\\"},{\\\"line\\\":293,\\\"content\\\":\\\"* }\\\"},{\\\"line\\\":294,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":295,\\\"content\\\":\\\"class App {\\\"},{\\\"line\\\":296,\\\"content\\\":\\\"service?: Service;\\\"},{\\\"line\\\":297,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":299,\\\"content\\\":\\\"return new App();\\\"},{\\\"line\\\":300,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":301,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":302,\\\"content\\\":\\\"type: App,\\\"},{\\\"line\\\":303,\\\"content\\\":\\\"selectors: [['app']],\\\"},{\\\"line\\\":304,\\\"content\\\":\\\"decls: 1,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/query_spec.ts\\\",\\\"line\\\":785,\\\"content\\\":\\\"static ɵfac = () => childInstance = new Child();\\\",\\\"contextBefore\\\":[{\\\"line\\\":779,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":780,\\\"content\\\":\\\"\\\"},{\\\"line\\\":781,\\\"content\\\":\\\"it('should read component instance with explicit exportAs', () => {\\\"},{\\\"line\\\":782,\\\"content\\\":\\\"let childInstance: Child;\\\"},{\\\"line\\\":783,\\\"content\\\":\\\"\\\"},{\\\"line\\\":784,\\\"content\\\":\\\"class Child {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":786,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":787,\\\"content\\\":\\\"type: Child,\\\"},{\\\"line\\\":788,\\\"content\\\":\\\"selectors: [['child']],\\\"},{\\\"line\\\":789,\\\"content\\\":\\\"decls: 0,\\\"},{\\\"line\\\":790,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":791,\\\"content\\\":\\\"template: (rf: RenderFlags, ctx: Child) => {},\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/query_spec.ts\\\",\\\"line\\\":1306,\\\"content\\\":\\\"static ɵfac = () => new SomeDir(\\\",\\\"contextBefore\\\":[{\\\"line\\\":1300,\\\"content\\\":\\\"it('should restore queries if view changes', () => {\\\"},{\\\"line\\\":1301,\\\"content\\\":\\\"class SomeDir {\\\"},{\\\"line\\\":1302,\\\"content\\\":\\\"constructor(public vcr: ViewContainerRef, public temp: TemplateRef) {\\\"},{\\\"line\\\":1303,\\\"content\\\":\\\"this.vcr.createEmbeddedView(this.temp);\\\"},{\\\"line\\\":1304,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1305,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1307,\\\"content\\\":\\\"ɵɵdirectiveInject(ViewContainerRef as any), ɵɵdirectiveInject(TemplateRef as any))\\\"},{\\\"line\\\":1308,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1309,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({\\\"},{\\\"line\\\":1310,\\\"content\\\":\\\"type: SomeDir,\\\"},{\\\"line\\\":1311,\\\"content\\\":\\\"selectors: [['', 'someDir', '']],\\\"},{\\\"line\\\":1312,\\\"content\\\":\\\"});\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/query_spec.ts\\\",\\\"line\\\":1371,\\\"content\\\":\\\"static ɵfac = () => withContentInstance = new WithContentDirective();\\\",\\\"contextBefore\\\":[{\\\"line\\\":1365,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1366,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1367,\\\"content\\\":\\\"ngAfterContentChecked() {\\\"},{\\\"line\\\":1368,\\\"content\\\":\\\"this.contentCheckedQuerySnapshot = this.foos ? this.foos.length : 0;\\\"},{\\\"line\\\":1369,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1370,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1372,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({\\\"},{\\\"line\\\":1373,\\\"content\\\":\\\"type: WithContentDirective,\\\"},{\\\"line\\\":1374,\\\"content\\\":\\\"selectors: [['', 'with-content', '']],\\\"},{\\\"line\\\":1375,\\\"content\\\":\\\"contentQueries:\\\"},{\\\"line\\\":1376,\\\"content\\\":\\\"(rf: RenderFlags, ctx: any, dirIndex: number) => {\\\"},{\\\"line\\\":1377,\\\"content\\\":\\\"if (rf & RenderFlags.Create) {\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/query_spec.ts\\\",\\\"line\\\":1525,\\\"content\\\":\\\"static ɵfac = () => new QueryDirective();\\\",\\\"contextBefore\\\":[{\\\"line\\\":1519,\\\"content\\\":\\\"expect(withContentInstance!.foos.first.nativeElement.id).toEqual('yes');\\\"},{\\\"line\\\":1520,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1521,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1522,\\\"content\\\":\\\"it('should report results to appropriate queries where deep content queries are nested', () => {\\\"},{\\\"line\\\":1523,\\\"content\\\":\\\"class QueryDirective {\\\"},{\\\"line\\\":1524,\\\"content\\\":\\\"fooBars: any;\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1526,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({\\\"},{\\\"line\\\":1527,\\\"content\\\":\\\"type: QueryDirective,\\\"},{\\\"line\\\":1528,\\\"content\\\":\\\"selectors: [['', 'query', '']],\\\"},{\\\"line\\\":1529,\\\"content\\\":\\\"exportAs: ['query'],\\\"},{\\\"line\\\":1530,\\\"content\\\":\\\"contentQueries:\\\"},{\\\"line\\\":1531,\\\"content\\\":\\\"(rf: RenderFlags, ctx: any, dirIndex: number) => {\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/query_spec.ts\\\",\\\"line\\\":1594,\\\"content\\\":\\\"static ɵfac = () => new QueryDirective();\\\",\\\"contextBefore\\\":[{\\\"line\\\":1588,\\\"content\\\":\\\"it('should support nested shallow content queries ', () => {\\\"},{\\\"line\\\":1589,\\\"content\\\":\\\"let outInstance: QueryDirective;\\\"},{\\\"line\\\":1590,\\\"content\\\":\\\"let inInstance: QueryDirective;\\\"},{\\\"line\\\":1591,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1592,\\\"content\\\":\\\"class QueryDirective {\\\"},{\\\"line\\\":1593,\\\"content\\\":\\\"fooBars: any;\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1595,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({\\\"},{\\\"line\\\":1596,\\\"content\\\":\\\"type: QueryDirective,\\\"},{\\\"line\\\":1597,\\\"content\\\":\\\"selectors: [['', 'query', '']],\\\"},{\\\"line\\\":1598,\\\"content\\\":\\\"exportAs: ['query'],\\\"},{\\\"line\\\":1599,\\\"content\\\":\\\"contentQueries:\\\"},{\\\"line\\\":1600,\\\"content\\\":\\\"(rf: RenderFlags, ctx: any, dirIndex: number) => {\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/query_spec.ts\\\",\\\"line\\\":1654,\\\"content\\\":\\\"static ɵfac = () => new QueryDirective();\\\",\\\"contextBefore\\\":[{\\\"line\\\":1648,\\\"content\\\":\\\"it('should support nested shallow content queries across multiple component instances', () => {\\\"},{\\\"line\\\":1649,\\\"content\\\":\\\"let outInstance: QueryDirective;\\\"},{\\\"line\\\":1650,\\\"content\\\":\\\"let inInstance: QueryDirective;\\\"},{\\\"line\\\":1651,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1652,\\\"content\\\":\\\"class QueryDirective {\\\"},{\\\"line\\\":1653,\\\"content\\\":\\\"fooBars: any;\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1655,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({\\\"},{\\\"line\\\":1656,\\\"content\\\":\\\"type: QueryDirective,\\\"},{\\\"line\\\":1657,\\\"content\\\":\\\"selectors: [['', 'query', '']],\\\"},{\\\"line\\\":1658,\\\"content\\\":\\\"exportAs: ['query'],\\\"},{\\\"line\\\":1659,\\\"content\\\":\\\"contentQueries:\\\"},{\\\"line\\\":1660,\\\"content\\\":\\\"(rf: RenderFlags, ctx: any, dirIndex: number) => {\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/query_spec.ts\\\",\\\"line\\\":1718,\\\"content\\\":\\\"static ɵfac = () => new ShallowQueryDirective();\\\",\\\"contextBefore\\\":[{\\\"line\\\":1712,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1713,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1714,\\\"content\\\":\\\"it('should respect shallow flag on content queries when mixing deep and shallow queries',\\\"},{\\\"line\\\":1715,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":1716,\\\"content\\\":\\\"class ShallowQueryDirective {\\\"},{\\\"line\\\":1717,\\\"content\\\":\\\"foos: any;\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1719,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({\\\"},{\\\"line\\\":1720,\\\"content\\\":\\\"type: ShallowQueryDirective,\\\"},{\\\"line\\\":1721,\\\"content\\\":\\\"selectors: [['', 'shallow-query', '']],\\\"},{\\\"line\\\":1722,\\\"content\\\":\\\"exportAs: ['shallow-query'],\\\"},{\\\"line\\\":1723,\\\"content\\\":\\\"contentQueries:\\\"},{\\\"line\\\":1724,\\\"content\\\":\\\"(rf: RenderFlags, ctx: any, dirIndex: number) => {\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/query_spec.ts\\\",\\\"line\\\":1740,\\\"content\\\":\\\"static ɵfac = () => new DeepQueryDirective();\\\",\\\"contextBefore\\\":[{\\\"line\\\":1734,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1735,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1736,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1737,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1738,\\\"content\\\":\\\"class DeepQueryDirective {\\\"},{\\\"line\\\":1739,\\\"content\\\":\\\"foos: any;\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1741,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({\\\"},{\\\"line\\\":1742,\\\"content\\\":\\\"type: DeepQueryDirective,\\\"},{\\\"line\\\":1743,\\\"content\\\":\\\"selectors: [['', 'deep-query', '']],\\\"},{\\\"line\\\":1744,\\\"content\\\":\\\"exportAs: ['deep-query'],\\\"},{\\\"line\\\":1745,\\\"content\\\":\\\"contentQueries:\\\"},{\\\"line\\\":1746,\\\"content\\\":\\\"(rf: RenderFlags, ctx: any, dirIndex: number) => {\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/query_spec.ts\\\",\\\"line\\\":1805,\\\"content\\\":\\\"static ɵfac = () => new TextDirective();\\\",\\\"contextBefore\\\":[{\\\"line\\\":1799,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1800,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1801,\\\"content\\\":\\\"describe('order', () => {\\\"},{\\\"line\\\":1802,\\\"content\\\":\\\"class TextDirective {\\\"},{\\\"line\\\":1803,\\\"content\\\":\\\"value!: string;\\\"},{\\\"line\\\":1804,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1806,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective(\\\"},{\\\"line\\\":1807,\\\"content\\\":\\\"{type: TextDirective, selectors: [['', 'text', '']], inputs: {value: 'text'}});\\\"},{\\\"line\\\":1808,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1809,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1810,\\\"content\\\":\\\"it('should register content matches from top to bottom', () => {\\\"},{\\\"line\\\":1811,\\\"content\\\":\\\"let contentQueryDirective: ContentQueryDirective;\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/query_spec.ts\\\",\\\"line\\\":1817,\\\"content\\\":\\\"static ɵfac = () => contentQueryDirective = new ContentQueryDirective();\\\",\\\"contextBefore\\\":[{\\\"line\\\":1811,\\\"content\\\":\\\"let contentQueryDirective: ContentQueryDirective;\\\"},{\\\"line\\\":1812,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1813,\\\"content\\\":\\\"class ContentQueryDirective {\\\"},{\\\"line\\\":1814,\\\"content\\\":\\\"// @ContentChildren(TextDirective)\\\"},{\\\"line\\\":1815,\\\"content\\\":\\\"texts!: QueryList;\\\"},{\\\"line\\\":1816,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1818,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineDirective({\\\"},{\\\"line\\\":1819,\\\"content\\\":\\\"type: ContentQueryDirective,\\\"},{\\\"line\\\":1820,\\\"content\\\":\\\"selectors: [['', 'content-query', '']],\\\"},{\\\"line\\\":1821,\\\"content\\\":\\\"contentQueries:\\\"},{\\\"line\\\":1822,\\\"content\\\":\\\"(rf: RenderFlags, ctx: any, dirIndex: number) => {\\\"},{\\\"line\\\":1823,\\\"content\\\":\\\"// @ContentChildren(TextDirective, {descendants: true})\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/query_spec.ts\\\",\\\"line\\\":1889,\\\"content\\\":\\\"static ɵfac = () => new ViewQueryComponent();\\\",\\\"contextBefore\\\":[{\\\"line\\\":1883,\\\"content\\\":\\\"*    \\\"},{\\\"line\\\":1884,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":1885,\\\"content\\\":\\\"class ViewQueryComponent {\\\"},{\\\"line\\\":1886,\\\"content\\\":\\\"// @ViewChildren(TextDirective)\\\"},{\\\"line\\\":1887,\\\"content\\\":\\\"texts!: QueryList;\\\"},{\\\"line\\\":1888,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1890,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":1891,\\\"content\\\":\\\"type: ViewQueryComponent,\\\"},{\\\"line\\\":1892,\\\"content\\\":\\\"selectors: [['view-query']],\\\"},{\\\"line\\\":1893,\\\"content\\\":\\\"consts: [['text', 'A'], ['text', 'B'], ['text', 'C'], ['text', 'D'], ['text', 'E']],\\\"},{\\\"line\\\":1894,\\\"content\\\":\\\"template:\\\"},{\\\"line\\\":1895,\\\"content\\\":\\\"function(rf: RenderFlags, ctx: ViewQueryComponent) {\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]}],\\\"packages/core/test/render3/renderer_factory_spec.ts\\\":[{\\\"file\\\":\\\"packages/core/test/render3/renderer_factory_spec.ts\\\",\\\"line\\\":29,\\\"content\\\":\\\"static ɵfac = () => new SomeComponent;\\\",\\\"contextBefore\\\":[{\\\"line\\\":23,\\\"content\\\":\\\"return createRender.apply(rendererFactory, [hostElement, type]);\\\"},{\\\"line\\\":24,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":25,\\\"content\\\":\\\"rendererFactory.begin = () => logs.push('begin');\\\"},{\\\"line\\\":26,\\\"content\\\":\\\"rendererFactory.end = () => logs.push('end');\\\"},{\\\"line\\\":27,\\\"content\\\":\\\"\\\"},{\\\"line\\\":28,\\\"content\\\":\\\"class SomeComponent {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":30,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":31,\\\"content\\\":\\\"type: SomeComponent,\\\"},{\\\"line\\\":32,\\\"content\\\":\\\"encapsulation: ViewEncapsulation.None,\\\"},{\\\"line\\\":33,\\\"content\\\":\\\"selectors: [['some-component']],\\\"},{\\\"line\\\":34,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":35,\\\"content\\\":\\\"vars: 0,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/renderer_factory_spec.ts\\\",\\\"line\\\":50,\\\"content\\\":\\\"static ɵfac = () => new SomeComponentWhichThrows;\\\",\\\"contextBefore\\\":[{\\\"line\\\":44,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":45,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":46,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":47,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":48,\\\"content\\\":\\\"\\\"},{\\\"line\\\":49,\\\"content\\\":\\\"class SomeComponentWhichThrows {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":51,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":52,\\\"content\\\":\\\"type: SomeComponentWhichThrows,\\\"},{\\\"line\\\":53,\\\"content\\\":\\\"encapsulation: ViewEncapsulation.None,\\\"},{\\\"line\\\":54,\\\"content\\\":\\\"selectors: [['some-component-with-Error']],\\\"},{\\\"line\\\":55,\\\"content\\\":\\\"decls: 0,\\\"},{\\\"line\\\":56,\\\"content\\\":\\\"vars: 0,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]}],\\\"packages/core/test/render3/view_container_ref_spec.ts\\\":[{\\\"file\\\":\\\"packages/core/test/render3/view_container_ref_spec.ts\\\",\\\"line\\\":32,\\\"content\\\":\\\"static ɵfac = () => directiveInstance = new DirectiveWithVCRef(\\\",\\\"contextBefore\\\":[{\\\"line\\\":26,\\\"content\\\":\\\"describe('ViewContainerRef', () => {\\\"},{\\\"line\\\":27,\\\"content\\\":\\\"let directiveInstance: DirectiveWithVCRef|null;\\\"},{\\\"line\\\":28,\\\"content\\\":\\\"\\\"},{\\\"line\\\":29,\\\"content\\\":\\\"beforeEach(() => directiveInstance = null);\\\"},{\\\"line\\\":30,\\\"content\\\":\\\"\\\"},{\\\"line\\\":31,\\\"content\\\":\\\"class DirectiveWithVCRef {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":33,\\\"content\\\":\\\"ɵɵdirectiveInject(ViewContainerRef as any), injectComponentFactoryResolver())\\\"},{\\\"line\\\":34,\\\"content\\\":\\\"\\\"},{\\\"line\\\":35,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({\\\"},{\\\"line\\\":36,\\\"content\\\":\\\"type: DirectiveWithVCRef,\\\"},{\\\"line\\\":37,\\\"content\\\":\\\"selectors: [['', 'vcref', '']],\\\"},{\\\"line\\\":38,\\\"content\\\":\\\"inputs: {tplRef: 'tplRef', name: 'name'}\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/view_container_ref_spec.ts\\\",\\\"line\\\":58,\\\"content\\\":\\\"static ɵfac =\\\",\\\"contextBefore\\\":[{\\\"line\\\":52,\\\"content\\\":\\\"describe('createEmbeddedView (incl. insert)', () => {\\\"},{\\\"line\\\":53,\\\"content\\\":\\\"it('should add embedded views at the right position in the DOM tree (ng-template next to other ng-template)',\\\"},{\\\"line\\\":54,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":55,\\\"content\\\":\\\"let directiveInstances: TestDirective[] = [];\\\"},{\\\"line\\\":56,\\\"content\\\":\\\"\\\"},{\\\"line\\\":57,\\\"content\\\":\\\"class TestDirective {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":59,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":60,\\\"content\\\":\\\"const instance = new TestDirective(\\\"},{\\\"line\\\":61,\\\"content\\\":\\\"ɵɵdirectiveInject(ViewContainerRef as any),\\\"},{\\\"line\\\":62,\\\"content\\\":\\\"ɵɵdirectiveInject(TemplateRef as any));\\\"},{\\\"line\\\":63,\\\"content\\\":\\\"\\\"},{\\\"line\\\":64,\\\"content\\\":\\\"directiveInstances.push(instance);\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/view_container_ref_spec.ts\\\",\\\"line\\\":106,\\\"content\\\":\\\"static ɵfac = () => new TestComponent();\\\",\\\"contextBefore\\\":[{\\\"line\\\":100,\\\"content\\\":\\\"* B\\\"},{\\\"line\\\":101,\\\"content\\\":\\\"* |after\\\"},{\\\"line\\\":102,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":103,\\\"content\\\":\\\"class TestComponent {\\\"},{\\\"line\\\":104,\\\"content\\\":\\\"// TODO(issue/24571): remove '!'.\\\"},{\\\"line\\\":105,\\\"content\\\":\\\"testDir!: TestDirective;\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":107,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":108,\\\"content\\\":\\\"type: TestComponent,\\\"},{\\\"line\\\":109,\\\"content\\\":\\\"encapsulation: ViewEncapsulation.None,\\\"},{\\\"line\\\":110,\\\"content\\\":\\\"selectors: [['test-cmp']],\\\"},{\\\"line\\\":111,\\\"content\\\":\\\"decls: 4,\\\"},{\\\"line\\\":112,\\\"content\\\":\\\"vars: 0,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/view_container_ref_spec.ts\\\",\\\"line\\\":147,\\\"content\\\":\\\"static ɵfac =\\\",\\\"contextBefore\\\":[{\\\"line\\\":141,\\\"content\\\":\\\"describe('ComponentRef', () => {\\\"},{\\\"line\\\":142,\\\"content\\\":\\\"let dynamicComp!: DynamicComp;\\\"},{\\\"line\\\":143,\\\"content\\\":\\\"\\\"},{\\\"line\\\":144,\\\"content\\\":\\\"class AppComp {\\\"},{\\\"line\\\":145,\\\"content\\\":\\\"constructor(public vcr: ViewContainerRef, public cfr: ComponentFactoryResolver) {}\\\"},{\\\"line\\\":146,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":148,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":149,\\\"content\\\":\\\"return new AppComp(\\\"},{\\\"line\\\":150,\\\"content\\\":\\\"ɵɵdirectiveInject(ViewContainerRef as any), injectComponentFactoryResolver());\\\"},{\\\"line\\\":151,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":152,\\\"content\\\":\\\"\\\"},{\\\"line\\\":153,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/view_container_ref_spec.ts\\\",\\\"line\\\":169,\\\"content\\\":\\\"static ɵfac = () => dynamicComp = new DynamicComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":163,\\\"content\\\":\\\"doCheckCount = 0;\\\"},{\\\"line\\\":164,\\\"content\\\":\\\"\\\"},{\\\"line\\\":165,\\\"content\\\":\\\"ngDoCheck() {\\\"},{\\\"line\\\":166,\\\"content\\\":\\\"this.doCheckCount++;\\\"},{\\\"line\\\":167,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":168,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":170,\\\"content\\\":\\\"\\\"},{\\\"line\\\":171,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":172,\\\"content\\\":\\\"type: DynamicComp,\\\"},{\\\"line\\\":173,\\\"content\\\":\\\"selectors: [['dynamic-comp']],\\\"},{\\\"line\\\":174,\\\"content\\\":\\\"decls: 0,\\\"},{\\\"line\\\":175,\\\"content\\\":\\\"vars: 0,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/view_container_ref_spec.ts\\\",\\\"line\\\":273,\\\"content\\\":\\\"static ɵfac = () =>\\\",\\\"contextBefore\\\":[{\\\"line\\\":267,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":268,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":269,\\\"content\\\":\\\"\\\"},{\\\"line\\\":270,\\\"content\\\":\\\"describe('view engine compatibility', () => {\\\"},{\\\"line\\\":271,\\\"content\\\":\\\"@Component({selector: 'app', template: ''})\\\"},{\\\"line\\\":272,\\\"content\\\":\\\"class AppCmpt {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":274,\\\"content\\\":\\\"new AppCmpt(ɵɵdirectiveInject(ViewContainerRef as any), injectComponentFactoryResolver())\\\"},{\\\"line\\\":275,\\\"content\\\":\\\"\\\"},{\\\"line\\\":276,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":277,\\\"content\\\":\\\"type: AppCmpt,\\\"},{\\\"line\\\":278,\\\"content\\\":\\\"selectors: [['app']],\\\"},{\\\"line\\\":279,\\\"content\\\":\\\"decls: 0,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/view_container_ref_spec.ts\\\",\\\"line\\\":346,\\\"content\\\":\\\"static ɵfac = () => dynamicComp = new DynamicCompWithViewQueries();\\\",\\\"contextBefore\\\":[{\\\"line\\\":340,\\\"content\\\":\\\"let fooEl!: RElement;\\\"},{\\\"line\\\":341,\\\"content\\\":\\\"\\\"},{\\\"line\\\":342,\\\"content\\\":\\\"class DynamicCompWithViewQueries {\\\"},{\\\"line\\\":343,\\\"content\\\":\\\"// @ViewChildren('foo')\\\"},{\\\"line\\\":344,\\\"content\\\":\\\"foo!: QueryList;\\\"},{\\\"line\\\":345,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":347,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":348,\\\"content\\\":\\\"type: DynamicCompWithViewQueries,\\\"},{\\\"line\\\":349,\\\"content\\\":\\\"selectors: [['dynamic-cmpt-with-view-queries']],\\\"},{\\\"line\\\":350,\\\"content\\\":\\\"decls: 2,\\\"},{\\\"line\\\":351,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":352,\\\"content\\\":\\\"consts: [['foo', ''], ['bar', '']],\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/view_container_ref_spec.ts\\\",\\\"line\\\":396,\\\"content\\\":\\\"static ɵfac = () =>\\\",\\\"contextBefore\\\":[{\\\"line\\\":390,\\\"content\\\":\\\"ngOnDestroy() {\\\"},{\\\"line\\\":391,\\\"content\\\":\\\"this.viewRef.destroy();\\\"},{\\\"line\\\":392,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":393,\\\"content\\\":\\\"\\\"},{\\\"line\\\":394,\\\"content\\\":\\\"// We want the ViewRef, so we rely on the knowledge that `ViewRef` is actually given\\\"},{\\\"line\\\":395,\\\"content\\\":\\\"// when injecting `ChangeDetectorRef`.\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":397,\\\"content\\\":\\\"new CompWithListenerThatDestroysItself(ɵɵdirectiveInject(ChangeDetectorRef as any))\\\"},{\\\"line\\\":398,\\\"content\\\":\\\"\\\"},{\\\"line\\\":399,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":400,\\\"content\\\":\\\"type: CompWithListenerThatDestroysItself,\\\"},{\\\"line\\\":401,\\\"content\\\":\\\"selectors: [['comp-with-listener-and-on-destroy']],\\\"},{\\\"line\\\":402,\\\"content\\\":\\\"decls: 2,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]}],\\\"packages/core/test/render3/change_detection_spec.ts\\\":[{\\\"file\\\":\\\"packages/core/test/render3/change_detection_spec.ts\\\",\\\"line\\\":30,\\\"content\\\":\\\"static ɵfac = () => new MyComponent();\\\",\\\"contextBefore\\\":[{\\\"line\\\":24,\\\"content\\\":\\\"value: string = 'works';\\\"},{\\\"line\\\":25,\\\"content\\\":\\\"doCheckCount = 0;\\\"},{\\\"line\\\":26,\\\"content\\\":\\\"ngDoCheck(): void {\\\"},{\\\"line\\\":27,\\\"content\\\":\\\"this.doCheckCount++;\\\"},{\\\"line\\\":28,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":29,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":31,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":32,\\\"content\\\":\\\"type: MyComponent,\\\"},{\\\"line\\\":33,\\\"content\\\":\\\"selectors: [['my-comp']],\\\"},{\\\"line\\\":34,\\\"content\\\":\\\"decls: 2,\\\"},{\\\"line\\\":35,\\\"content\\\":\\\"vars: 1,\\\"},{\\\"line\\\":36,\\\"content\\\":\\\"template:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/change_detection_spec.ts\\\",\\\"line\\\":109,\\\"content\\\":\\\"static ɵfac = () => comp = new MyComponent();\\\",\\\"contextBefore\\\":[{\\\"line\\\":103,\\\"content\\\":\\\"ngDoCheck(): void {\\\"},{\\\"line\\\":104,\\\"content\\\":\\\"this.doCheckCount++;\\\"},{\\\"line\\\":105,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":106,\\\"content\\\":\\\"\\\"},{\\\"line\\\":107,\\\"content\\\":\\\"onClick() {}\\\"},{\\\"line\\\":108,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":110,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":111,\\\"content\\\":\\\"type: MyComponent,\\\"},{\\\"line\\\":112,\\\"content\\\":\\\"selectors: [['my-comp']],\\\"},{\\\"line\\\":113,\\\"content\\\":\\\"decls: 2,\\\"},{\\\"line\\\":114,\\\"content\\\":\\\"vars: 2,\\\"},{\\\"line\\\":115,\\\"content\\\":\\\"/**\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/change_detection_spec.ts\\\",\\\"line\\\":152,\\\"content\\\":\\\"static ɵfac = () => comp = new ManualComponent();\\\",\\\"contextBefore\\\":[{\\\"line\\\":146,\\\"content\\\":\\\"ngDoCheck(): void {\\\"},{\\\"line\\\":147,\\\"content\\\":\\\"this.doCheckCount++;\\\"},{\\\"line\\\":148,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":149,\\\"content\\\":\\\"\\\"},{\\\"line\\\":150,\\\"content\\\":\\\"onClick() {}\\\"},{\\\"line\\\":151,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":153,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":154,\\\"content\\\":\\\"type: ManualComponent,\\\"},{\\\"line\\\":155,\\\"content\\\":\\\"selectors: [['manual-comp']],\\\"},{\\\"line\\\":156,\\\"content\\\":\\\"decls: 2,\\\"},{\\\"line\\\":157,\\\"content\\\":\\\"vars: 2,\\\"},{\\\"line\\\":158,\\\"content\\\":\\\"/**\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/change_detection_spec.ts\\\",\\\"line\\\":191,\\\"content\\\":\\\"static ɵfac = () => new ManualApp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":185,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":186,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":187,\\\"content\\\":\\\"\\\"},{\\\"line\\\":188,\\\"content\\\":\\\"class ManualApp {\\\"},{\\\"line\\\":189,\\\"content\\\":\\\"name: string = 'Nancy';\\\"},{\\\"line\\\":190,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":192,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":193,\\\"content\\\":\\\"type: ManualApp,\\\"},{\\\"line\\\":194,\\\"content\\\":\\\"selectors: [['manual-app']],\\\"},{\\\"line\\\":195,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":196,\\\"content\\\":\\\"vars: 1,\\\"},{\\\"line\\\":197,\\\"content\\\":\\\"/**  */\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/change_detection_spec.ts\\\",\\\"line\\\":248,\\\"content\\\":\\\"static ɵfac = () => parent = new ButtonParent();\\\",\\\"contextBefore\\\":[{\\\"line\\\":242,\\\"content\\\":\\\"class ButtonParent implements DoCheck {\\\"},{\\\"line\\\":243,\\\"content\\\":\\\"doCheckCount = 0;\\\"},{\\\"line\\\":244,\\\"content\\\":\\\"ngDoCheck(): void {\\\"},{\\\"line\\\":245,\\\"content\\\":\\\"this.doCheckCount++;\\\"},{\\\"line\\\":246,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":247,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":249,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":250,\\\"content\\\":\\\"type: ButtonParent,\\\"},{\\\"line\\\":251,\\\"content\\\":\\\"selectors: [['button-parent']],\\\"},{\\\"line\\\":252,\\\"content\\\":\\\"decls: 2,\\\"},{\\\"line\\\":253,\\\"content\\\":\\\"vars: 1,\\\"},{\\\"line\\\":254,\\\"content\\\":\\\"/** {{ doCheckCount }} -  */\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/change_detection_spec.ts\\\",\\\"line\\\":328,\\\"content\\\":\\\"static ɵfac = () => new MyComponent();\\\",\\\"contextBefore\\\":[{\\\"line\\\":322,\\\"content\\\":\\\"class MyComponent {\\\"},{\\\"line\\\":323,\\\"content\\\":\\\"get value(): string {\\\"},{\\\"line\\\":324,\\\"content\\\":\\\"log.push('detect changes');\\\"},{\\\"line\\\":325,\\\"content\\\":\\\"return 'works';\\\"},{\\\"line\\\":326,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":327,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":329,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":330,\\\"content\\\":\\\"type: MyComponent,\\\"},{\\\"line\\\":331,\\\"content\\\":\\\"selectors: [['my-comp']],\\\"},{\\\"line\\\":332,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":333,\\\"content\\\":\\\"vars: 1,\\\"},{\\\"line\\\":334,\\\"content\\\":\\\"template:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]}],\\\"packages/core/test/render3/providers_spec.ts\\\":[{\\\"file\\\":\\\"packages/core/test/render3/providers_spec.ts\\\",\\\"line\\\":66,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({\\\",\\\"contextBefore\\\":[{\\\"line\\\":60,\\\"content\\\":\\\"class GreeterInj implements Greeter {\\\"},{\\\"line\\\":61,\\\"content\\\":\\\"public greet: string;\\\"},{\\\"line\\\":62,\\\"content\\\":\\\"constructor(private provider: GreeterProvider) {\\\"},{\\\"line\\\":63,\\\"content\\\":\\\"this.greet = this.provider.provide();\\\"},{\\\"line\\\":64,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":65,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":67,\\\"content\\\":\\\"token: GreeterInj,\\\"},{\\\"line\\\":68,\\\"content\\\":\\\"factory: () => new GreeterInj(ɵɵinject(GreeterProvider as any)),\\\"},{\\\"line\\\":69,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":70,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":71,\\\"content\\\":\\\"\\\"},{\\\"line\\\":72,\\\"content\\\":\\\"it('TypeProvider', () => {\\\"}],\\\"matches\\\":[\\\"ɵprov \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/providers_spec.ts\\\",\\\"line\\\":941,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({\\\",\\\"contextBefore\\\":[{\\\"line\\\":935,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":936,\\\"content\\\":\\\"\\\"},{\\\"line\\\":937,\\\"content\\\":\\\"describe('tree-shakable injectables', () => {\\\"},{\\\"line\\\":938,\\\"content\\\":\\\"it('should work with root', () => {\\\"},{\\\"line\\\":939,\\\"content\\\":\\\"@Injectable({providedIn: 'root'})\\\"},{\\\"line\\\":940,\\\"content\\\":\\\"class FooForRoot {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":942,\\\"content\\\":\\\"token: FooForRoot,\\\"},{\\\"line\\\":943,\\\"content\\\":\\\"factory: () => new FooForRoot(),\\\"},{\\\"line\\\":944,\\\"content\\\":\\\"providedIn: 'root',\\\"},{\\\"line\\\":945,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":946,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":947,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵprov \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/providers_spec.ts\\\",\\\"line\\\":967,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({\\\",\\\"contextBefore\\\":[{\\\"line\\\":961,\\\"content\\\":\\\"providers: [{provide: String, useValue: 'From module'}]\\\"},{\\\"line\\\":962,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":963,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":964,\\\"content\\\":\\\"\\\"},{\\\"line\\\":965,\\\"content\\\":\\\"@Injectable({providedIn: MyModule})\\\"},{\\\"line\\\":966,\\\"content\\\":\\\"class FooForModule {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":968,\\\"content\\\":\\\"token: FooForModule,\\\"},{\\\"line\\\":969,\\\"content\\\":\\\"factory: () => new FooForModule(),\\\"},{\\\"line\\\":970,\\\"content\\\":\\\"providedIn: MyModule,\\\"},{\\\"line\\\":971,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":972,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":973,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵprov \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/providers_spec.ts\\\",\\\"line\\\":994,\\\"content\\\":\\\"static ɵfac = () => new EmbeddedComponent(ɵɵdirectiveInject(String));\\\",\\\"contextBefore\\\":[{\\\"line\\\":988,\\\"content\\\":\\\"@Component({\\\"},{\\\"line\\\":989,\\\"content\\\":\\\"template: `{{s}}`,\\\"},{\\\"line\\\":990,\\\"content\\\":\\\"})\\\"},{\\\"line\\\":991,\\\"content\\\":\\\"class EmbeddedComponent {\\\"},{\\\"line\\\":992,\\\"content\\\":\\\"constructor(private s: String) {}\\\"},{\\\"line\\\":993,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":995,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":996,\\\"content\\\":\\\"type: EmbeddedComponent,\\\"},{\\\"line\\\":997,\\\"content\\\":\\\"selectors: [['embedded-cmp']],\\\"},{\\\"line\\\":998,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":999,\\\"content\\\":\\\"vars: 1,\\\"},{\\\"line\\\":1000,\\\"content\\\":\\\"template:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/providers_spec.ts\\\",\\\"line\\\":1016,\\\"content\\\":\\\"static ɵfac = () => hostComponent = new HostComponent(\\\",\\\"contextBefore\\\":[{\\\"line\\\":1010,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1011,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1012,\\\"content\\\":\\\"@Component({template: `foo`, providers: [{provide: String, useValue: 'From host component'}]})\\\"},{\\\"line\\\":1013,\\\"content\\\":\\\"class HostComponent {\\\"},{\\\"line\\\":1014,\\\"content\\\":\\\"constructor(public vcref: ViewContainerRef, public cfr: ComponentFactoryResolver) {}\\\"},{\\\"line\\\":1015,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1017,\\\"content\\\":\\\"ɵɵdirectiveInject(ViewContainerRef as any), injectComponentFactoryResolver())\\\"},{\\\"line\\\":1018,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1019,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":1020,\\\"content\\\":\\\"type: HostComponent,\\\"},{\\\"line\\\":1021,\\\"content\\\":\\\"selectors: [['host-cmp']],\\\"},{\\\"line\\\":1022,\\\"content\\\":\\\"decls: 1,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/providers_spec.ts\\\",\\\"line\\\":1044,\\\"content\\\":\\\"static ɵfac = () => new AppComponent();\\\",\\\"contextBefore\\\":[{\\\"line\\\":1038,\\\"content\\\":\\\"template: ``,\\\"},{\\\"line\\\":1039,\\\"content\\\":\\\"providers: [{provide: String, useValue: 'From app component'}]\\\"},{\\\"line\\\":1040,\\\"content\\\":\\\"})\\\"},{\\\"line\\\":1041,\\\"content\\\":\\\"class AppComponent {\\\"},{\\\"line\\\":1042,\\\"content\\\":\\\"constructor() {}\\\"},{\\\"line\\\":1043,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1045,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":1046,\\\"content\\\":\\\"type: AppComponent,\\\"},{\\\"line\\\":1047,\\\"content\\\":\\\"selectors: [['app-cmp']],\\\"},{\\\"line\\\":1048,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":1049,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":1050,\\\"content\\\":\\\"template:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/providers_spec.ts\\\",\\\"line\\\":1129,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({\\\",\\\"contextBefore\\\":[{\\\"line\\\":1123,\\\"content\\\":\\\"it('the deps of a token declared in providers should not be resolved with tokens from viewProviders',\\\"},{\\\"line\\\":1124,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":1125,\\\"content\\\":\\\"@Injectable()\\\"},{\\\"line\\\":1126,\\\"content\\\":\\\"class MyService {\\\"},{\\\"line\\\":1127,\\\"content\\\":\\\"constructor(public value: String) {}\\\"},{\\\"line\\\":1128,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1130,\\\"content\\\":\\\"token: MyService,\\\"},{\\\"line\\\":1131,\\\"content\\\":\\\"factory: () => new MyService(ɵɵinject(String)),\\\"},{\\\"line\\\":1132,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1133,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1134,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1135,\\\"content\\\":\\\"expectProvidersScenario({\\\"}],\\\"matches\\\":[\\\"ɵprov \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/providers_spec.ts\\\",\\\"line\\\":1149,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({\\\",\\\"contextBefore\\\":[{\\\"line\\\":1143,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1144,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1145,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1146,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1147,\\\"content\\\":\\\"it('should make sure that parent service does not see overrides in child directives', () => {\\\"},{\\\"line\\\":1148,\\\"content\\\":\\\"class Greeter {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1150,\\\"content\\\":\\\"token: Greeter,\\\"},{\\\"line\\\":1151,\\\"content\\\":\\\"factory: () => new Greeter(ɵɵinject(String)),\\\"},{\\\"line\\\":1152,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1153,\\\"content\\\":\\\"constructor(public greeting: String) {}\\\"},{\\\"line\\\":1154,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1155,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵprov \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/providers_spec.ts\\\",\\\"line\\\":1197,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({\\\",\\\"contextBefore\\\":[{\\\"line\\\":1191,\\\"content\\\":\\\"abstract location: String;\\\"},{\\\"line\\\":1192,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1193,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1194,\\\"content\\\":\\\"class SomeInj implements Some {\\\"},{\\\"line\\\":1195,\\\"content\\\":\\\"constructor(public location: String) {}\\\"},{\\\"line\\\":1196,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1198,\\\"content\\\":\\\"token: SomeInj,\\\"},{\\\"line\\\":1199,\\\"content\\\":\\\"factory: () => new SomeInj(ɵɵinject(String)),\\\"},{\\\"line\\\":1200,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1201,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1202,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1203,\\\"content\\\":\\\"@Component({\\\"}],\\\"matches\\\":[\\\"ɵprov \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/providers_spec.ts\\\",\\\"line\\\":1211,\\\"content\\\":\\\"static ɵfac = () => new MyComponent();\\\",\\\"contextBefore\\\":[{\\\"line\\\":1205,\\\"content\\\":\\\"providers: [{provide: String, useValue: 'From my component'}],\\\"},{\\\"line\\\":1206,\\\"content\\\":\\\"viewProviders: [{provide: Number, useValue: 123}]\\\"},{\\\"line\\\":1207,\\\"content\\\":\\\"})\\\"},{\\\"line\\\":1208,\\\"content\\\":\\\"class MyComponent {\\\"},{\\\"line\\\":1209,\\\"content\\\":\\\"constructor() {}\\\"},{\\\"line\\\":1210,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1212,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":1213,\\\"content\\\":\\\"type: MyComponent,\\\"},{\\\"line\\\":1214,\\\"content\\\":\\\"selectors: [['my-cmp']],\\\"},{\\\"line\\\":1215,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":1216,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":1217,\\\"content\\\":\\\"template:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/providers_spec.ts\\\",\\\"line\\\":1240,\\\"content\\\":\\\"static ɵfac = () => new AppComponent();\\\",\\\"contextBefore\\\":[{\\\"line\\\":1234,\\\"content\\\":\\\"providers:\\\"},{\\\"line\\\":1235,\\\"content\\\":\\\"[{provide: String, useValue: 'From app component'}, {provide: Some, useClass: SomeInj}]\\\"},{\\\"line\\\":1236,\\\"content\\\":\\\"})\\\"},{\\\"line\\\":1237,\\\"content\\\":\\\"class AppComponent {\\\"},{\\\"line\\\":1238,\\\"content\\\":\\\"constructor() {}\\\"},{\\\"line\\\":1239,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1241,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":1242,\\\"content\\\":\\\"type: AppComponent,\\\"},{\\\"line\\\":1243,\\\"content\\\":\\\"selectors: [['app-cmp']],\\\"},{\\\"line\\\":1244,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":1245,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":1246,\\\"content\\\":\\\"template:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/providers_spec.ts\\\",\\\"line\\\":1317,\\\"content\\\":\\\"static ɵfac = () => testComponentInjection(defs.viewChild, new ViewChildComponent());\\\",\\\"contextBefore\\\":[{\\\"line\\\":1311,\\\"content\\\":\\\"def.directiveAssertion && def.directiveAssertion();\\\"},{\\\"line\\\":1312,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1313,\\\"content\\\":\\\"return instance;\\\"},{\\\"line\\\":1314,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1315,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1316,\\\"content\\\":\\\"class ViewChildComponent {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1318,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":1319,\\\"content\\\":\\\"type: ViewChildComponent,\\\"},{\\\"line\\\":1320,\\\"content\\\":\\\"selectors: [['view-child']],\\\"},{\\\"line\\\":1321,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":1322,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":1323,\\\"content\\\":\\\"template:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/providers_spec.ts\\\",\\\"line\\\":1335,\\\"content\\\":\\\"static ɵfac = () => testDirectiveInjection(defs.viewChild, new ViewChildDirective());\\\",\\\"contextBefore\\\":[{\\\"line\\\":1329,\\\"content\\\":\\\"features: defs.viewChild &&\\\"},{\\\"line\\\":1330,\\\"content\\\":\\\"[ɵɵProvidersFeature(defs.viewChild.providers || [], defs.viewChild.viewProviders || [])]\\\"},{\\\"line\\\":1331,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1332,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1333,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1334,\\\"content\\\":\\\"class ViewChildDirective {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1336,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({\\\"},{\\\"line\\\":1337,\\\"content\\\":\\\"type: ViewChildDirective,\\\"},{\\\"line\\\":1338,\\\"content\\\":\\\"selectors: [['view-child']],\\\"},{\\\"line\\\":1339,\\\"content\\\":\\\"features: defs.viewChild && [ɵɵProvidersFeature(defs.viewChild.directiveProviders || [])],\\\"},{\\\"line\\\":1340,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1341,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/providers_spec.ts\\\",\\\"line\\\":1344,\\\"content\\\":\\\"static ɵfac =\\\",\\\"contextBefore\\\":[{\\\"line\\\":1338,\\\"content\\\":\\\"selectors: [['view-child']],\\\"},{\\\"line\\\":1339,\\\"content\\\":\\\"features: defs.viewChild && [ɵɵProvidersFeature(defs.viewChild.directiveProviders || [])],\\\"},{\\\"line\\\":1340,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1341,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1342,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1343,\\\"content\\\":\\\"class ContentChildComponent {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1345,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":1346,\\\"content\\\":\\\"return testComponentInjection(defs.contentChild, new ContentChildComponent());\\\"},{\\\"line\\\":1347,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1348,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1349,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":1350,\\\"content\\\":\\\"type: ContentChildComponent,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/providers_spec.ts\\\",\\\"line\\\":1367,\\\"content\\\":\\\"static ɵfac =\\\",\\\"contextBefore\\\":[{\\\"line\\\":1361,\\\"content\\\":\\\"[ɵɵProvidersFeature(\\\"},{\\\"line\\\":1362,\\\"content\\\":\\\"defs.contentChild.providers || [], defs.contentChild.viewProviders || [])],\\\"},{\\\"line\\\":1363,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1364,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1365,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1366,\\\"content\\\":\\\"class ContentChildDirective {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1368,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":1369,\\\"content\\\":\\\"return testDirectiveInjection(defs.contentChild, new ContentChildDirective());\\\"},{\\\"line\\\":1370,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1371,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1372,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({\\\"},{\\\"line\\\":1373,\\\"content\\\":\\\"type: ContentChildDirective,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/providers_spec.ts\\\",\\\"line\\\":1382,\\\"content\\\":\\\"static ɵfac = () => testComponentInjection(defs.parent, new ParentComponent());\\\",\\\"contextBefore\\\":[{\\\"line\\\":1376,\\\"content\\\":\\\"[ɵɵProvidersFeature(defs.contentChild.directiveProviders || [])],\\\"},{\\\"line\\\":1377,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1378,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1379,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1380,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1381,\\\"content\\\":\\\"class ParentComponent {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1383,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":1384,\\\"content\\\":\\\"type: ParentComponent,\\\"},{\\\"line\\\":1385,\\\"content\\\":\\\"selectors: [['parent']],\\\"},{\\\"line\\\":1386,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":1387,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":1388,\\\"content\\\":\\\"template:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/providers_spec.ts\\\",\\\"line\\\":1401,\\\"content\\\":\\\"static ɵfac = () => testDirectiveInjection(defs.parent, new ParentDirective());\\\",\\\"contextBefore\\\":[{\\\"line\\\":1395,\\\"content\\\":\\\"[ɵɵProvidersFeature(defs.parent.providers || [], defs.parent.viewProviders || [])],\\\"},{\\\"line\\\":1396,\\\"content\\\":\\\"directives: [ViewChildComponent, ViewChildDirective]\\\"},{\\\"line\\\":1397,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1398,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1399,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1400,\\\"content\\\":\\\"class ParentDirective {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1402,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({\\\"},{\\\"line\\\":1403,\\\"content\\\":\\\"type: ParentDirective,\\\"},{\\\"line\\\":1404,\\\"content\\\":\\\"selectors: [['parent']],\\\"},{\\\"line\\\":1405,\\\"content\\\":\\\"features: defs.parent && [ɵɵProvidersFeature(defs.parent.directiveProviders || [])],\\\"},{\\\"line\\\":1406,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1407,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/providers_spec.ts\\\",\\\"line\\\":1410,\\\"content\\\":\\\"static ɵfac = () => testDirectiveInjection(defs.parent, new ParentDirective2());\\\",\\\"contextBefore\\\":[{\\\"line\\\":1404,\\\"content\\\":\\\"selectors: [['parent']],\\\"},{\\\"line\\\":1405,\\\"content\\\":\\\"features: defs.parent && [ɵɵProvidersFeature(defs.parent.directiveProviders || [])],\\\"},{\\\"line\\\":1406,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1407,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1408,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1409,\\\"content\\\":\\\"class ParentDirective2 {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1411,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({\\\"},{\\\"line\\\":1412,\\\"content\\\":\\\"type: ParentDirective2,\\\"},{\\\"line\\\":1413,\\\"content\\\":\\\"selectors: [['parent']],\\\"},{\\\"line\\\":1414,\\\"content\\\":\\\"features: defs.parent && [ɵɵProvidersFeature(defs.parent.directive2Providers || [])],\\\"},{\\\"line\\\":1415,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1416,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/providers_spec.ts\\\",\\\"line\\\":1420,\\\"content\\\":\\\"static ɵfac = () => testComponentInjection(defs.app, new App());\\\",\\\"contextBefore\\\":[{\\\"line\\\":1414,\\\"content\\\":\\\"features: defs.parent && [ɵɵProvidersFeature(defs.parent.directive2Providers || [])],\\\"},{\\\"line\\\":1415,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":1416,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1417,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1418,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1419,\\\"content\\\":\\\"class App {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1421,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":1422,\\\"content\\\":\\\"type: App,\\\"},{\\\"line\\\":1423,\\\"content\\\":\\\"selectors: [['app']],\\\"},{\\\"line\\\":1424,\\\"content\\\":\\\"decls: 2,\\\"},{\\\"line\\\":1425,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":1426,\\\"content\\\":\\\"template:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]}],\\\"packages/core/test/render3/instructions_spec.ts\\\":[{\\\"file\\\":\\\"packages/core/test/render3/instructions_spec.ts\\\",\\\"line\\\":285,\\\"content\\\":\\\"static ɵfac = function ToDoAppComponent_Factory() {\\\",\\\"contextBefore\\\":[{\\\"line\\\":279,\\\"content\\\":\\\"*   {{col}}\\\"},{\\\"line\\\":280,\\\"content\\\":\\\"* \\\"},{\\\"line\\\":281,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":282,\\\"content\\\":\\\"class NestedLoops {\\\"},{\\\"line\\\":283,\\\"content\\\":\\\"rows = [['a', 'b'], ['A', 'B'], ['a', 'b'], ['A', 'B']];\\\"},{\\\"line\\\":284,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":286,\\\"content\\\":\\\"return new NestedLoops();\\\"},{\\\"line\\\":287,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":288,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":289,\\\"content\\\":\\\"type: NestedLoops,\\\"},{\\\"line\\\":290,\\\"content\\\":\\\"selectors: [['nested-loops']],\\\"},{\\\"line\\\":291,\\\"content\\\":\\\"decls: 1,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]}],\\\"packages/core/test/render3/ivy/jit_spec.ts\\\":[{\\\"file\\\":\\\"packages/core/test/render3/ivy/jit_spec.ts\\\",\\\"line\\\":41,\\\"content\\\":\\\"expect(SomeCmpAny.ɵfac() instanceof SomeCmp).toBe(true);\\\",\\\"contextBefore\\\":[{\\\"line\\\":35,\\\"content\\\":\\\"})\\\"},{\\\"line\\\":36,\\\"content\\\":\\\"class SomeCmp {\\\"},{\\\"line\\\":37,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":38,\\\"content\\\":\\\"const SomeCmpAny = SomeCmp as any;\\\"},{\\\"line\\\":39,\\\"content\\\":\\\"\\\"},{\\\"line\\\":40,\\\"content\\\":\\\"expect(SomeCmpAny.ɵcmp).toBeDefined();\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":42,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":43,\\\"content\\\":\\\"\\\"},{\\\"line\\\":44,\\\"content\\\":\\\"it('compiles an injectable with a type provider', () => {\\\"},{\\\"line\\\":45,\\\"content\\\":\\\"@Injectable({providedIn: 'root'})\\\"},{\\\"line\\\":46,\\\"content\\\":\\\"class Service {\\\"},{\\\"line\\\":47,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"ɵfac(\\\"]},{\\\"file\\\":\\\"packages/core/test/render3/ivy/jit_spec.ts\\\",\\\"line\\\":50,\\\"content\\\":\\\"expect(ServiceAny.ɵprov).toBeDefined();\\\",\\\"contextBefore\\\":[{\\\"line\\\":44,\\\"content\\\":\\\"it('compiles an injectable with a type provider', () => {\\\"},{\\\"line\\\":45,\\\"content\\\":\\\"@Injectable({providedIn: 'root'})\\\"},{\\\"line\\\":46,\\\"content\\\":\\\"class Service {\\\"},{\\\"line\\\":47,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":48,\\\"content\\\":\\\"const ServiceAny = Service as any;\\\"},{\\\"line\\\":49,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵprov)\\\"]},{\\\"file\\\":\\\"packages/core/test/render3/ivy/jit_spec.ts\\\",\\\"line\\\":51,\\\"content\\\":\\\"expect(ServiceAny.ɵprov.providedIn).toBe('root');\\\",\\\"contextAfter\\\":[{\\\"line\\\":52,\\\"content\\\":\\\"expect(ɵɵinject(Service) instanceof Service).toBe(true);\\\"},{\\\"line\\\":53,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":54,\\\"content\\\":\\\"\\\"},{\\\"line\\\":55,\\\"content\\\":\\\"it('compiles an injectable with a useValue provider', () => {\\\"},{\\\"line\\\":56,\\\"content\\\":\\\"@Injectable({providedIn: 'root', useValue: 'test'})\\\"},{\\\"line\\\":57,\\\"content\\\":\\\"class Service {\\\"}],\\\"matches\\\":[\\\"ɵprov.\\\"]},{\\\"file\\\":\\\"packages/core/test/render3/ivy/jit_spec.ts\\\",\\\"line\\\":177,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({\\\",\\\"contextBefore\\\":[{\\\"line\\\":171,\\\"content\\\":\\\"expect(moduleDef.declarations.length).toBe(1);\\\"},{\\\"line\\\":172,\\\"content\\\":\\\"expect(moduleDef.declarations[0]).toBe(Cmp);\\\"},{\\\"line\\\":173,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":174,\\\"content\\\":\\\"\\\"},{\\\"line\\\":175,\\\"content\\\":\\\"it('compiles a module to an ɵinj with the providers', () => {\\\"},{\\\"line\\\":176,\\\"content\\\":\\\"class Token {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":178,\\\"content\\\":\\\"token: Token,\\\"},{\\\"line\\\":179,\\\"content\\\":\\\"providedIn: 'root',\\\"},{\\\"line\\\":180,\\\"content\\\":\\\"factory: () => 'default',\\\"},{\\\"line\\\":181,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":182,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":183,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵprov \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/ivy/jit_spec.ts\\\",\\\"line\\\":252,\\\"content\\\":\\\"const pipeFactory = (P as any).ɵfac as FactoryFn;\\\",\\\"contextBefore\\\":[{\\\"line\\\":246,\\\"content\\\":\\\"it('should compile @Pipes without errors', () => {\\\"},{\\\"line\\\":247,\\\"content\\\":\\\"@Pipe({name: 'test-pipe', pure: false})\\\"},{\\\"line\\\":248,\\\"content\\\":\\\"class P {\\\"},{\\\"line\\\":249,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":250,\\\"content\\\":\\\"\\\"},{\\\"line\\\":251,\\\"content\\\":\\\"const pipeDef = (P as any).ɵpipe as PipeDef;\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":253,\\\"content\\\":\\\"expect(pipeDef.name).toBe('test-pipe');\\\"},{\\\"line\\\":254,\\\"content\\\":\\\"expect(pipeDef.pure).toBe(false, 'pipe should not be pure');\\\"},{\\\"line\\\":255,\\\"content\\\":\\\"expect(pipeFactory() instanceof P)\\\"},{\\\"line\\\":256,\\\"content\\\":\\\".toBe(true, 'factory() should create an instance of the pipe');\\\"},{\\\"line\\\":257,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":258,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/ivy/jit_spec.ts\\\",\\\"line\\\":371,\\\"content\\\":\\\"expect(ServiceAny.ɵprov).toBeDefined();\\\",\\\"contextBefore\\\":[{\\\"line\\\":365,\\\"content\\\":\\\"@Injectable({providedIn: 'root'})\\\"},{\\\"line\\\":366,\\\"content\\\":\\\"class Service extends Base {\\\"},{\\\"line\\\":367,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":368,\\\"content\\\":\\\"\\\"},{\\\"line\\\":369,\\\"content\\\":\\\"const ServiceAny = Service as any;\\\"},{\\\"line\\\":370,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵprov)\\\"]},{\\\"file\\\":\\\"packages/core/test/render3/ivy/jit_spec.ts\\\",\\\"line\\\":372,\\\"content\\\":\\\"expect(ServiceAny.ɵprov.providedIn).toBe('root');\\\",\\\"contextAfter\\\":[{\\\"line\\\":373,\\\"content\\\":\\\"expect(() => ɵɵinject(Service))\\\"},{\\\"line\\\":374,\\\"content\\\":\\\".toThrowError(\\\"},{\\\"line\\\":375,\\\"content\\\":\\\"/constructor is not compatible with Angular Dependency Injection because its dependency at index 1 of the parameter list is invalid/);\\\"},{\\\"line\\\":376,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":377,\\\"content\\\":\\\"\\\"},{\\\"line\\\":378,\\\"content\\\":\\\"it('should error when creating an @Directive that extends an undecorated class with parameters',\\\"}],\\\"matches\\\":[\\\"ɵprov.\\\"]},{\\\"file\\\":\\\"packages/core/test/render3/ivy/jit_spec.ts\\\",\\\"line\\\":394,\\\"content\\\":\\\"expect(TestDirAny.ɵfac).toBeDefined();\\\",\\\"contextBefore\\\":[{\\\"line\\\":388,\\\"content\\\":\\\"@Directive({selector: 'test'})\\\"},{\\\"line\\\":389,\\\"content\\\":\\\"class TestDir extends BaseDir {\\\"},{\\\"line\\\":390,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":391,\\\"content\\\":\\\"\\\"},{\\\"line\\\":392,\\\"content\\\":\\\"const TestDirAny = TestDir as any;\\\"},{\\\"line\\\":393,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵfac)\\\"]},{\\\"file\\\":\\\"packages/core/test/render3/ivy/jit_spec.ts\\\",\\\"line\\\":395,\\\"content\\\":\\\"expect(() => TestDirAny.ɵfac())\\\",\\\"contextAfter\\\":[{\\\"line\\\":396,\\\"content\\\":\\\".toThrowError(\\\"},{\\\"line\\\":397,\\\"content\\\":\\\"/constructor is not compatible with Angular Dependency Injection because its dependency at index 0 of the parameter list is invalid/);\\\"},{\\\"line\\\":398,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":399,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":400,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":401,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵfac(\\\"]}],\\\"packages/core/test/render3/pipe_spec.ts\\\":[{\\\"file\\\":\\\"packages/core/test/render3/pipe_spec.ts\\\",\\\"line\\\":39,\\\"content\\\":\\\"static ɵfac = function WrappingPipe_Factory() {\\\",\\\"contextBefore\\\":[{\\\"line\\\":33,\\\"content\\\":\\\"@Pipe({name: 'wrappingPipe'})\\\"},{\\\"line\\\":34,\\\"content\\\":\\\"class WrappingPipe implements PipeTransform {\\\"},{\\\"line\\\":35,\\\"content\\\":\\\"transform(value: any) {\\\"},{\\\"line\\\":36,\\\"content\\\":\\\"return new WrappedValue('Bar');\\\"},{\\\"line\\\":37,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":38,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":40,\\\"content\\\":\\\"return new WrappingPipe();\\\"},{\\\"line\\\":41,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":42,\\\"content\\\":\\\"static ɵpipe = ɵɵdefinePipe({name: 'wrappingPipe', type: WrappingPipe, pure: false});\\\"},{\\\"line\\\":43,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":44,\\\"content\\\":\\\"\\\"},{\\\"line\\\":45,\\\"content\\\":\\\"function createTemplate() {\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/pipe_spec.ts\\\",\\\"line\\\":83,\\\"content\\\":\\\"static ɵfac = () => new SayHelloService();\\\",\\\"contextBefore\\\":[{\\\"line\\\":77,\\\"content\\\":\\\"it('should be able to use DI in a Pipe that extends an Injectable', () => {\\\"},{\\\"line\\\":78,\\\"content\\\":\\\"@Injectable({providedIn: 'root'})\\\"},{\\\"line\\\":79,\\\"content\\\":\\\"class SayHelloService {\\\"},{\\\"line\\\":80,\\\"content\\\":\\\"getHello() {\\\"},{\\\"line\\\":81,\\\"content\\\":\\\"return 'Hello there';\\\"},{\\\"line\\\":82,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/pipe_spec.ts\\\",\\\"line\\\":84,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable(\\\",\\\"matches\\\":[\\\"ɵprov \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/pipe_spec.ts\\\",\\\"line\\\":85,\\\"content\\\":\\\"{token: SayHelloService, factory: SayHelloService.ɵfac, providedIn: 'root'});\\\",\\\"contextAfter\\\":[{\\\"line\\\":86,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":87,\\\"content\\\":\\\"\\\"},{\\\"line\\\":88,\\\"content\\\":\\\"@Injectable()\\\"},{\\\"line\\\":89,\\\"content\\\":\\\"class ParentPipe {\\\"},{\\\"line\\\":90,\\\"content\\\":\\\"constructor(protected sayHelloService: SayHelloService) {}\\\"}],\\\"matches\\\":[\\\"ɵfac,\\\"]},{\\\"file\\\":\\\"packages/core/test/render3/pipe_spec.ts\\\",\\\"line\\\":91,\\\"content\\\":\\\"static ɵfac = (t?: any) => new(t || ParentPipe)(ɵɵinject(SayHelloService));\\\",\\\"contextBefore\\\":[{\\\"line\\\":86,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":87,\\\"content\\\":\\\"\\\"},{\\\"line\\\":88,\\\"content\\\":\\\"@Injectable()\\\"},{\\\"line\\\":89,\\\"content\\\":\\\"class ParentPipe {\\\"},{\\\"line\\\":90,\\\"content\\\":\\\"constructor(protected sayHelloService: SayHelloService) {}\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/pipe_spec.ts\\\",\\\"line\\\":92,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({token: ParentPipe, factory: ParentPipe.ɵfac});\\\",\\\"contextAfter\\\":[{\\\"line\\\":93,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":94,\\\"content\\\":\\\"\\\"},{\\\"line\\\":95,\\\"content\\\":\\\"@Pipe({name: 'sayHello', pure: true})\\\"},{\\\"line\\\":96,\\\"content\\\":\\\"class SayHelloPipe extends ParentPipe implements PipeTransform {\\\"},{\\\"line\\\":97,\\\"content\\\":\\\"transform() {\\\"},{\\\"line\\\":98,\\\"content\\\":\\\"return this.sayHelloService.getHello();\\\"}],\\\"matches\\\":[\\\"ɵprov \\\",\\\"c});\\\\n\\\"]},{\\\"file\\\":\\\"packages/core/test/render3/pipe_spec.ts\\\",\\\"line\\\":100,\\\"content\\\":\\\"static ɵfac = (t?: any) => ɵɵgetInheritedFactory(t || SayHelloPipe)(SayHelloPipe);\\\",\\\"contextBefore\\\":[{\\\"line\\\":94,\\\"content\\\":\\\"\\\"},{\\\"line\\\":95,\\\"content\\\":\\\"@Pipe({name: 'sayHello', pure: true})\\\"},{\\\"line\\\":96,\\\"content\\\":\\\"class SayHelloPipe extends ParentPipe implements PipeTransform {\\\"},{\\\"line\\\":97,\\\"content\\\":\\\"transform() {\\\"},{\\\"line\\\":98,\\\"content\\\":\\\"return this.sayHelloService.getHello();\\\"},{\\\"line\\\":99,\\\"content\\\":\\\"}\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":101,\\\"content\\\":\\\"static ɵpipe = ɵɵdefinePipe({name: 'sayHello', type: SayHelloPipe, pure: true});\\\"},{\\\"line\\\":102,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":103,\\\"content\\\":\\\"\\\"},{\\\"line\\\":104,\\\"content\\\":\\\"const fixture = new TemplateFixture(\\\"},{\\\"line\\\":105,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":106,\\\"content\\\":\\\"ɵɵtext(0);\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]}],\\\"packages/core/test/render3/listeners_spec.ts\\\":[{\\\"file\\\":\\\"packages/core/test/render3/listeners_spec.ts\\\",\\\"line\\\":33,\\\"content\\\":\\\"static ɵfac =\\\",\\\"contextBefore\\\":[{\\\"line\\\":27,\\\"content\\\":\\\"counter = 0;\\\"},{\\\"line\\\":28,\\\"content\\\":\\\"\\\"},{\\\"line\\\":29,\\\"content\\\":\\\"onClick() {\\\"},{\\\"line\\\":30,\\\"content\\\":\\\"this.counter++;\\\"},{\\\"line\\\":31,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":32,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":34,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":35,\\\"content\\\":\\\"let comp = new MyComp();\\\"},{\\\"line\\\":36,\\\"content\\\":\\\"comps.push(comp);\\\"},{\\\"line\\\":37,\\\"content\\\":\\\"return comp;\\\"},{\\\"line\\\":38,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":39,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/listeners_spec.ts\\\",\\\"line\\\":73,\\\"content\\\":\\\"static ɵfac =\\\",\\\"contextBefore\\\":[{\\\"line\\\":67,\\\"content\\\":\\\"\\\"},{\\\"line\\\":68,\\\"content\\\":\\\"/* @HostListener('body:click') */\\\"},{\\\"line\\\":69,\\\"content\\\":\\\"onBodyClick() {\\\"},{\\\"line\\\":70,\\\"content\\\":\\\"events.push('component - body:click');\\\"},{\\\"line\\\":71,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":72,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":74,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":75,\\\"content\\\":\\\"let comp = new MyCompWithGlobalListeners();\\\"},{\\\"line\\\":76,\\\"content\\\":\\\"comps.push(comp);\\\"},{\\\"line\\\":77,\\\"content\\\":\\\"return comp;\\\"},{\\\"line\\\":78,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":79,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/listeners_spec.ts\\\",\\\"line\\\":116,\\\"content\\\":\\\"static ɵfac = function HostListenerDir_Factory() {\\\",\\\"contextBefore\\\":[{\\\"line\\\":110,\\\"content\\\":\\\"\\\"},{\\\"line\\\":111,\\\"content\\\":\\\"/* @HostListener('body:click') */\\\"},{\\\"line\\\":112,\\\"content\\\":\\\"onBodyClick() {\\\"},{\\\"line\\\":113,\\\"content\\\":\\\"events.push('directive - body:click');\\\"},{\\\"line\\\":114,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":115,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":117,\\\"content\\\":\\\"return new GlobalHostListenerDir();\\\"},{\\\"line\\\":118,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":119,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({\\\"},{\\\"line\\\":120,\\\"content\\\":\\\"type: GlobalHostListenerDir,\\\"},{\\\"line\\\":121,\\\"content\\\":\\\"selectors: [['', 'hostListenerDir', '']],\\\"},{\\\"line\\\":122,\\\"content\\\":\\\"hostBindings:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/listeners_spec.ts\\\",\\\"line\\\":151,\\\"content\\\":\\\"static ɵfac = () => new PreventDefaultComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":145,\\\"content\\\":\\\"this.event, 'preventDefault',\\\"},{\\\"line\\\":146,\\\"content\\\":\\\"{value: jasmine.createSpy('preventDefault'), writable: true});\\\"},{\\\"line\\\":147,\\\"content\\\":\\\"\\\"},{\\\"line\\\":148,\\\"content\\\":\\\"return this.handlerReturnValue;\\\"},{\\\"line\\\":149,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":150,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":152,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":153,\\\"content\\\":\\\"type: PreventDefaultComp,\\\"},{\\\"line\\\":154,\\\"content\\\":\\\"selectors: [['prevent-default-comp']],\\\"},{\\\"line\\\":155,\\\"content\\\":\\\"decls: 2,\\\"},{\\\"line\\\":156,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":157,\\\"content\\\":\\\"/** Click */\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/listeners_spec.ts\\\",\\\"line\\\":298,\\\"content\\\":\\\"static ɵfac =\\\",\\\"contextBefore\\\":[{\\\"line\\\":292,\\\"content\\\":\\\"class MyComp {\\\"},{\\\"line\\\":293,\\\"content\\\":\\\"/* @HostListener('click') */\\\"},{\\\"line\\\":294,\\\"content\\\":\\\"onClick() {\\\"},{\\\"line\\\":295,\\\"content\\\":\\\"events.push('click!');\\\"},{\\\"line\\\":296,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":297,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":299,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":300,\\\"content\\\":\\\"return new MyComp();\\\"},{\\\"line\\\":301,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":302,\\\"content\\\":\\\"\\\"},{\\\"line\\\":303,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":304,\\\"content\\\":\\\"type: MyComp,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/listeners_spec.ts\\\",\\\"line\\\":358,\\\"content\\\":\\\"static ɵfac = function HostListenerDir_Factory() {\\\",\\\"contextBefore\\\":[{\\\"line\\\":352,\\\"content\\\":\\\"class HostListenerDir {\\\"},{\\\"line\\\":353,\\\"content\\\":\\\"/* @HostListener('click') */\\\"},{\\\"line\\\":354,\\\"content\\\":\\\"onClick() {\\\"},{\\\"line\\\":355,\\\"content\\\":\\\"events.push('click!');\\\"},{\\\"line\\\":356,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":357,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":359,\\\"content\\\":\\\"return new HostListenerDir();\\\"},{\\\"line\\\":360,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":361,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({\\\"},{\\\"line\\\":362,\\\"content\\\":\\\"type: HostListenerDir,\\\"},{\\\"line\\\":363,\\\"content\\\":\\\"selectors: [['', 'hostListenerDir', '']],\\\"},{\\\"line\\\":364,\\\"content\\\":\\\"hostBindings:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/listeners_spec.ts\\\",\\\"line\\\":416,\\\"content\\\":\\\"static ɵfac = () => new MyComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":410,\\\"content\\\":\\\"data = {a: 1, b: 2};\\\"},{\\\"line\\\":411,\\\"content\\\":\\\"\\\"},{\\\"line\\\":412,\\\"content\\\":\\\"onClick(a: any, b: any) {\\\"},{\\\"line\\\":413,\\\"content\\\":\\\"this.counter += a + b;\\\"},{\\\"line\\\":414,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":415,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":417,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":418,\\\"content\\\":\\\"type: MyComp,\\\"},{\\\"line\\\":419,\\\"content\\\":\\\"selectors: [['comp']],\\\"},{\\\"line\\\":420,\\\"content\\\":\\\"decls: 2,\\\"},{\\\"line\\\":421,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":422,\\\"content\\\":\\\"/**  Click me  */\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/listeners_spec.ts\\\",\\\"line\\\":466,\\\"content\\\":\\\"static ɵfac = () => new App();\\\",\\\"contextBefore\\\":[{\\\"line\\\":460,\\\"content\\\":\\\"comp: any = null;\\\"},{\\\"line\\\":461,\\\"content\\\":\\\"\\\"},{\\\"line\\\":462,\\\"content\\\":\\\"onClick(comp: any) {\\\"},{\\\"line\\\":463,\\\"content\\\":\\\"this.comp = comp;\\\"},{\\\"line\\\":464,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":465,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":467,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":468,\\\"content\\\":\\\"type: App,\\\"},{\\\"line\\\":469,\\\"content\\\":\\\"selectors: [['app']],\\\"},{\\\"line\\\":470,\\\"content\\\":\\\"decls: 3,\\\"},{\\\"line\\\":471,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":472,\\\"content\\\":\\\"consts: [['comp', '']],\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]}],\\\"packages/core/test/render3/component_spec.ts\\\":[{\\\"file\\\":\\\"packages/core/test/render3/component_spec.ts\\\",\\\"line\\\":26,\\\"content\\\":\\\"static ɵfac = () => new CounterComponent;\\\",\\\"contextBefore\\\":[{\\\"line\\\":20,\\\"content\\\":\\\"count = 0;\\\"},{\\\"line\\\":21,\\\"content\\\":\\\"\\\"},{\\\"line\\\":22,\\\"content\\\":\\\"increment() {\\\"},{\\\"line\\\":23,\\\"content\\\":\\\"this.count++;\\\"},{\\\"line\\\":24,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":25,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":27,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":28,\\\"content\\\":\\\"type: CounterComponent,\\\"},{\\\"line\\\":29,\\\"content\\\":\\\"encapsulation: ViewEncapsulation.None,\\\"},{\\\"line\\\":30,\\\"content\\\":\\\"selectors: [['counter']],\\\"},{\\\"line\\\":31,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":32,\\\"content\\\":\\\"vars: 1,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/component_spec.ts\\\",\\\"line\\\":69,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({\\\",\\\"contextBefore\\\":[{\\\"line\\\":63,\\\"content\\\":\\\"requestAnimationFrame.flush();\\\"},{\\\"line\\\":64,\\\"content\\\":\\\"expect(toHtml(containerEl)).toEqual('124');\\\"},{\\\"line\\\":65,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":66,\\\"content\\\":\\\"\\\"},{\\\"line\\\":67,\\\"content\\\":\\\"class MyService {\\\"},{\\\"line\\\":68,\\\"content\\\":\\\"constructor(public value: string) {}\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":70,\\\"content\\\":\\\"token: MyService,\\\"},{\\\"line\\\":71,\\\"content\\\":\\\"providedIn: 'root',\\\"},{\\\"line\\\":72,\\\"content\\\":\\\"factory: () => new MyService('no-injector'),\\\"},{\\\"line\\\":73,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":74,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":75,\\\"content\\\":\\\"class MyComponent {\\\"}],\\\"matches\\\":[\\\"ɵprov \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/component_spec.ts\\\",\\\"line\\\":77,\\\"content\\\":\\\"static ɵfac = () => new MyComponent(ɵɵdirectiveInject(MyService));\\\",\\\"contextBefore\\\":[{\\\"line\\\":71,\\\"content\\\":\\\"providedIn: 'root',\\\"},{\\\"line\\\":72,\\\"content\\\":\\\"factory: () => new MyService('no-injector'),\\\"},{\\\"line\\\":73,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":74,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":75,\\\"content\\\":\\\"class MyComponent {\\\"},{\\\"line\\\":76,\\\"content\\\":\\\"constructor(public myService: MyService) {}\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":78,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":79,\\\"content\\\":\\\"type: MyComponent,\\\"},{\\\"line\\\":80,\\\"content\\\":\\\"encapsulation: ViewEncapsulation.None,\\\"},{\\\"line\\\":81,\\\"content\\\":\\\"selectors: [['my-component']],\\\"},{\\\"line\\\":82,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":83,\\\"content\\\":\\\"vars: 1,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/component_spec.ts\\\",\\\"line\\\":120,\\\"content\\\":\\\"static ɵfac = () => new Comp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":114,\\\"content\\\":\\\"it('should instantiate components at high indices', () => {\\\"},{\\\"line\\\":115,\\\"content\\\":\\\"// {{ name }}\\\"},{\\\"line\\\":116,\\\"content\\\":\\\"class Comp {\\\"},{\\\"line\\\":117,\\\"content\\\":\\\"// @Input\\\"},{\\\"line\\\":118,\\\"content\\\":\\\"name = '';\\\"},{\\\"line\\\":119,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":121,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":122,\\\"content\\\":\\\"type: Comp,\\\"},{\\\"line\\\":123,\\\"content\\\":\\\"selectors: [['comp']],\\\"},{\\\"line\\\":124,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":125,\\\"content\\\":\\\"vars: 1,\\\"},{\\\"line\\\":126,\\\"content\\\":\\\"template:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/component_spec.ts\\\",\\\"line\\\":174,\\\"content\\\":\\\"static ɵfac =\\\",\\\"contextBefore\\\":[{\\\"line\\\":168,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":169,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":170,\\\"content\\\":\\\"\\\"},{\\\"line\\\":171,\\\"content\\\":\\\"class Comp {\\\"},{\\\"line\\\":172,\\\"content\\\":\\\"visible = true;\\\"},{\\\"line\\\":173,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":175,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":176,\\\"content\\\":\\\"comp = new Comp();\\\"},{\\\"line\\\":177,\\\"content\\\":\\\"return comp;\\\"},{\\\"line\\\":178,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":179,\\\"content\\\":\\\"\\\"},{\\\"line\\\":180,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]}],\\\"packages/core/test/render3/integration_spec.ts\\\":[{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":49,\\\"content\\\":\\\"static ɵfac = () => new StyledComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":43,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":44,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":45,\\\"content\\\":\\\"\\\"},{\\\"line\\\":46,\\\"content\\\":\\\"describe('component styles', () => {\\\"},{\\\"line\\\":47,\\\"content\\\":\\\"it('should pass in the component styles directly into the underlying renderer', () => {\\\"},{\\\"line\\\":48,\\\"content\\\":\\\"class StyledComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":50,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":51,\\\"content\\\":\\\"type: StyledComp,\\\"},{\\\"line\\\":52,\\\"content\\\":\\\"styles: ['div { color: red; }'],\\\"},{\\\"line\\\":53,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":54,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":55,\\\"content\\\":\\\"encapsulation: 100,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":78,\\\"content\\\":\\\"static ɵfac = () => new AnimComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":72,\\\"content\\\":\\\"describe('component animations', () => {\\\"},{\\\"line\\\":73,\\\"content\\\":\\\"it('should pass in the component styles directly into the underlying renderer', () => {\\\"},{\\\"line\\\":74,\\\"content\\\":\\\"const animA = {name: 'a'};\\\"},{\\\"line\\\":75,\\\"content\\\":\\\"const animB = {name: 'b'};\\\"},{\\\"line\\\":76,\\\"content\\\":\\\"\\\"},{\\\"line\\\":77,\\\"content\\\":\\\"class AnimComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":79,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":80,\\\"content\\\":\\\"type: AnimComp,\\\"},{\\\"line\\\":81,\\\"content\\\":\\\"decls: 0,\\\"},{\\\"line\\\":82,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":83,\\\"content\\\":\\\"data: {\\\"},{\\\"line\\\":84,\\\"content\\\":\\\"animation:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":106,\\\"content\\\":\\\"static ɵfac = () => new AnimComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":100,\\\"content\\\":\\\"expect(capturedAnimations).toContain(animA);\\\"},{\\\"line\\\":101,\\\"content\\\":\\\"expect(capturedAnimations).toContain(animB);\\\"},{\\\"line\\\":102,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":103,\\\"content\\\":\\\"\\\"},{\\\"line\\\":104,\\\"content\\\":\\\"it('should include animations in the renderType data array even if the array is empty', () => {\\\"},{\\\"line\\\":105,\\\"content\\\":\\\"class AnimComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":107,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":108,\\\"content\\\":\\\"type: AnimComp,\\\"},{\\\"line\\\":109,\\\"content\\\":\\\"decls: 0,\\\"},{\\\"line\\\":110,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":111,\\\"content\\\":\\\"data: {\\\"},{\\\"line\\\":112,\\\"content\\\":\\\"animation: [],\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":126,\\\"content\\\":\\\"static ɵfac = () => new AnimComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":120,\\\"content\\\":\\\"const data = rendererFactory.lastCapturedType!.data;\\\"},{\\\"line\\\":121,\\\"content\\\":\\\"expect(data.animation).toEqual([]);\\\"},{\\\"line\\\":122,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":123,\\\"content\\\":\\\"\\\"},{\\\"line\\\":124,\\\"content\\\":\\\"it('should allow [@trigger] bindings to be picked up by the underlying renderer', () => {\\\"},{\\\"line\\\":125,\\\"content\\\":\\\"class AnimComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":127,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":128,\\\"content\\\":\\\"type: AnimComp,\\\"},{\\\"line\\\":129,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":130,\\\"content\\\":\\\"vars: 1,\\\"},{\\\"line\\\":131,\\\"content\\\":\\\"selectors: [['foo']],\\\"},{\\\"line\\\":132,\\\"content\\\":\\\"consts: [[AttributeMarker.Bindings, '@fooAnimation']],\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":164,\\\"content\\\":\\\"static ɵfac = () => new AnimComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":158,\\\"content\\\":\\\"expect(value).toEqual('456');\\\"},{\\\"line\\\":159,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":160,\\\"content\\\":\\\"\\\"},{\\\"line\\\":161,\\\"content\\\":\\\"it('should allow creation-level [@trigger] properties to be picked up by the underlying renderer',\\\"},{\\\"line\\\":162,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":163,\\\"content\\\":\\\"class AnimComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":165,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":166,\\\"content\\\":\\\"type: AnimComp,\\\"},{\\\"line\\\":167,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":168,\\\"content\\\":\\\"vars: 1,\\\"},{\\\"line\\\":169,\\\"content\\\":\\\"selectors: [['foo']],\\\"},{\\\"line\\\":170,\\\"content\\\":\\\"consts: [['@fooAnimation', '']],\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":199,\\\"content\\\":\\\"//       static ɵfac = () => new ChildCompWithAnim();\\\",\\\"contextBefore\\\":[{\\\"line\\\":193,\\\"content\\\":\\\"// however adding that causes an error because the slot has not been allocated. There is a\\\"},{\\\"line\\\":194,\\\"content\\\":\\\"// directive called `comp-with-anim`, that seems to want to be a component, but is defined as a\\\"},{\\\"line\\\":195,\\\"content\\\":\\\"// directive that is looking for a property `@fooAnim` to update.\\\"},{\\\"line\\\":196,\\\"content\\\":\\\"\\\"},{\\\"line\\\":197,\\\"content\\\":\\\"//   it('should allow host binding animations to be picked up and rendered', () => {\\\"},{\\\"line\\\":198,\\\"content\\\":\\\"//     class ChildCompWithAnim {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":200,\\\"content\\\":\\\"//       static ɵdir = ɵɵdefineDirective({\\\"},{\\\"line\\\":201,\\\"content\\\":\\\"//         type: ChildCompWithAnim,\\\"},{\\\"line\\\":202,\\\"content\\\":\\\"//         selectors: [['child-comp-with-anim']],\\\"},{\\\"line\\\":203,\\\"content\\\":\\\"//         hostBindings: function(rf: RenderFlags, ctx: any, elementIndex: number): void {\\\"},{\\\"line\\\":204,\\\"content\\\":\\\"//           if (rf & RenderFlags.Update) {\\\"},{\\\"line\\\":205,\\\"content\\\":\\\"//             ɵɵelementProperty(0, '@fooAnim', ctx.exp);\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":214,\\\"content\\\":\\\"//       static ɵfac = () => new ParentComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":208,\\\"content\\\":\\\"//       });\\\"},{\\\"line\\\":209,\\\"content\\\":\\\"\\\"},{\\\"line\\\":210,\\\"content\\\":\\\"//       exp = 'go';\\\"},{\\\"line\\\":211,\\\"content\\\":\\\"//     }\\\"},{\\\"line\\\":212,\\\"content\\\":\\\"\\\"},{\\\"line\\\":213,\\\"content\\\":\\\"//     class ParentComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":215,\\\"content\\\":\\\"//       static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":216,\\\"content\\\":\\\"//         type: ParentComp,\\\"},{\\\"line\\\":217,\\\"content\\\":\\\"//         decls: 1,\\\"},{\\\"line\\\":218,\\\"content\\\":\\\"//         vars: 1,\\\"},{\\\"line\\\":219,\\\"content\\\":\\\"//         selectors: [['foo']],\\\"},{\\\"line\\\":220,\\\"content\\\":\\\"//         template: (rf: RenderFlags, ctx: ParentComp) => {\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":244,\\\"content\\\":\\\"static ɵfac = () => new StructuredComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":238,\\\"content\\\":\\\"//   });\\\"},{\\\"line\\\":239,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":240,\\\"content\\\":\\\"\\\"},{\\\"line\\\":241,\\\"content\\\":\\\"describe('element discovery', () => {\\\"},{\\\"line\\\":242,\\\"content\\\":\\\"it('should only monkey-patch immediate child nodes in a component', () => {\\\"},{\\\"line\\\":243,\\\"content\\\":\\\"class StructuredComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":245,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":246,\\\"content\\\":\\\"type: StructuredComp,\\\"},{\\\"line\\\":247,\\\"content\\\":\\\"selectors: [['structured-comp']],\\\"},{\\\"line\\\":248,\\\"content\\\":\\\"decls: 2,\\\"},{\\\"line\\\":249,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":250,\\\"content\\\":\\\"template:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":277,\\\"content\\\":\\\"static ɵfac = () => new ChildComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":271,\\\"content\\\":\\\"expect(parent[MONKEY_PATCH_KEY_NAME]).toBeTruthy();\\\"},{\\\"line\\\":272,\\\"content\\\":\\\"expect(child[MONKEY_PATCH_KEY_NAME]).toBeFalsy();\\\"},{\\\"line\\\":273,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":274,\\\"content\\\":\\\"\\\"},{\\\"line\\\":275,\\\"content\\\":\\\"it('should only monkey-patch immediate child nodes in a sub component', () => {\\\"},{\\\"line\\\":276,\\\"content\\\":\\\"class ChildComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":278,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":279,\\\"content\\\":\\\"type: ChildComp,\\\"},{\\\"line\\\":280,\\\"content\\\":\\\"selectors: [['child-comp']],\\\"},{\\\"line\\\":281,\\\"content\\\":\\\"decls: 3,\\\"},{\\\"line\\\":282,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":283,\\\"content\\\":\\\"template:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":295,\\\"content\\\":\\\"static ɵfac = () => new ParentComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":289,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":290,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":291,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":292,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":293,\\\"content\\\":\\\"\\\"},{\\\"line\\\":294,\\\"content\\\":\\\"class ParentComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":296,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":297,\\\"content\\\":\\\"type: ParentComp,\\\"},{\\\"line\\\":298,\\\"content\\\":\\\"selectors: [['parent-comp']],\\\"},{\\\"line\\\":299,\\\"content\\\":\\\"directives: [ChildComp],\\\"},{\\\"line\\\":300,\\\"content\\\":\\\"decls: 2,\\\"},{\\\"line\\\":301,\\\"content\\\":\\\"vars: 0,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":329,\\\"content\\\":\\\"static ɵfac = () => new StructuredComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":323,\\\"content\\\":\\\"expect(kid2[MONKEY_PATCH_KEY_NAME]).toBeTruthy();\\\"},{\\\"line\\\":324,\\\"content\\\":\\\"expect(kid3[MONKEY_PATCH_KEY_NAME]).toBeTruthy();\\\"},{\\\"line\\\":325,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":326,\\\"content\\\":\\\"\\\"},{\\\"line\\\":327,\\\"content\\\":\\\"it('should only monkey-patch immediate child nodes in an embedded template container', () => {\\\"},{\\\"line\\\":328,\\\"content\\\":\\\"class StructuredComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":330,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":331,\\\"content\\\":\\\"type: StructuredComp,\\\"},{\\\"line\\\":332,\\\"content\\\":\\\"selectors: [['structured-comp']],\\\"},{\\\"line\\\":333,\\\"content\\\":\\\"directives: [NgIf],\\\"},{\\\"line\\\":334,\\\"content\\\":\\\"decls: 2,\\\"},{\\\"line\\\":335,\\\"content\\\":\\\"vars: 1,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":380,\\\"content\\\":\\\"static ɵfac = () => new StructuredComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":374,\\\"content\\\":\\\"expect(div2.nodeName.toLowerCase()).toBe('div');\\\"},{\\\"line\\\":375,\\\"content\\\":\\\"expect(div2[MONKEY_PATCH_KEY_NAME]).toBeTruthy();\\\"},{\\\"line\\\":376,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":377,\\\"content\\\":\\\"\\\"},{\\\"line\\\":378,\\\"content\\\":\\\"it('should return a context object from a given dom node', () => {\\\"},{\\\"line\\\":379,\\\"content\\\":\\\"class StructuredComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":381,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":382,\\\"content\\\":\\\"type: StructuredComp,\\\"},{\\\"line\\\":383,\\\"content\\\":\\\"selectors: [['structured-comp']],\\\"},{\\\"line\\\":384,\\\"content\\\":\\\"directives: [NgIf],\\\"},{\\\"line\\\":385,\\\"content\\\":\\\"decls: 2,\\\"},{\\\"line\\\":386,\\\"content\\\":\\\"vars: 0,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":419,\\\"content\\\":\\\"static ɵfac = () => new StructuredComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":413,\\\"content\\\":\\\"\\\"},{\\\"line\\\":414,\\\"content\\\":\\\"expect(divLView).toBe(sectionLView);\\\"},{\\\"line\\\":415,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":416,\\\"content\\\":\\\"\\\"},{\\\"line\\\":417,\\\"content\\\":\\\"it('should cache the element context on a element was pre-emptively monkey-patched', () => {\\\"},{\\\"line\\\":418,\\\"content\\\":\\\"class StructuredComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":420,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":421,\\\"content\\\":\\\"type: StructuredComp,\\\"},{\\\"line\\\":422,\\\"content\\\":\\\"selectors: [['structured-comp']],\\\"},{\\\"line\\\":423,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":424,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":425,\\\"content\\\":\\\"template:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":452,\\\"content\\\":\\\"static ɵfac = () => new StructuredComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":446,\\\"content\\\":\\\"expect(result2.lView).toBe(result1);\\\"},{\\\"line\\\":447,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":448,\\\"content\\\":\\\"\\\"},{\\\"line\\\":449,\\\"content\\\":\\\"it('should cache the element context on an intermediate element that isn\\\\\\\\'t pre-emptively monkey-patched',\\\"},{\\\"line\\\":450,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":451,\\\"content\\\":\\\"class StructuredComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":453,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":454,\\\"content\\\":\\\"type: StructuredComp,\\\"},{\\\"line\\\":455,\\\"content\\\":\\\"selectors: [['structured-comp']],\\\"},{\\\"line\\\":456,\\\"content\\\":\\\"decls: 2,\\\"},{\\\"line\\\":457,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":458,\\\"content\\\":\\\"template:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":486,\\\"content\\\":\\\"static ɵfac = () => new StructuredComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":480,\\\"content\\\":\\\"expect(p[MONKEY_PATCH_KEY_NAME]).toBe(pContext);\\\"},{\\\"line\\\":481,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":482,\\\"content\\\":\\\"\\\"},{\\\"line\\\":483,\\\"content\\\":\\\"it('should be able to pull in element context data even if the element is decorated using styling',\\\"},{\\\"line\\\":484,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":485,\\\"content\\\":\\\"class StructuredComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":487,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":488,\\\"content\\\":\\\"type: StructuredComp,\\\"},{\\\"line\\\":489,\\\"content\\\":\\\"selectors: [['structured-comp']],\\\"},{\\\"line\\\":490,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":491,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":492,\\\"content\\\":\\\"template:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":535,\\\"content\\\":\\\"static ɵfac = () => new ProjectorComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":529,\\\"content\\\":\\\"\\\"},{\\\"line\\\":530,\\\"content\\\":\\\"\\\"},{\\\"line\\\":531,\\\"content\\\":\\\"\\\"},{\\\"line\\\":532,\\\"content\\\":\\\"\\\"},{\\\"line\\\":533,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":534,\\\"content\\\":\\\"class ProjectorComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":536,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":537,\\\"content\\\":\\\"type: ProjectorComp,\\\"},{\\\"line\\\":538,\\\"content\\\":\\\"selectors: [['projector-comp']],\\\"},{\\\"line\\\":539,\\\"content\\\":\\\"decls: 4,\\\"},{\\\"line\\\":540,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":541,\\\"content\\\":\\\"template:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":559,\\\"content\\\":\\\"static ɵfac = () => new ParentComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":553,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":554,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":555,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":556,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":557,\\\"content\\\":\\\"\\\"},{\\\"line\\\":558,\\\"content\\\":\\\"class ParentComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":560,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":561,\\\"content\\\":\\\"type: ParentComp,\\\"},{\\\"line\\\":562,\\\"content\\\":\\\"selectors: [['parent-comp']],\\\"},{\\\"line\\\":563,\\\"content\\\":\\\"directives: [ProjectorComp],\\\"},{\\\"line\\\":564,\\\"content\\\":\\\"decls: 5,\\\"},{\\\"line\\\":565,\\\"content\\\":\\\"vars: 0,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":634,\\\"content\\\":\\\"static ɵfac = () => new StructuredComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":628,\\\"content\\\":\\\"expect(context2).toBeFalsy();\\\"},{\\\"line\\\":629,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":630,\\\"content\\\":\\\"\\\"},{\\\"line\\\":631,\\\"content\\\":\\\"it('should return `null` when an element context is retrieved that is a DOM node that was not created by Angular',\\\"},{\\\"line\\\":632,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":633,\\\"content\\\":\\\"class StructuredComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":635,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":636,\\\"content\\\":\\\"type: StructuredComp,\\\"},{\\\"line\\\":637,\\\"content\\\":\\\"selectors: [['structured-comp']],\\\"},{\\\"line\\\":638,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":639,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":640,\\\"content\\\":\\\"template:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":662,\\\"content\\\":\\\"static ɵfac = () => new StructuredComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":656,\\\"content\\\":\\\"const context = getLContext(manuallyCreatedElement);\\\"},{\\\"line\\\":657,\\\"content\\\":\\\"expect(context).toBeFalsy();\\\"},{\\\"line\\\":658,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":659,\\\"content\\\":\\\"\\\"},{\\\"line\\\":660,\\\"content\\\":\\\"it('should by default monkey-patch the bootstrap component with context details', () => {\\\"},{\\\"line\\\":661,\\\"content\\\":\\\"class StructuredComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":663,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":664,\\\"content\\\":\\\"type: StructuredComp,\\\"},{\\\"line\\\":665,\\\"content\\\":\\\"selectors: [['structured-comp']],\\\"},{\\\"line\\\":666,\\\"content\\\":\\\"decls: 0,\\\"},{\\\"line\\\":667,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":668,\\\"content\\\":\\\"template: (rf: RenderFlags, ctx: StructuredComp) => {}\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":701,\\\"content\\\":\\\"static ɵfac = () => myDir1Instance = new MyDir1();\\\",\\\"contextBefore\\\":[{\\\"line\\\":695,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":696,\\\"content\\\":\\\"let myDir1Instance: MyDir1|null = null;\\\"},{\\\"line\\\":697,\\\"content\\\":\\\"let myDir2Instance: MyDir2|null = null;\\\"},{\\\"line\\\":698,\\\"content\\\":\\\"let myDir3Instance: MyDir2|null = null;\\\"},{\\\"line\\\":699,\\\"content\\\":\\\"\\\"},{\\\"line\\\":700,\\\"content\\\":\\\"class MyDir1 {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":702,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({type: MyDir1, selectors: [['', 'my-dir-1', '']]});\\\"},{\\\"line\\\":703,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":704,\\\"content\\\":\\\"\\\"},{\\\"line\\\":705,\\\"content\\\":\\\"class MyDir2 {\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":706,\\\"content\\\":\\\"static ɵfac = () => myDir2Instance = new MyDir2();\\\",\\\"contextBefore\\\":[{\\\"line\\\":702,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({type: MyDir1, selectors: [['', 'my-dir-1', '']]});\\\"},{\\\"line\\\":703,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":704,\\\"content\\\":\\\"\\\"},{\\\"line\\\":705,\\\"content\\\":\\\"class MyDir2 {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":707,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({type: MyDir2, selectors: [['', 'my-dir-2', '']]});\\\"},{\\\"line\\\":708,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":709,\\\"content\\\":\\\"\\\"},{\\\"line\\\":710,\\\"content\\\":\\\"class MyDir3 {\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":711,\\\"content\\\":\\\"static ɵfac = () => myDir3Instance = new MyDir2();\\\",\\\"contextBefore\\\":[{\\\"line\\\":707,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({type: MyDir2, selectors: [['', 'my-dir-2', '']]});\\\"},{\\\"line\\\":708,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":709,\\\"content\\\":\\\"\\\"},{\\\"line\\\":710,\\\"content\\\":\\\"class MyDir3 {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":712,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({type: MyDir3, selectors: [['', 'my-dir-3', '']]});\\\"},{\\\"line\\\":713,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":714,\\\"content\\\":\\\"\\\"},{\\\"line\\\":715,\\\"content\\\":\\\"class StructuredComp {\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":716,\\\"content\\\":\\\"static ɵfac = () => new StructuredComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":712,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({type: MyDir3, selectors: [['', 'my-dir-3', '']]});\\\"},{\\\"line\\\":713,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":714,\\\"content\\\":\\\"\\\"},{\\\"line\\\":715,\\\"content\\\":\\\"class StructuredComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":717,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":718,\\\"content\\\":\\\"type: StructuredComp,\\\"},{\\\"line\\\":719,\\\"content\\\":\\\"selectors: [['structured-comp']],\\\"},{\\\"line\\\":720,\\\"content\\\":\\\"directives: [MyDir1, MyDir2, MyDir3],\\\"},{\\\"line\\\":721,\\\"content\\\":\\\"decls: 2,\\\"},{\\\"line\\\":722,\\\"content\\\":\\\"vars: 0,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":783,\\\"content\\\":\\\"static ɵfac = () => myDir1Instance = new MyDir1();\\\",\\\"contextBefore\\\":[{\\\"line\\\":777,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":778,\\\"content\\\":\\\"let myDir1Instance: MyDir1|null = null;\\\"},{\\\"line\\\":779,\\\"content\\\":\\\"let myDir2Instance: MyDir2|null = null;\\\"},{\\\"line\\\":780,\\\"content\\\":\\\"let childComponentInstance: ChildComp|null = null;\\\"},{\\\"line\\\":781,\\\"content\\\":\\\"\\\"},{\\\"line\\\":782,\\\"content\\\":\\\"class MyDir1 {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":784,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({type: MyDir1, selectors: [['', 'my-dir-1', '']]});\\\"},{\\\"line\\\":785,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":786,\\\"content\\\":\\\"\\\"},{\\\"line\\\":787,\\\"content\\\":\\\"class MyDir2 {\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":788,\\\"content\\\":\\\"static ɵfac = () => myDir2Instance = new MyDir2();\\\",\\\"contextBefore\\\":[{\\\"line\\\":784,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({type: MyDir1, selectors: [['', 'my-dir-1', '']]});\\\"},{\\\"line\\\":785,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":786,\\\"content\\\":\\\"\\\"},{\\\"line\\\":787,\\\"content\\\":\\\"class MyDir2 {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":789,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({type: MyDir2, selectors: [['', 'my-dir-2', '']]});\\\"},{\\\"line\\\":790,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":791,\\\"content\\\":\\\"\\\"},{\\\"line\\\":792,\\\"content\\\":\\\"class ChildComp {\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":793,\\\"content\\\":\\\"static ɵfac = () => childComponentInstance = new ChildComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":789,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({type: MyDir2, selectors: [['', 'my-dir-2', '']]});\\\"},{\\\"line\\\":790,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":791,\\\"content\\\":\\\"\\\"},{\\\"line\\\":792,\\\"content\\\":\\\"class ChildComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":794,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":795,\\\"content\\\":\\\"type: ChildComp,\\\"},{\\\"line\\\":796,\\\"content\\\":\\\"selectors: [['child-comp']],\\\"},{\\\"line\\\":797,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":798,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":799,\\\"content\\\":\\\"template:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":809,\\\"content\\\":\\\"static ɵfac = () => new ParentComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":803,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":804,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":805,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":806,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":807,\\\"content\\\":\\\"\\\"},{\\\"line\\\":808,\\\"content\\\":\\\"class ParentComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":810,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":811,\\\"content\\\":\\\"type: ParentComp,\\\"},{\\\"line\\\":812,\\\"content\\\":\\\"selectors: [['parent-comp']],\\\"},{\\\"line\\\":813,\\\"content\\\":\\\"directives: [ChildComp, MyDir1, MyDir2],\\\"},{\\\"line\\\":814,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":815,\\\"content\\\":\\\"vars: 0,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":873,\\\"content\\\":\\\"static ɵfac = () => new ChildComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":867,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":868,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":869,\\\"content\\\":\\\"\\\"},{\\\"line\\\":870,\\\"content\\\":\\\"it('should monkey-patch sub components with the view data and then replace them with the context result once a lookup occurs',\\\"},{\\\"line\\\":871,\\\"content\\\":\\\"() => {\\\"},{\\\"line\\\":872,\\\"content\\\":\\\"class ChildComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":874,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":875,\\\"content\\\":\\\"type: ChildComp,\\\"},{\\\"line\\\":876,\\\"content\\\":\\\"selectors: [['child-comp']],\\\"},{\\\"line\\\":877,\\\"content\\\":\\\"decls: 3,\\\"},{\\\"line\\\":878,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":879,\\\"content\\\":\\\"template:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":891,\\\"content\\\":\\\"static ɵfac = () => new ParentComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":885,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":886,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":887,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":888,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":889,\\\"content\\\":\\\"\\\"},{\\\"line\\\":890,\\\"content\\\":\\\"class ParentComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":892,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":893,\\\"content\\\":\\\"type: ParentComp,\\\"},{\\\"line\\\":894,\\\"content\\\":\\\"selectors: [['parent-comp']],\\\"},{\\\"line\\\":895,\\\"content\\\":\\\"directives: [ChildComp],\\\"},{\\\"line\\\":896,\\\"content\\\":\\\"decls: 2,\\\"},{\\\"line\\\":897,\\\"content\\\":\\\"vars: 0,\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":936,\\\"content\\\":\\\"static ɵfac = () => new SanitizationComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":930,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":931,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":932,\\\"content\\\":\\\"\\\"},{\\\"line\\\":933,\\\"content\\\":\\\"describe('sanitization', () => {\\\"},{\\\"line\\\":934,\\\"content\\\":\\\"it('should sanitize data using the provided sanitization interface', () => {\\\"},{\\\"line\\\":935,\\\"content\\\":\\\"class SanitizationComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":937,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":938,\\\"content\\\":\\\"type: SanitizationComp,\\\"},{\\\"line\\\":939,\\\"content\\\":\\\"selectors: [['sanitize-this']],\\\"},{\\\"line\\\":940,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":941,\\\"content\\\":\\\"vars: 1,\\\"},{\\\"line\\\":942,\\\"content\\\":\\\"template:\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":983,\\\"content\\\":\\\"static ɵfac = () => hostBindingDir = new UnsafeUrlHostBindingDir();\\\",\\\"contextBefore\\\":[{\\\"line\\\":977,\\\"content\\\":\\\"it('should sanitize HostBindings data using provided sanitization interface', () => {\\\"},{\\\"line\\\":978,\\\"content\\\":\\\"let hostBindingDir: UnsafeUrlHostBindingDir;\\\"},{\\\"line\\\":979,\\\"content\\\":\\\"class UnsafeUrlHostBindingDir {\\\"},{\\\"line\\\":980,\\\"content\\\":\\\"// @HostBinding()\\\"},{\\\"line\\\":981,\\\"content\\\":\\\"cite: any = 'http://cite-dir-value';\\\"},{\\\"line\\\":982,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":984,\\\"content\\\":\\\"static ɵdir = ɵɵdefineDirective({\\\"},{\\\"line\\\":985,\\\"content\\\":\\\"type: UnsafeUrlHostBindingDir,\\\"},{\\\"line\\\":986,\\\"content\\\":\\\"selectors: [['', 'unsafeUrlHostBindingDir', '']],\\\"},{\\\"line\\\":987,\\\"content\\\":\\\"hostVars: 1,\\\"},{\\\"line\\\":988,\\\"content\\\":\\\"hostBindings:\\\"},{\\\"line\\\":989,\\\"content\\\":\\\"(rf: RenderFlags, ctx: any) => {\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]},{\\\"file\\\":\\\"packages/core/test/render3/integration_spec.ts\\\",\\\"line\\\":998,\\\"content\\\":\\\"static ɵfac = () => new SimpleComp();\\\",\\\"contextBefore\\\":[{\\\"line\\\":992,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":993,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":994,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":995,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":996,\\\"content\\\":\\\"\\\"},{\\\"line\\\":997,\\\"content\\\":\\\"class SimpleComp {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":999,\\\"content\\\":\\\"static ɵcmp = ɵɵdefineComponent({\\\"},{\\\"line\\\":1000,\\\"content\\\":\\\"type: SimpleComp,\\\"},{\\\"line\\\":1001,\\\"content\\\":\\\"selectors: [['sanitize-this']],\\\"},{\\\"line\\\":1002,\\\"content\\\":\\\"decls: 1,\\\"},{\\\"line\\\":1003,\\\"content\\\":\\\"vars: 0,\\\"},{\\\"line\\\":1004,\\\"content\\\":\\\"consts: [['unsafeUrlHostBindingDir', '']],\\\"}],\\\"matches\\\":[\\\"ɵfac \\\"]}],\\\"packages/core/test/di/r3_injector_spec.ts\\\":[{\\\"file\\\":\\\"packages/core/test/di/r3_injector_spec.ts\\\",\\\"line\\\":15,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({\\\",\\\"contextBefore\\\":[{\\\"line\\\":9,\\\"content\\\":\\\"import {InjectFlags, InjectionToken, INJECTOR, Injector, Optional, ɵɵdefineInjectable, ɵɵdefineInjector, ɵɵinject} from '@angular/core';\\\"},{\\\"line\\\":10,\\\"content\\\":\\\"import {createInjector, R3Injector} from '@angular/core/src/di/r3_injector';\\\"},{\\\"line\\\":11,\\\"content\\\":\\\"import {expect} from '@angular/platform-browser/testing/src/matchers';\\\"},{\\\"line\\\":12,\\\"content\\\":\\\"\\\"},{\\\"line\\\":13,\\\"content\\\":\\\"describe('InjectorDef-based createInjector()', () => {\\\"},{\\\"line\\\":14,\\\"content\\\":\\\"class CircularA {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":16,\\\"content\\\":\\\"token: CircularA,\\\"},{\\\"line\\\":17,\\\"content\\\":\\\"providedIn: null,\\\"},{\\\"line\\\":18,\\\"content\\\":\\\"factory: () => ɵɵinject(CircularB),\\\"},{\\\"line\\\":19,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":20,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":21,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵprov \\\"]},{\\\"file\\\":\\\"packages/core/test/di/r3_injector_spec.ts\\\",\\\"line\\\":23,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({\\\",\\\"contextBefore\\\":[{\\\"line\\\":17,\\\"content\\\":\\\"providedIn: null,\\\"},{\\\"line\\\":18,\\\"content\\\":\\\"factory: () => ɵɵinject(CircularB),\\\"},{\\\"line\\\":19,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":20,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":21,\\\"content\\\":\\\"\\\"},{\\\"line\\\":22,\\\"content\\\":\\\"class CircularB {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":24,\\\"content\\\":\\\"token: CircularB,\\\"},{\\\"line\\\":25,\\\"content\\\":\\\"providedIn: null,\\\"},{\\\"line\\\":26,\\\"content\\\":\\\"factory: () => ɵɵinject(CircularA),\\\"},{\\\"line\\\":27,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":28,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":29,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵprov \\\"]},{\\\"file\\\":\\\"packages/core/test/di/r3_injector_spec.ts\\\",\\\"line\\\":31,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({\\\",\\\"contextBefore\\\":[{\\\"line\\\":25,\\\"content\\\":\\\"providedIn: null,\\\"},{\\\"line\\\":26,\\\"content\\\":\\\"factory: () => ɵɵinject(CircularA),\\\"},{\\\"line\\\":27,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":28,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":29,\\\"content\\\":\\\"\\\"},{\\\"line\\\":30,\\\"content\\\":\\\"class Service {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":32,\\\"content\\\":\\\"token: Service,\\\"},{\\\"line\\\":33,\\\"content\\\":\\\"providedIn: null,\\\"},{\\\"line\\\":34,\\\"content\\\":\\\"factory: () => new Service(),\\\"},{\\\"line\\\":35,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":36,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":37,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵprov \\\"]},{\\\"file\\\":\\\"packages/core/test/di/r3_injector_spec.ts\\\",\\\"line\\\":39,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({\\\",\\\"contextBefore\\\":[{\\\"line\\\":33,\\\"content\\\":\\\"providedIn: null,\\\"},{\\\"line\\\":34,\\\"content\\\":\\\"factory: () => new Service(),\\\"},{\\\"line\\\":35,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":36,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":37,\\\"content\\\":\\\"\\\"},{\\\"line\\\":38,\\\"content\\\":\\\"class OptionalService {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":40,\\\"content\\\":\\\"token: OptionalService,\\\"},{\\\"line\\\":41,\\\"content\\\":\\\"providedIn: null,\\\"},{\\\"line\\\":42,\\\"content\\\":\\\"factory: () => new OptionalService(),\\\"},{\\\"line\\\":43,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":44,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":45,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵprov \\\"]},{\\\"file\\\":\\\"packages/core/test/di/r3_injector_spec.ts\\\",\\\"line\\\":62,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({\\\",\\\"contextBefore\\\":[{\\\"line\\\":56,\\\"content\\\":\\\"const PRIMITIVE_VALUE = new InjectionToken('PRIMITIVE_VALUE');\\\"},{\\\"line\\\":57,\\\"content\\\":\\\"const UNDEFINED_VALUE = new InjectionToken('UNDEFINED_VALUE');\\\"},{\\\"line\\\":58,\\\"content\\\":\\\"\\\"},{\\\"line\\\":59,\\\"content\\\":\\\"class ServiceWithDep {\\\"},{\\\"line\\\":60,\\\"content\\\":\\\"constructor(readonly service: Service) {}\\\"},{\\\"line\\\":61,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":63,\\\"content\\\":\\\"token: ServiceWithDep,\\\"},{\\\"line\\\":64,\\\"content\\\":\\\"providedIn: null,\\\"},{\\\"line\\\":65,\\\"content\\\":\\\"// ChildService is derived from ServiceWithDep, so the factory function here must do the right\\\"},{\\\"line\\\":66,\\\"content\\\":\\\"// thing and create an instance of the requested type if one is given.\\\"},{\\\"line\\\":67,\\\"content\\\":\\\"factory: (t?: typeof ServiceWithDep) => new(t || ServiceWithDep)(ɵɵinject(Service)),\\\"},{\\\"line\\\":68,\\\"content\\\":\\\"});\\\"}],\\\"matches\\\":[\\\"ɵprov \\\"]},{\\\"file\\\":\\\"packages/core/test/di/r3_injector_spec.ts\\\",\\\"line\\\":74,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({\\\",\\\"contextBefore\\\":[{\\\"line\\\":68,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":69,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":70,\\\"content\\\":\\\"\\\"},{\\\"line\\\":71,\\\"content\\\":\\\"class ServiceWithOptionalDep {\\\"},{\\\"line\\\":72,\\\"content\\\":\\\"constructor(@Optional() readonly service: OptionalService|null) {}\\\"},{\\\"line\\\":73,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":75,\\\"content\\\":\\\"token: ServiceWithOptionalDep,\\\"},{\\\"line\\\":76,\\\"content\\\":\\\"providedIn: null,\\\"},{\\\"line\\\":77,\\\"content\\\":\\\"factory: () => new ServiceWithOptionalDep(ɵɵinject(OptionalService, InjectFlags.Optional)),\\\"},{\\\"line\\\":78,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":79,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":80,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵprov \\\"]},{\\\"file\\\":\\\"packages/core/test/di/r3_injector_spec.ts\\\",\\\"line\\\":84,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({\\\",\\\"contextBefore\\\":[{\\\"line\\\":78,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":79,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":80,\\\"content\\\":\\\"\\\"},{\\\"line\\\":81,\\\"content\\\":\\\"class ServiceWithMissingDep {\\\"},{\\\"line\\\":82,\\\"content\\\":\\\"constructor(readonly service: Service) {}\\\"},{\\\"line\\\":83,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":85,\\\"content\\\":\\\"token: ServiceWithMissingDep,\\\"},{\\\"line\\\":86,\\\"content\\\":\\\"providedIn: null,\\\"},{\\\"line\\\":87,\\\"content\\\":\\\"factory: () => new ServiceWithMissingDep(ɵɵinject(Service)),\\\"},{\\\"line\\\":88,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":89,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":90,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵprov \\\"]},{\\\"file\\\":\\\"packages/core/test/di/r3_injector_spec.ts\\\",\\\"line\\\":94,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({\\\",\\\"contextBefore\\\":[{\\\"line\\\":88,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":89,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":90,\\\"content\\\":\\\"\\\"},{\\\"line\\\":91,\\\"content\\\":\\\"class ServiceWithMultiDep {\\\"},{\\\"line\\\":92,\\\"content\\\":\\\"constructor(readonly locale: string[]) {}\\\"},{\\\"line\\\":93,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":95,\\\"content\\\":\\\"token: ServiceWithMultiDep,\\\"},{\\\"line\\\":96,\\\"content\\\":\\\"providedIn: null,\\\"},{\\\"line\\\":97,\\\"content\\\":\\\"factory: () => new ServiceWithMultiDep(ɵɵinject(LOCALE)),\\\"},{\\\"line\\\":98,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":99,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":100,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵprov \\\"]},{\\\"file\\\":\\\"packages/core/test/di/r3_injector_spec.ts\\\",\\\"line\\\":102,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({\\\",\\\"contextBefore\\\":[{\\\"line\\\":96,\\\"content\\\":\\\"providedIn: null,\\\"},{\\\"line\\\":97,\\\"content\\\":\\\"factory: () => new ServiceWithMultiDep(ɵɵinject(LOCALE)),\\\"},{\\\"line\\\":98,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":99,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":100,\\\"content\\\":\\\"\\\"},{\\\"line\\\":101,\\\"content\\\":\\\"class ServiceTwo {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":103,\\\"content\\\":\\\"token: ServiceTwo,\\\"},{\\\"line\\\":104,\\\"content\\\":\\\"providedIn: null,\\\"},{\\\"line\\\":105,\\\"content\\\":\\\"factory: () => new ServiceTwo(),\\\"},{\\\"line\\\":106,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":107,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":108,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵprov \\\"]},{\\\"file\\\":\\\"packages/core/test/di/r3_injector_spec.ts\\\",\\\"line\\\":111,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({\\\",\\\"contextBefore\\\":[{\\\"line\\\":105,\\\"content\\\":\\\"factory: () => new ServiceTwo(),\\\"},{\\\"line\\\":106,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":107,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":108,\\\"content\\\":\\\"\\\"},{\\\"line\\\":109,\\\"content\\\":\\\"let deepServiceDestroyed = false;\\\"},{\\\"line\\\":110,\\\"content\\\":\\\"class DeepService {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":112,\\\"content\\\":\\\"token: DeepService,\\\"},{\\\"line\\\":113,\\\"content\\\":\\\"providedIn: null,\\\"},{\\\"line\\\":114,\\\"content\\\":\\\"factory: () => new DeepService(),\\\"},{\\\"line\\\":115,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":116,\\\"content\\\":\\\"\\\"},{\\\"line\\\":117,\\\"content\\\":\\\"ngOnDestroy(): void {\\\"}],\\\"matches\\\":[\\\"ɵprov \\\"]},{\\\"file\\\":\\\"packages/core/test/di/r3_injector_spec.ts\\\",\\\"line\\\":124,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({\\\",\\\"contextBefore\\\":[{\\\"line\\\":118,\\\"content\\\":\\\"deepServiceDestroyed = true;\\\"},{\\\"line\\\":119,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":120,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":121,\\\"content\\\":\\\"\\\"},{\\\"line\\\":122,\\\"content\\\":\\\"let eagerServiceCreated: boolean = false;\\\"},{\\\"line\\\":123,\\\"content\\\":\\\"class EagerService {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":125,\\\"content\\\":\\\"token: EagerService,\\\"},{\\\"line\\\":126,\\\"content\\\":\\\"providedIn: undefined,\\\"},{\\\"line\\\":127,\\\"content\\\":\\\"factory: () => new EagerService(),\\\"},{\\\"line\\\":128,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":129,\\\"content\\\":\\\"\\\"},{\\\"line\\\":130,\\\"content\\\":\\\"constructor() {\\\"}],\\\"matches\\\":[\\\"ɵprov \\\"]},{\\\"file\\\":\\\"packages/core/test/di/r3_injector_spec.ts\\\",\\\"line\\\":235,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({\\\",\\\"contextBefore\\\":[{\\\"line\\\":229,\\\"content\\\":\\\"providers: [],\\\"},{\\\"line\\\":230,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":231,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":232,\\\"content\\\":\\\"\\\"},{\\\"line\\\":233,\\\"content\\\":\\\"let scopedServiceDestroyed = false;\\\"},{\\\"line\\\":234,\\\"content\\\":\\\"class ScopedService {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":236,\\\"content\\\":\\\"token: ScopedService,\\\"},{\\\"line\\\":237,\\\"content\\\":\\\"providedIn: Module,\\\"},{\\\"line\\\":238,\\\"content\\\":\\\"factory: () => new ScopedService(),\\\"},{\\\"line\\\":239,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":240,\\\"content\\\":\\\"\\\"},{\\\"line\\\":241,\\\"content\\\":\\\"ngOnDestroy(): void {\\\"}],\\\"matches\\\":[\\\"ɵprov \\\"]},{\\\"file\\\":\\\"packages/core/test/di/r3_injector_spec.ts\\\",\\\"line\\\":247,\\\"content\\\":\\\"static ɵprov = ɵɵdefineInjectable({\\\",\\\"contextBefore\\\":[{\\\"line\\\":241,\\\"content\\\":\\\"ngOnDestroy(): void {\\\"},{\\\"line\\\":242,\\\"content\\\":\\\"scopedServiceDestroyed = true;\\\"},{\\\"line\\\":243,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":244,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":245,\\\"content\\\":\\\"\\\"},{\\\"line\\\":246,\\\"content\\\":\\\"class WrongScopeService {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":248,\\\"content\\\":\\\"token: WrongScopeService,\\\"},{\\\"line\\\":249,\\\"content\\\":\\\"providedIn: OtherModule,\\\"},{\\\"line\\\":250,\\\"content\\\":\\\"factory: () => new WrongScopeService(),\\\"},{\\\"line\\\":251,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":252,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":253,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"ɵprov \\\"]}]}}\"}"
+> > > }
+> > > ```
+> > > 
+> > > 90. **Sub-agent event: tool_output**
+> > > worker-di-runtime
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_output",
+> > >   "subagentId": "worker-di-runtime",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-di-runtime",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "find_files",
+> > >   "toolCallId": "call_03bnsM5nw90IqZG6JF2lHExV|fc_045b4203620df0b4016ab56e6b613487d1bab9f4d972de707b",
+> > >   "isError": false,
+> > >   "output": "{\"status\":\"error\",\"message\":\"Below are the 6 files found for the specified glob patterns (**/packages/core/test/di/**/*[sS][pP][eE][cC].[tT][sS]):\\n\\nangular__angular-37561/packages/core/test/di/static_injector_spec.ts\\nangular__angular-37561/packages/core/test/di/forward_ref_spec.ts\\nangular__angular-37561/packages/core/test/di/reflective_injector_spec.ts\\nangular__angular-37561/packages/core/test/di/reflective_key_spec.ts\\nangular__angular-37561/packages/core/test/di/injector_spec.ts\\nangular__angular-37561/packages/core/test/di/r3_injector_spec.ts\\n\\nMultiple matches were found. Use the request_user_input tool to specify which file should be referred to for the use case you are trying to implement.\\n\\nNo files found for the following patterns: '**/packages/core/test/**/[dD][eE][fF][iI][nN][iI][tT][iI][oO][nN]_[sS][pP][eE][cC].[tT][sS]'\\n\\n\"}"
+> > > }
+> > > ```
+> > > 
+> > > 91. **Sub-agent event: tool_output**
+> > > worker-di-runtime
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_output",
+> > >   "subagentId": "worker-di-runtime",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-di-runtime",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "run_terminal_command",
+> > >   "toolCallId": "call_qJnhvMGxYxqg1kftsgoRPPoR|fc_045b4203620df0b4016ab56e6b615087d18f2bb990cc73044a",
+> > >   "isError": false,
+> > >   "output": "{\"status\":\"success\",\"message\":\"I ran all provided commands and below are the outcomes for each command with their status. Please analyze each output carefully and run the commands again for which you see errors to get their output by correcting the command and other parameters.\\n\\n=== EXECUTION SUMMARY ===\\nTotal Commands: 1\\nNumber of Successful Commands: 1\\nNumber of Failed Commands: 0\\nNumber of Timed Out Commands: 0\\n========================\\n\\n╔══════════════════════════════════════════════════════════════════════╗\\n║ COMMAND 1 of 1                                                        ║\\n╚══════════════════════════════════════════════════════════════════════╝\\nCommand: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc 'git grep -n -E \\\"hasOwnProperty\\\\(|inherited (injectable|definition|factory)|inherit.*(ɵprov|ɵfac)|own (ɵprov|ɵfac|definition|factory)|get.*Def\\\" -- packages/core/test/di packages/core/test/render3 | head -500'\\nStatus: SUCCESS\\n─────────────────────────────────────────────────────────────────────────\\nOutput:\\nCommand success.\\n\\n--- Full Output ---\\npackages/core/test/di/r3_injector_spec.ts:457:    expect(injector.get(ImportsNotAModule)).toBeDefined();\\npackages/core/test/render3/instructions/shared_spec.ts:26: *     expect(getLView()).toBeDefined();\\npackages/core/test/render3/instructions/styling_spec.ts:515:    tData[getTDataIndexFromDirectiveIndex(i)] = directiveDef;\\npackages/core/test/render3/jit_environment_spec.ts:39:          expect(angularCoreEnv.hasOwnProperty(sym.name))\\npackages/core/test/render3/load_domino.ts:19:  (global as any).document = getDOM().getDefaultDocument();\\npackages/core/test/render3/perfCounter_spec.ts:23:    if (expected.hasOwnProperty(key)) {\\n__CMD_FINISHED__ 0\\n--- End of Full Output ---\\n═════════════════════════════════════════════════════════════════════════\\n\\n\"}"
+> > > }
+> > > ```
+> > > 
+> > > 92. **Sub-agent event: token_usage**
+> > > worker-di-runtime
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "token_usage",
+> > >   "subagentId": "worker-di-runtime",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-di-runtime",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "tokenUsage": {
+> > >     "inputTokens": 8079,
+> > >     "outputTokens": 1317,
+> > >     "totalTokens": 49427,
+> > >     "cost": {
+> > >       "total": 0.05630976
+> > >     }
+> > >   },
+> > >   "cumulativeTokenUsage": {
+> > >     "inputTokens": 38438,
+> > >     "outputTokens": 3500,
+> > >     "totalTokens": 173820,
+> > >     "cost": {
+> > >       "total": 0.21480192000000004
+> > >     }
+> > >   },
+> > >   "status": "running"
+> > > }
+> > > ```
+> > > 
+> > > 93. **Sub-agent event: tool_call**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_call",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "run_terminal_command",
+> > >   "toolCallId": "call_8bEXsXYcGo781Hb3BvPMM7po|fc_032f22962d24028b016ab56e6e4e9087d19ba5ec7c9acbc2c6",
+> > >   "input": {
+> > >     "commands": [
+> > >       {
+> > >         "command": "git --no-pager log --all --oneline --decorate --grep='decorator' --grep='subclass' --grep='injectable' -i -n 50",
+> > >         "cwd": "angular__angular-37561",
+> > >         "profileName": "bash",
+> > >         "readTerminalFullOutput": true,
+> > >         "timeoutMs": 30000,
+> > >         "isInteractive": false
+> > >       },
+> > >       {
+> > >         "command": "git --no-pager branch -a --contains f799725",
+> > >         "cwd": "angular__angular-37561",
+> > >         "profileName": "bash",
+> > >         "readTerminalFullOutput": true,
+> > >         "timeoutMs": 30000,
+> > >         "isInteractive": false
+> > >       }
+> > >     ],
+> > >     "toolPurpose": "RTK is unavailable, so I want to search local Git history and refs for any existing context around injectable factories and class-replacing decorators, without network access."
+> > >   },
+> > >   "toolIcon": "",
+> > >   "toolLabel": "Executing Command",
+> > >   "isPillTool": false,
+> > >   "toolPurpose": "RTK is unavailable, so I want to search local Git history and refs for any existing context around injectable factories and class-replacing decorators, without network access."
+> > > }
+> > > ```
+> > > 
+> > > 94. **Sub-agent event: tool_call**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_call",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "grep",
+> > >   "toolCallId": "call_dbDXc2x0TyNlqP2ueI6f4epv|fc_032f22962d24028b016ab56e6e4ea487d1b571516810c73be4",
+> > >   "input": {
+> > >     "pattern": "compileInjectable|compileNgFactoryDefField|detect\\(|analyze\\(|compile\\(",
+> > >     "searchPath": "/angular__angular-37561/packages/compiler-cli/src/ngtsc/annotations/src",
+> > >     "glob": [
+> > >       "injectable.ts"
+> > >     ],
+> > >     "outputMode": "matches",
+> > >     "context": 12,
+> > >     "headLimit": 300,
+> > >     "toolPurpose": "I need to inspect the key methods in the production injectable decorator handler after the file reader could not disambiguate the file."
+> > >   },
+> > >   "toolIcon": "\n      \n      \n",
+> > >   "toolLabel": "Searching",
+> > >   "isPillTool": false,
+> > >   "toolPurpose": "I need to inspect the key methods in the production injectable decorator handler after the file reader could not disambiguate the file."
+> > > }
+> > > ```
+> > > 
+> > > 95. **Sub-agent event: tool_call**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_call",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "grep",
+> > >   "toolCallId": "call_qMYjFeWK0Co6pRkjLj6xJerR|fc_032f22962d24028b016ab56e6e4eac87d1838c3936b0a0ed8d",
+> > >   "input": {
+> > >     "pattern": "compileInjectable\\(|factory:|useClass|useFactory|useValue|useExisting",
+> > >     "searchPath": "/angular__angular-37561/packages/compiler/src",
+> > >     "glob": [
+> > >       "**/*injectable*.ts"
+> > >     ],
+> > >     "outputMode": "matches",
+> > >     "context": 8,
+> > >     "headLimit": 300,
+> > >     "toolPurpose": "I need to trace the compiler-side `ɵprov` generation and distinguish it from `ɵfac` generation."
+> > >   },
+> > >   "toolIcon": "\n      \n      \n",
+> > >   "toolLabel": "Searching",
+> > >   "isPillTool": false,
+> > >   "toolPurpose": "I need to trace the compiler-side `ɵprov` generation and distinguish it from `ɵfac` generation."
+> > > }
+> > > ```
+> > > 
+> > > 96. **Sub-agent event: tool_call**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_call",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "grep",
+> > >   "toolCallId": "call_ssILMlou325ER9unZThzGgjM|fc_032f22962d24028b016ab56e6e4eb887d1aba9e585f22ef3b9",
+> > >   "input": {
+> > >     "pattern": "getInjectableDef|NG_PROV_DEF|hasOwnProperty",
+> > >     "searchPath": "/angular__angular-37561/packages/core/src",
+> > >     "glob": [
+> > >       "**/*.ts"
+> > >     ],
+> > >     "outputMode": "matches",
+> > >     "context": 6,
+> > >     "headLimit": 300,
+> > >     "toolPurpose": "I need to verify runtime ownership and inheritance semantics for injectable and factory definitions to explain how replacement subclasses interact with generated static fields."
+> > >   },
+> > >   "toolIcon": "\n      \n      \n",
+> > >   "toolLabel": "Searching",
+> > >   "isPillTool": false,
+> > >   "toolPurpose": "I need to verify runtime ownership and inheritance semantics for injectable and factory definitions to explain how replacement subclasses interact with generated static fields."
+> > > }
+> > > ```
+> > > 
+> > > 97. **Sub-agent event: tool_output**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_output",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "grep",
+> > >   "toolCallId": "call_dbDXc2x0TyNlqP2ueI6f4epv|fc_032f22962d24028b016ab56e6e4ea487d1b571516810c73be4",
+> > >   "isError": false,
+> > >   "output": "{\"status\":\"success\",\"message\":\"{\\\"success\\\":true,\\\"mode\\\":\\\"content\\\",\\\"numFiles\\\":1,\\\"numLines\\\":6,\\\"pagination\\\":{\\\"offset\\\":0,\\\"limit\\\":300,\\\"returned\\\":6,\\\"total\\\":6,\\\"hasMore\\\":false},\\\"matches\\\":[{\\\"file\\\":\\\"injectable.ts\\\",\\\"line\\\":9,\\\"content\\\":\\\"import {compileInjectable as compileIvyInjectable, Expression, Identifiers, LiteralExpr, R3DependencyMetadata, R3FactoryTarget, R3InjectableMetadata, R3ResolvedDependencyType, Statement, WrappedNodeExpr} from '@angular/compiler';\\\",\\\"contextBefore\\\":[{\\\"line\\\":1,\\\"content\\\":\\\"/**\\\"},{\\\"line\\\":2,\\\"content\\\":\\\"* @license\\\"},{\\\"line\\\":3,\\\"content\\\":\\\"* Copyright Google Inc. All Rights Reserved.\\\"},{\\\"line\\\":4,\\\"content\\\":\\\"*\\\"},{\\\"line\\\":5,\\\"content\\\":\\\"* Use of this source code is governed by an MIT-style license that can be\\\"},{\\\"line\\\":6,\\\"content\\\":\\\"* found in the LICENSE file at https://angular.io/license\\\"},{\\\"line\\\":7,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":8,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":10,\\\"content\\\":\\\"import * as ts from 'typescript';\\\"},{\\\"line\\\":11,\\\"content\\\":\\\"\\\"},{\\\"line\\\":12,\\\"content\\\":\\\"import {ErrorCode, FatalDiagnosticError} from '../../diagnostics';\\\"},{\\\"line\\\":13,\\\"content\\\":\\\"import {DefaultImportRecorder} from '../../imports';\\\"},{\\\"line\\\":14,\\\"content\\\":\\\"import {InjectableClassRegistry} from '../../metadata';\\\"},{\\\"line\\\":15,\\\"content\\\":\\\"import {ClassDeclaration, Decorator, ReflectionHost, reflectObjectLiteral} from '../../reflection';\\\"},{\\\"line\\\":16,\\\"content\\\":\\\"import {AnalysisOutput, CompileResult, DecoratorHandler, DetectResult, HandlerPrecedence} from '../../transform';\\\"},{\\\"line\\\":17,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"compileInjectable\\\"]},{\\\"file\\\":\\\"injectable.ts\\\",\\\"line\\\":18,\\\"content\\\":\\\"import {compileNgFactoryDefField} from './factory';\\\",\\\"contextBefore\\\":[{\\\"line\\\":10,\\\"content\\\":\\\"import * as ts from 'typescript';\\\"},{\\\"line\\\":11,\\\"content\\\":\\\"\\\"},{\\\"line\\\":12,\\\"content\\\":\\\"import {ErrorCode, FatalDiagnosticError} from '../../diagnostics';\\\"},{\\\"line\\\":13,\\\"content\\\":\\\"import {DefaultImportRecorder} from '../../imports';\\\"},{\\\"line\\\":14,\\\"content\\\":\\\"import {InjectableClassRegistry} from '../../metadata';\\\"},{\\\"line\\\":15,\\\"content\\\":\\\"import {ClassDeclaration, Decorator, ReflectionHost, reflectObjectLiteral} from '../../reflection';\\\"},{\\\"line\\\":16,\\\"content\\\":\\\"import {AnalysisOutput, CompileResult, DecoratorHandler, DetectResult, HandlerPrecedence} from '../../transform';\\\"},{\\\"line\\\":17,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":19,\\\"content\\\":\\\"import {generateSetClassMetadataCall} from './metadata';\\\"},{\\\"line\\\":20,\\\"content\\\":\\\"import {findAngularDecorator, getConstructorDependencies, getValidConstructorDependencies, isAngularCore, unwrapConstructorDependencies, unwrapForwardRef, validateConstructorDependencies, wrapTypeReference} from './util';\\\"},{\\\"line\\\":21,\\\"content\\\":\\\"\\\"},{\\\"line\\\":22,\\\"content\\\":\\\"export interface InjectableHandlerData {\\\"},{\\\"line\\\":23,\\\"content\\\":\\\"meta: R3InjectableMetadata;\\\"},{\\\"line\\\":24,\\\"content\\\":\\\"metadataStmt: Statement|null;\\\"},{\\\"line\\\":25,\\\"content\\\":\\\"ctorDeps: R3DependencyMetadata[]|'invalid'|null;\\\"},{\\\"line\\\":26,\\\"content\\\":\\\"needsFactory: boolean;\\\"},{\\\"line\\\":27,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":28,\\\"content\\\":\\\"\\\"},{\\\"line\\\":29,\\\"content\\\":\\\"/**\\\"},{\\\"line\\\":30,\\\"content\\\":\\\"* Adapts the `compileIvyInjectable` compiler for `@Injectable` decorators to the Ivy compiler.\\\"}],\\\"matches\\\":[\\\"compileNgFactoryDefField\\\"]},{\\\"file\\\":\\\"injectable.ts\\\",\\\"line\\\":49,\\\"content\\\":\\\"detect(node: ClassDeclaration, decorators: Decorator[]|null): DetectResult|undefined {\\\",\\\"contextBefore\\\":[{\\\"line\\\":37,\\\"content\\\":\\\"private injectableRegistry: InjectableClassRegistry,\\\"},{\\\"line\\\":38,\\\"content\\\":\\\"/**\\\"},{\\\"line\\\":39,\\\"content\\\":\\\"* What to do if the injectable already contains a ɵprov property.\\\"},{\\\"line\\\":40,\\\"content\\\":\\\"*\\\"},{\\\"line\\\":41,\\\"content\\\":\\\"* If true then an error diagnostic is reported.\\\"},{\\\"line\\\":42,\\\"content\\\":\\\"* If false then there is no error and a new ɵprov property is not added.\\\"},{\\\"line\\\":43,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":44,\\\"content\\\":\\\"private errorOnDuplicateProv = true) {}\\\"},{\\\"line\\\":45,\\\"content\\\":\\\"\\\"},{\\\"line\\\":46,\\\"content\\\":\\\"readonly precedence = HandlerPrecedence.SHARED;\\\"},{\\\"line\\\":47,\\\"content\\\":\\\"readonly name = InjectableDecoratorHandler.name;\\\"},{\\\"line\\\":48,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":50,\\\"content\\\":\\\"if (!decorators) {\\\"},{\\\"line\\\":51,\\\"content\\\":\\\"return undefined;\\\"},{\\\"line\\\":52,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":53,\\\"content\\\":\\\"const decorator = findAngularDecorator(decorators, 'Injectable', this.isCore);\\\"},{\\\"line\\\":54,\\\"content\\\":\\\"if (decorator !== undefined) {\\\"},{\\\"line\\\":55,\\\"content\\\":\\\"return {\\\"},{\\\"line\\\":56,\\\"content\\\":\\\"trigger: decorator.node,\\\"},{\\\"line\\\":57,\\\"content\\\":\\\"decorator: decorator,\\\"},{\\\"line\\\":58,\\\"content\\\":\\\"metadata: decorator,\\\"},{\\\"line\\\":59,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":60,\\\"content\\\":\\\"} else {\\\"},{\\\"line\\\":61,\\\"content\\\":\\\"return undefined;\\\"}],\\\"matches\\\":[\\\"detect(\\\"]},{\\\"file\\\":\\\"injectable.ts\\\",\\\"line\\\":65,\\\"content\\\":\\\"analyze(node: ClassDeclaration, decorator: Readonly):\\\",\\\"contextBefore\\\":[{\\\"line\\\":53,\\\"content\\\":\\\"const decorator = findAngularDecorator(decorators, 'Injectable', this.isCore);\\\"},{\\\"line\\\":54,\\\"content\\\":\\\"if (decorator !== undefined) {\\\"},{\\\"line\\\":55,\\\"content\\\":\\\"return {\\\"},{\\\"line\\\":56,\\\"content\\\":\\\"trigger: decorator.node,\\\"},{\\\"line\\\":57,\\\"content\\\":\\\"decorator: decorator,\\\"},{\\\"line\\\":58,\\\"content\\\":\\\"metadata: decorator,\\\"},{\\\"line\\\":59,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":60,\\\"content\\\":\\\"} else {\\\"},{\\\"line\\\":61,\\\"content\\\":\\\"return undefined;\\\"},{\\\"line\\\":62,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":63,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":64,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":66,\\\"content\\\":\\\"AnalysisOutput {\\\"},{\\\"line\\\":67,\\\"content\\\":\\\"const meta = extractInjectableMetadata(node, decorator, this.reflector);\\\"},{\\\"line\\\":68,\\\"content\\\":\\\"const decorators = this.reflector.getDecoratorsOfDeclaration(node);\\\"},{\\\"line\\\":69,\\\"content\\\":\\\"\\\"},{\\\"line\\\":70,\\\"content\\\":\\\"return {\\\"},{\\\"line\\\":71,\\\"content\\\":\\\"analysis: {\\\"},{\\\"line\\\":72,\\\"content\\\":\\\"meta,\\\"},{\\\"line\\\":73,\\\"content\\\":\\\"ctorDeps: extractInjectableCtorDeps(\\\"},{\\\"line\\\":74,\\\"content\\\":\\\"node, meta, decorator, this.reflector, this.defaultImportRecorder, this.isCore,\\\"},{\\\"line\\\":75,\\\"content\\\":\\\"this.strictCtorDeps),\\\"},{\\\"line\\\":76,\\\"content\\\":\\\"metadataStmt: generateSetClassMetadataCall(\\\"},{\\\"line\\\":77,\\\"content\\\":\\\"node, this.reflector, this.defaultImportRecorder, this.isCore),\\\"}],\\\"matches\\\":[\\\"analyze(\\\"]},{\\\"file\\\":\\\"injectable.ts\\\",\\\"line\\\":90,\\\"content\\\":\\\"compile(node: ClassDeclaration, analysis: Readonly): CompileResult[] {\\\",\\\"contextBefore\\\":[{\\\"line\\\":78,\\\"content\\\":\\\"// Avoid generating multiple factories if a class has\\\"},{\\\"line\\\":79,\\\"content\\\":\\\"// more Angular decorators, apart from Injectable.\\\"},{\\\"line\\\":80,\\\"content\\\":\\\"needsFactory: !decorators ||\\\"},{\\\"line\\\":81,\\\"content\\\":\\\"decorators.every(current => !isAngularCore(current) || current.name === 'Injectable')\\\"},{\\\"line\\\":82,\\\"content\\\":\\\"},\\\"},{\\\"line\\\":83,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":84,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":85,\\\"content\\\":\\\"\\\"},{\\\"line\\\":86,\\\"content\\\":\\\"register(node: ClassDeclaration): void {\\\"},{\\\"line\\\":87,\\\"content\\\":\\\"this.injectableRegistry.registerInjectable(node);\\\"},{\\\"line\\\":88,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":89,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":91,\\\"content\\\":\\\"const res = compileIvyInjectable(analysis.meta);\\\"},{\\\"line\\\":92,\\\"content\\\":\\\"const statements = res.statements;\\\"},{\\\"line\\\":93,\\\"content\\\":\\\"const results: CompileResult[] = [];\\\"},{\\\"line\\\":94,\\\"content\\\":\\\"\\\"},{\\\"line\\\":95,\\\"content\\\":\\\"if (analysis.needsFactory) {\\\"},{\\\"line\\\":96,\\\"content\\\":\\\"const meta = analysis.meta;\\\"}],\\\"matches\\\":[\\\"compile(\\\"]},{\\\"file\\\":\\\"injectable.ts\\\",\\\"line\\\":97,\\\"content\\\":\\\"const factoryRes = compileNgFactoryDefField({\\\",\\\"contextBefore\\\":[{\\\"line\\\":91,\\\"content\\\":\\\"const res = compileIvyInjectable(analysis.meta);\\\"},{\\\"line\\\":92,\\\"content\\\":\\\"const statements = res.statements;\\\"},{\\\"line\\\":93,\\\"content\\\":\\\"const results: CompileResult[] = [];\\\"},{\\\"line\\\":94,\\\"content\\\":\\\"\\\"},{\\\"line\\\":95,\\\"content\\\":\\\"if (analysis.needsFactory) {\\\"},{\\\"line\\\":96,\\\"content\\\":\\\"const meta = analysis.meta;\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":98,\\\"content\\\":\\\"name: meta.name,\\\"},{\\\"line\\\":99,\\\"content\\\":\\\"type: meta.type,\\\"},{\\\"line\\\":100,\\\"content\\\":\\\"internalType: meta.internalType,\\\"},{\\\"line\\\":101,\\\"content\\\":\\\"typeArgumentCount: meta.typeArgumentCount,\\\"},{\\\"line\\\":102,\\\"content\\\":\\\"deps: analysis.ctorDeps,\\\"},{\\\"line\\\":103,\\\"content\\\":\\\"injectFn: Identifiers.inject,\\\"},{\\\"line\\\":104,\\\"content\\\":\\\"target: R3FactoryTarget.Injectable,\\\"},{\\\"line\\\":105,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":106,\\\"content\\\":\\\"if (analysis.metadataStmt !== null) {\\\"},{\\\"line\\\":107,\\\"content\\\":\\\"factoryRes.statements.push(analysis.metadataStmt);\\\"},{\\\"line\\\":108,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":109,\\\"content\\\":\\\"results.push(factoryRes);\\\"}],\\\"matches\\\":[\\\"compileNgFactoryDefField\\\"]}]}\"}"
+> > > }
+> > > ```
+> > > 
+> > > 98. **Sub-agent event: tool_output**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_output",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "grep",
+> > >   "toolCallId": "call_qMYjFeWK0Co6pRkjLj6xJerR|fc_032f22962d24028b016ab56e6e4eac87d1838c3936b0a0ed8d",
+> > >   "isError": false,
+> > >   "output": "{\"status\":\"success\",\"message\":\"{\\\"success\\\":true,\\\"mode\\\":\\\"content\\\",\\\"numFiles\\\":2,\\\"numLines\\\":37,\\\"pagination\\\":{\\\"offset\\\":0,\\\"limit\\\":300,\\\"returned\\\":37,\\\"total\\\":37,\\\"hasMore\\\":false},\\\"matches\\\":[{\\\"file\\\":\\\"injectable_compiler.ts\\\",\\\"line\\\":82,\\\"content\\\":\\\"if (injectable.useExisting) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":74,\\\"content\\\":\\\"args = [tokenExpr];\\\"},{\\\"line\\\":75,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":76,\\\"content\\\":\\\"return o.importExpr(Identifiers.inject).callFn(args);\\\"},{\\\"line\\\":77,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":78,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":79,\\\"content\\\":\\\"\\\"},{\\\"line\\\":80,\\\"content\\\":\\\"factoryFor(injectable: CompileInjectableMetadata, ctx: OutputContext): o.Expression {\\\"},{\\\"line\\\":81,\\\"content\\\":\\\"let retValue: o.Expression;\\\"}],\\\"matches\\\":[\\\"useExisting\\\"]},{\\\"file\\\":\\\"injectable_compiler.ts\\\",\\\"line\\\":83,\\\"content\\\":\\\"retValue = o.importExpr(Identifiers.inject).callFn([ctx.importExpr(injectable.useExisting)]);\\\",\\\"matches\\\":[\\\"useExisting\\\"]},{\\\"file\\\":\\\"injectable_compiler.ts\\\",\\\"line\\\":84,\\\"content\\\":\\\"} else if (injectable.useFactory) {\\\",\\\"contextAfter\\\":[{\\\"line\\\":85,\\\"content\\\":\\\"const deps = injectable.deps || [];\\\"},{\\\"line\\\":86,\\\"content\\\":\\\"if (deps.length > 0) {\\\"}],\\\"matches\\\":[\\\"useFactory\\\"]},{\\\"file\\\":\\\"injectable_compiler.ts\\\",\\\"line\\\":87,\\\"content\\\":\\\"retValue = ctx.importExpr(injectable.useFactory).callFn(this.depsArray(deps, ctx));\\\",\\\"contextBefore\\\":[{\\\"line\\\":85,\\\"content\\\":\\\"const deps = injectable.deps || [];\\\"},{\\\"line\\\":86,\\\"content\\\":\\\"if (deps.length > 0) {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":88,\\\"content\\\":\\\"} else {\\\"}],\\\"matches\\\":[\\\"useFactory\\\"]},{\\\"file\\\":\\\"injectable_compiler.ts\\\",\\\"line\\\":89,\\\"content\\\":\\\"return ctx.importExpr(injectable.useFactory);\\\",\\\"contextBefore\\\":[{\\\"line\\\":88,\\\"content\\\":\\\"} else {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":90,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"useFactory\\\"]},{\\\"file\\\":\\\"injectable_compiler.ts\\\",\\\"line\\\":91,\\\"content\\\":\\\"} else if (injectable.useValue) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":90,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"useValue\\\"]},{\\\"file\\\":\\\"injectable_compiler.ts\\\",\\\"line\\\":92,\\\"content\\\":\\\"retValue = convertValueToOutputAst(ctx, injectable.useValue);\\\",\\\"contextAfter\\\":[{\\\"line\\\":93,\\\"content\\\":\\\"} else {\\\"}],\\\"matches\\\":[\\\"useValue\\\"]},{\\\"file\\\":\\\"injectable_compiler.ts\\\",\\\"line\\\":94,\\\"content\\\":\\\"const clazz = injectable.useClass || injectable.symbol;\\\",\\\"contextBefore\\\":[{\\\"line\\\":93,\\\"content\\\":\\\"} else {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":95,\\\"content\\\":\\\"const depArgs = this.depsArray(this.reflector.parameters(clazz), ctx);\\\"},{\\\"line\\\":96,\\\"content\\\":\\\"retValue = new o.InstantiateExpr(ctx.importExpr(clazz), depArgs);\\\"},{\\\"line\\\":97,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":98,\\\"content\\\":\\\"return o.fn(\\\"},{\\\"line\\\":99,\\\"content\\\":\\\"[], [new o.ReturnStatement(retValue)], undefined, undefined,\\\"},{\\\"line\\\":100,\\\"content\\\":\\\"injectable.symbol.name + '_Factory');\\\"},{\\\"line\\\":101,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":102,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"useClass\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":26,\\\"content\\\":\\\"useClass?: o.Expression;\\\",\\\"contextBefore\\\":[{\\\"line\\\":18,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":19,\\\"content\\\":\\\"\\\"},{\\\"line\\\":20,\\\"content\\\":\\\"export interface R3InjectableMetadata {\\\"},{\\\"line\\\":21,\\\"content\\\":\\\"name: string;\\\"},{\\\"line\\\":22,\\\"content\\\":\\\"type: R3Reference;\\\"},{\\\"line\\\":23,\\\"content\\\":\\\"internalType: o.Expression;\\\"},{\\\"line\\\":24,\\\"content\\\":\\\"typeArgumentCount: number;\\\"},{\\\"line\\\":25,\\\"content\\\":\\\"providedIn: o.Expression;\\\"}],\\\"matches\\\":[\\\"useClass\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":27,\\\"content\\\":\\\"useFactory?: o.Expression;\\\",\\\"matches\\\":[\\\"useFactory\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":28,\\\"content\\\":\\\"useExisting?: o.Expression;\\\",\\\"matches\\\":[\\\"useExisting\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":29,\\\"content\\\":\\\"useValue?: o.Expression;\\\",\\\"contextAfter\\\":[{\\\"line\\\":30,\\\"content\\\":\\\"userDeps?: R3DependencyMetadata[];\\\"},{\\\"line\\\":31,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":32,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"useValue\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":33,\\\"content\\\":\\\"export function compileInjectable(meta: R3InjectableMetadata): InjectableDef {\\\",\\\"contextBefore\\\":[{\\\"line\\\":30,\\\"content\\\":\\\"userDeps?: R3DependencyMetadata[];\\\"},{\\\"line\\\":31,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":32,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"compileInjectable(\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":34,\\\"content\\\":\\\"let result: {factory: o.Expression, statements: o.Statement[]}|null = null;\\\",\\\"contextAfter\\\":[{\\\"line\\\":35,\\\"content\\\":\\\"\\\"},{\\\"line\\\":36,\\\"content\\\":\\\"const factoryMeta: R3FactoryMetadata = {\\\"},{\\\"line\\\":37,\\\"content\\\":\\\"name: meta.name,\\\"},{\\\"line\\\":38,\\\"content\\\":\\\"type: meta.type,\\\"},{\\\"line\\\":39,\\\"content\\\":\\\"internalType: meta.internalType,\\\"},{\\\"line\\\":40,\\\"content\\\":\\\"typeArgumentCount: meta.typeArgumentCount,\\\"},{\\\"line\\\":41,\\\"content\\\":\\\"deps: [],\\\"},{\\\"line\\\":42,\\\"content\\\":\\\"injectFn: Identifiers.inject,\\\"}],\\\"matches\\\":[\\\"factory:\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":46,\\\"content\\\":\\\"if (meta.useClass !== undefined) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":38,\\\"content\\\":\\\"type: meta.type,\\\"},{\\\"line\\\":39,\\\"content\\\":\\\"internalType: meta.internalType,\\\"},{\\\"line\\\":40,\\\"content\\\":\\\"typeArgumentCount: meta.typeArgumentCount,\\\"},{\\\"line\\\":41,\\\"content\\\":\\\"deps: [],\\\"},{\\\"line\\\":42,\\\"content\\\":\\\"injectFn: Identifiers.inject,\\\"},{\\\"line\\\":43,\\\"content\\\":\\\"target: R3FactoryTarget.Injectable,\\\"},{\\\"line\\\":44,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":45,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"useClass\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":47,\\\"content\\\":\\\"// meta.useClass has two modes of operation. Either deps are specified, in which case `new` is\\\",\\\"contextAfter\\\":[{\\\"line\\\":48,\\\"content\\\":\\\"// used to instantiate the class with dependencies injected, or deps are not specified and\\\"},{\\\"line\\\":49,\\\"content\\\":\\\"// the factory of the class is used to instantiate it.\\\"},{\\\"line\\\":50,\\\"content\\\":\\\"//\\\"}],\\\"matches\\\":[\\\"useClass\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":51,\\\"content\\\":\\\"// A special case exists for useClass: Type where Type is the injectable type itself and no\\\",\\\"contextBefore\\\":[{\\\"line\\\":48,\\\"content\\\":\\\"// used to instantiate the class with dependencies injected, or deps are not specified and\\\"},{\\\"line\\\":49,\\\"content\\\":\\\"// the factory of the class is used to instantiate it.\\\"},{\\\"line\\\":50,\\\"content\\\":\\\"//\\\"}],\\\"matches\\\":[\\\"useClass\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":52,\\\"content\\\":\\\"// deps are specified, in which case 'useClass' is effectively ignored.\\\",\\\"contextAfter\\\":[{\\\"line\\\":53,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"useClass\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":54,\\\"content\\\":\\\"const useClassOnSelf = meta.useClass.isEquivalent(meta.internalType);\\\",\\\"contextBefore\\\":[{\\\"line\\\":53,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":55,\\\"content\\\":\\\"let deps: R3DependencyMetadata[]|undefined = undefined;\\\"},{\\\"line\\\":56,\\\"content\\\":\\\"if (meta.userDeps !== undefined) {\\\"},{\\\"line\\\":57,\\\"content\\\":\\\"deps = meta.userDeps;\\\"},{\\\"line\\\":58,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":59,\\\"content\\\":\\\"\\\"},{\\\"line\\\":60,\\\"content\\\":\\\"if (deps !== undefined) {\\\"}],\\\"matches\\\":[\\\"useClass\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":61,\\\"content\\\":\\\"// factory: () => new meta.useClass(...deps)\\\",\\\"contextBefore\\\":[{\\\"line\\\":55,\\\"content\\\":\\\"let deps: R3DependencyMetadata[]|undefined = undefined;\\\"},{\\\"line\\\":56,\\\"content\\\":\\\"if (meta.userDeps !== undefined) {\\\"},{\\\"line\\\":57,\\\"content\\\":\\\"deps = meta.userDeps;\\\"},{\\\"line\\\":58,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":59,\\\"content\\\":\\\"\\\"},{\\\"line\\\":60,\\\"content\\\":\\\"if (deps !== undefined) {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":62,\\\"content\\\":\\\"result = compileFactoryFunction({\\\"},{\\\"line\\\":63,\\\"content\\\":\\\"...factoryMeta,\\\"}],\\\"matches\\\":[\\\"factory:\\\",\\\"useClass\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":64,\\\"content\\\":\\\"delegate: meta.useClass,\\\",\\\"contextBefore\\\":[{\\\"line\\\":62,\\\"content\\\":\\\"result = compileFactoryFunction({\\\"},{\\\"line\\\":63,\\\"content\\\":\\\"...factoryMeta,\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":65,\\\"content\\\":\\\"delegateDeps: deps,\\\"},{\\\"line\\\":66,\\\"content\\\":\\\"delegateType: R3FactoryDelegateType.Class,\\\"},{\\\"line\\\":67,\\\"content\\\":\\\"});\\\"}],\\\"matches\\\":[\\\"useClass\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":68,\\\"content\\\":\\\"} else if (useClassOnSelf) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":65,\\\"content\\\":\\\"delegateDeps: deps,\\\"},{\\\"line\\\":66,\\\"content\\\":\\\"delegateType: R3FactoryDelegateType.Class,\\\"},{\\\"line\\\":67,\\\"content\\\":\\\"});\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":69,\\\"content\\\":\\\"result = compileFactoryFunction(factoryMeta);\\\"},{\\\"line\\\":70,\\\"content\\\":\\\"} else {\\\"},{\\\"line\\\":71,\\\"content\\\":\\\"result = delegateToFactory(\\\"}],\\\"matches\\\":[\\\"useClass\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":72,\\\"content\\\":\\\"meta.type.value as o.WrappedNodeExpr, meta.useClass as o.WrappedNodeExpr);\\\",\\\"contextBefore\\\":[{\\\"line\\\":69,\\\"content\\\":\\\"result = compileFactoryFunction(factoryMeta);\\\"},{\\\"line\\\":70,\\\"content\\\":\\\"} else {\\\"},{\\\"line\\\":71,\\\"content\\\":\\\"result = delegateToFactory(\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":73,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"useClass\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":74,\\\"content\\\":\\\"} else if (meta.useFactory !== undefined) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":73,\\\"content\\\":\\\"}\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":75,\\\"content\\\":\\\"if (meta.userDeps !== undefined) {\\\"},{\\\"line\\\":76,\\\"content\\\":\\\"result = compileFactoryFunction({\\\"},{\\\"line\\\":77,\\\"content\\\":\\\"...factoryMeta,\\\"}],\\\"matches\\\":[\\\"useFactory\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":78,\\\"content\\\":\\\"delegate: meta.useFactory,\\\",\\\"contextBefore\\\":[{\\\"line\\\":75,\\\"content\\\":\\\"if (meta.userDeps !== undefined) {\\\"},{\\\"line\\\":76,\\\"content\\\":\\\"result = compileFactoryFunction({\\\"},{\\\"line\\\":77,\\\"content\\\":\\\"...factoryMeta,\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":79,\\\"content\\\":\\\"delegateDeps: meta.userDeps || [],\\\"},{\\\"line\\\":80,\\\"content\\\":\\\"delegateType: R3FactoryDelegateType.Function,\\\"},{\\\"line\\\":81,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":82,\\\"content\\\":\\\"} else {\\\"},{\\\"line\\\":83,\\\"content\\\":\\\"result = {\\\"},{\\\"line\\\":84,\\\"content\\\":\\\"statements: [],\\\"}],\\\"matches\\\":[\\\"useFactory\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":85,\\\"content\\\":\\\"factory: o.fn([], [new o.ReturnStatement(meta.useFactory.callFn([]))])\\\",\\\"contextBefore\\\":[{\\\"line\\\":79,\\\"content\\\":\\\"delegateDeps: meta.userDeps || [],\\\"},{\\\"line\\\":80,\\\"content\\\":\\\"delegateType: R3FactoryDelegateType.Function,\\\"},{\\\"line\\\":81,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":82,\\\"content\\\":\\\"} else {\\\"},{\\\"line\\\":83,\\\"content\\\":\\\"result = {\\\"},{\\\"line\\\":84,\\\"content\\\":\\\"statements: [],\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":86,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":87,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"factory:\\\",\\\"useFactory\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":88,\\\"content\\\":\\\"} else if (meta.useValue !== undefined) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":86,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":87,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"useValue\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":89,\\\"content\\\":\\\"// Note: it's safe to use `meta.useValue` instead of the `USE_VALUE in meta` check used for\\\",\\\"matches\\\":[\\\"useValue\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":90,\\\"content\\\":\\\"// client code because meta.useValue is an Expression which will be defined even if the actual\\\",\\\"contextAfter\\\":[{\\\"line\\\":91,\\\"content\\\":\\\"// value is undefined.\\\"},{\\\"line\\\":92,\\\"content\\\":\\\"result = compileFactoryFunction({\\\"},{\\\"line\\\":93,\\\"content\\\":\\\"...factoryMeta,\\\"}],\\\"matches\\\":[\\\"useValue\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":94,\\\"content\\\":\\\"expression: meta.useValue,\\\",\\\"contextBefore\\\":[{\\\"line\\\":91,\\\"content\\\":\\\"// value is undefined.\\\"},{\\\"line\\\":92,\\\"content\\\":\\\"result = compileFactoryFunction({\\\"},{\\\"line\\\":93,\\\"content\\\":\\\"...factoryMeta,\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":95,\\\"content\\\":\\\"});\\\"}],\\\"matches\\\":[\\\"useValue\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":96,\\\"content\\\":\\\"} else if (meta.useExisting !== undefined) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":95,\\\"content\\\":\\\"});\\\"}],\\\"matches\\\":[\\\"useExisting\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":97,\\\"content\\\":\\\"// useExisting is an `inject` call on the existing token.\\\",\\\"contextAfter\\\":[{\\\"line\\\":98,\\\"content\\\":\\\"result = compileFactoryFunction({\\\"},{\\\"line\\\":99,\\\"content\\\":\\\"...factoryMeta,\\\"}],\\\"matches\\\":[\\\"useExisting\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":100,\\\"content\\\":\\\"expression: o.importExpr(Identifiers.inject).callFn([meta.useExisting]),\\\",\\\"contextBefore\\\":[{\\\"line\\\":98,\\\"content\\\":\\\"result = compileFactoryFunction({\\\"},{\\\"line\\\":99,\\\"content\\\":\\\"...factoryMeta,\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":101,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":102,\\\"content\\\":\\\"} else {\\\"},{\\\"line\\\":103,\\\"content\\\":\\\"result = delegateToFactory(\\\"},{\\\"line\\\":104,\\\"content\\\":\\\"meta.type.value as o.WrappedNodeExpr, meta.internalType as o.WrappedNodeExpr);\\\"},{\\\"line\\\":105,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":106,\\\"content\\\":\\\"\\\"},{\\\"line\\\":107,\\\"content\\\":\\\"const token = meta.internalType;\\\"},{\\\"line\\\":108,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"useExisting\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":109,\\\"content\\\":\\\"const injectableProps: {[key: string]: o.Expression} = {token, factory: result.factory};\\\",\\\"contextBefore\\\":[{\\\"line\\\":101,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":102,\\\"content\\\":\\\"} else {\\\"},{\\\"line\\\":103,\\\"content\\\":\\\"result = delegateToFactory(\\\"},{\\\"line\\\":104,\\\"content\\\":\\\"meta.type.value as o.WrappedNodeExpr, meta.internalType as o.WrappedNodeExpr);\\\"},{\\\"line\\\":105,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":106,\\\"content\\\":\\\"\\\"},{\\\"line\\\":107,\\\"content\\\":\\\"const token = meta.internalType;\\\"},{\\\"line\\\":108,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":110,\\\"content\\\":\\\"\\\"},{\\\"line\\\":111,\\\"content\\\":\\\"// Only generate providedIn property if it has a non-null value\\\"},{\\\"line\\\":112,\\\"content\\\":\\\"if ((meta.providedIn as o.LiteralExpr).value !== null) {\\\"},{\\\"line\\\":113,\\\"content\\\":\\\"injectableProps.providedIn = meta.providedIn;\\\"},{\\\"line\\\":114,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":115,\\\"content\\\":\\\"\\\"},{\\\"line\\\":116,\\\"content\\\":\\\"const expression =\\\"},{\\\"line\\\":117,\\\"content\\\":\\\"o.importExpr(Identifiers.ɵɵdefineInjectable).callFn([mapToMapExpression(injectableProps)]);\\\"}],\\\"matches\\\":[\\\"factory:\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":131,\\\"content\\\":\\\"// If types are the same, we can generate `factory: type.ɵfac`\\\",\\\"contextBefore\\\":[{\\\"line\\\":123,\\\"content\\\":\\\"type,\\\"},{\\\"line\\\":124,\\\"content\\\":\\\"statements: result.statements,\\\"},{\\\"line\\\":125,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":126,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":127,\\\"content\\\":\\\"\\\"},{\\\"line\\\":128,\\\"content\\\":\\\"function delegateToFactory(type: o.WrappedNodeExpr, internalType: o.WrappedNodeExpr) {\\\"},{\\\"line\\\":129,\\\"content\\\":\\\"return {\\\"},{\\\"line\\\":130,\\\"content\\\":\\\"statements: [],\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":132,\\\"content\\\":\\\"// If types are different, we have to generate a wrapper function to ensure\\\"}],\\\"matches\\\":[\\\"factory:\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":133,\\\"content\\\":\\\"// the internal type has been resolved (`factory: function(t) { return type.ɵfac(t); }`)\\\",\\\"contextBefore\\\":[{\\\"line\\\":132,\\\"content\\\":\\\"// If types are different, we have to generate a wrapper function to ensure\\\"}],\\\"matches\\\":[\\\"factory:\\\"]},{\\\"file\\\":\\\"injectable_compiler_2.ts\\\",\\\"line\\\":134,\\\"content\\\":\\\"factory: type.node === internalType.node ?\\\",\\\"contextAfter\\\":[{\\\"line\\\":135,\\\"content\\\":\\\"internalType.prop('ɵfac') :\\\"},{\\\"line\\\":136,\\\"content\\\":\\\"o.fn([new o.FnParam('t', o.DYNAMIC_TYPE)], [new o.ReturnStatement(internalType.callMethod(\\\"},{\\\"line\\\":137,\\\"content\\\":\\\"'ɵfac', [o.variable('t')]))])\\\"},{\\\"line\\\":138,\\\"content\\\":\\\"};\\\"},{\\\"line\\\":139,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"factory:\\\"]}]}\"}"
+> > > }
+> > > ```
+> > > 
+> > > 99. **Sub-agent event: tool_output**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_output",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "grep",
+> > >   "toolCallId": "call_ssILMlou325ER9unZThzGgjM|fc_032f22962d24028b016ab56e6e4eb887d1aba9e585f22ef3b9",
+> > >   "isError": false,
+> > >   "output": "{\"status\":\"success\",\"message\":\"{\\\"success\\\":true,\\\"mode\\\":\\\"content\\\",\\\"numFiles\\\":27,\\\"numLines\\\":74,\\\"pagination\\\":{\\\"offset\\\":0,\\\"limit\\\":300,\\\"returned\\\":74,\\\"total\\\":74,\\\"hasMore\\\":false},\\\"matches\\\":[{\\\"file\\\":\\\"reflection/reflection_capabilities.ts\\\",\\\"line\\\":119,\\\"content\\\":\\\"const paramAnnotations = type.hasOwnProperty(PARAMETERS) && (type as any)[PARAMETERS];\\\",\\\"contextBefore\\\":[{\\\"line\\\":113,\\\"content\\\":\\\"(ctorParam: any) =>\\\"},{\\\"line\\\":114,\\\"content\\\":\\\"ctorParam && convertTsickleDecoratorIntoMetadata(ctorParam.decorators));\\\"},{\\\"line\\\":115,\\\"content\\\":\\\"return this._zipTypesAndAnnotations(paramTypes, paramAnnotations);\\\"},{\\\"line\\\":116,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":117,\\\"content\\\":\\\"\\\"},{\\\"line\\\":118,\\\"content\\\":\\\"// API for metadata created by invoking the decorators.\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":120,\\\"content\\\":\\\"const paramTypes = this._reflect && this._reflect.getOwnMetadata &&\\\"},{\\\"line\\\":121,\\\"content\\\":\\\"this._reflect.getOwnMetadata('design:paramtypes', type);\\\"},{\\\"line\\\":122,\\\"content\\\":\\\"if (paramTypes || paramAnnotations) {\\\"},{\\\"line\\\":123,\\\"content\\\":\\\"return this._zipTypesAndAnnotations(paramTypes, paramAnnotations);\\\"},{\\\"line\\\":124,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":125,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"reflection/reflection_capabilities.ts\\\",\\\"line\\\":163,\\\"content\\\":\\\"if (typeOrFunc.hasOwnProperty(ANNOTATIONS)) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":157,\\\"content\\\":\\\"// API of tsickle for lowering decorators to properties on the class.\\\"},{\\\"line\\\":158,\\\"content\\\":\\\"if ((typeOrFunc).decorators && (typeOrFunc).decorators !== parentCtor.decorators) {\\\"},{\\\"line\\\":159,\\\"content\\\":\\\"return convertTsickleDecoratorIntoMetadata((typeOrFunc).decorators);\\\"},{\\\"line\\\":160,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":161,\\\"content\\\":\\\"\\\"},{\\\"line\\\":162,\\\"content\\\":\\\"// API for metadata created by invoking the decorators.\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":164,\\\"content\\\":\\\"return (typeOrFunc as any)[ANNOTATIONS];\\\"},{\\\"line\\\":165,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":166,\\\"content\\\":\\\"return null;\\\"},{\\\"line\\\":167,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":168,\\\"content\\\":\\\"\\\"},{\\\"line\\\":169,\\\"content\\\":\\\"annotations(typeOrFunc: Type): any[] {\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"reflection/reflection_capabilities.ts\\\",\\\"line\\\":202,\\\"content\\\":\\\"if (typeOrFunc.hasOwnProperty(PROP_METADATA)) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":196,\\\"content\\\":\\\"propMetadata[prop] = convertTsickleDecoratorIntoMetadata(propDecorators[prop]);\\\"},{\\\"line\\\":197,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":198,\\\"content\\\":\\\"return propMetadata;\\\"},{\\\"line\\\":199,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":200,\\\"content\\\":\\\"\\\"},{\\\"line\\\":201,\\\"content\\\":\\\"// API for metadata created by invoking the decorators.\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":203,\\\"content\\\":\\\"return (typeOrFunc as any)[PROP_METADATA];\\\"},{\\\"line\\\":204,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":205,\\\"content\\\":\\\"return null;\\\"},{\\\"line\\\":206,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":207,\\\"content\\\":\\\"\\\"},{\\\"line\\\":208,\\\"content\\\":\\\"propMetadata(typeOrFunc: any): {[key: string]: any[]} {\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"reflection/reflection_capabilities.ts\\\",\\\"line\\\":224,\\\"content\\\":\\\"if (propMetadata.hasOwnProperty(propName)) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":218,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":219,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":220,\\\"content\\\":\\\"const ownPropMetadata = this._ownPropMetadata(typeOrFunc, parentCtor);\\\"},{\\\"line\\\":221,\\\"content\\\":\\\"if (ownPropMetadata) {\\\"},{\\\"line\\\":222,\\\"content\\\":\\\"Object.keys(ownPropMetadata).forEach((propName) => {\\\"},{\\\"line\\\":223,\\\"content\\\":\\\"const decorators: any[] = [];\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":225,\\\"content\\\":\\\"decorators.push(...propMetadata[propName]);\\\"},{\\\"line\\\":226,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":227,\\\"content\\\":\\\"decorators.push(...ownPropMetadata[propName]);\\\"},{\\\"line\\\":228,\\\"content\\\":\\\"propMetadata[propName] = decorators;\\\"},{\\\"line\\\":229,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":230,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"core_private_export.ts\\\",\\\"line\\\":17,\\\"content\\\":\\\"export {getInjectableDef as ɵgetInjectableDef, ɵɵInjectableDef, ɵɵInjectorDef} from './di/interface/defs';\\\",\\\"contextBefore\\\":[{\\\"line\\\":11,\\\"content\\\":\\\"export {defaultIterableDiffers as ɵdefaultIterableDiffers, defaultKeyValueDiffers as ɵdefaultKeyValueDiffers} from './change_detection/change_detection';\\\"},{\\\"line\\\":12,\\\"content\\\":\\\"export {devModeEqual as ɵdevModeEqual, isListLikeIterable as ɵisListLikeIterable} from './change_detection/change_detection_util';\\\"},{\\\"line\\\":13,\\\"content\\\":\\\"export {ChangeDetectorStatus as ɵChangeDetectorStatus, isDefaultChangeDetectionStrategy as ɵisDefaultChangeDetectionStrategy} from './change_detection/constants';\\\"},{\\\"line\\\":14,\\\"content\\\":\\\"export {Console as ɵConsole} from './console';\\\"},{\\\"line\\\":15,\\\"content\\\":\\\"export {getDebugNodeR2 as ɵgetDebugNodeR2} from './debug/debug_node';\\\"},{\\\"line\\\":16,\\\"content\\\":\\\"export {inject, setCurrentInjector as ɵsetCurrentInjector, ɵɵinject} from './di/injector_compatibility';\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":18,\\\"content\\\":\\\"export {INJECTOR_SCOPE as ɵINJECTOR_SCOPE} from './di/scope';\\\"},{\\\"line\\\":19,\\\"content\\\":\\\"export {CurrencyIndex as ɵCurrencyIndex, ExtraLocaleDataIndex as ɵExtraLocaleDataIndex, findLocaleData as ɵfindLocaleData, getLocaleCurrencyCode as ɵgetLocaleCurrencyCode, getLocalePluralCase as ɵgetLocalePluralCase, LocaleDataIndex as ɵLocaleDataIndex, registerLocaleData as ɵregisterLocaleData, unregisterAllLocaleData as ɵunregisterLocaleData} from './i18n/locale_data_api';\\\"},{\\\"line\\\":20,\\\"content\\\":\\\"export {DEFAULT_LOCALE_ID as ɵDEFAULT_LOCALE_ID} from './i18n/localization';\\\"},{\\\"line\\\":21,\\\"content\\\":\\\"export {ivyEnabled as ɵivyEnabled} from './ivy_switch';\\\"},{\\\"line\\\":22,\\\"content\\\":\\\"export {ComponentFactory as ɵComponentFactory} from './linker/component_factory';\\\"},{\\\"line\\\":23,\\\"content\\\":\\\"export {CodegenComponentFactoryResolver as ɵCodegenComponentFactoryResolver} from './linker/component_factory_resolver';\\\"}],\\\"matches\\\":[\\\"getInjectableDef\\\",\\\"etInjectableDef,\\\"]},{\\\"file\\\":\\\"di/injectable.ts\\\",\\\"line\\\":12,\\\"content\\\":\\\"import {getInjectableDef, InjectableType, ɵɵdefineInjectable} from './interface/defs';\\\",\\\"contextBefore\\\":[{\\\"line\\\":6,\\\"content\\\":\\\"* found in the LICENSE file at https://angular.io/license\\\"},{\\\"line\\\":7,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":8,\\\"content\\\":\\\"\\\"},{\\\"line\\\":9,\\\"content\\\":\\\"import {Type} from '../interface/type';\\\"},{\\\"line\\\":10,\\\"content\\\":\\\"import {makeDecorator, TypeDecorator} from '../util/decorators';\\\"},{\\\"line\\\":11,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":13,\\\"content\\\":\\\"import {ClassSansProvider, ConstructorSansProvider, ExistingSansProvider, FactorySansProvider, StaticClassSansProvider, ValueSansProvider} from './interface/provider';\\\"},{\\\"line\\\":14,\\\"content\\\":\\\"import {compileInjectable as render3CompileInjectable} from './jit/injectable';\\\"},{\\\"line\\\":15,\\\"content\\\":\\\"import {convertInjectableProviderToFactory} from './util';\\\"},{\\\"line\\\":16,\\\"content\\\":\\\"\\\"},{\\\"line\\\":17,\\\"content\\\":\\\"\\\"},{\\\"line\\\":18,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"getInjectableDef\\\"]},{\\\"file\\\":\\\"di/injectable.ts\\\",\\\"line\\\":97,\\\"content\\\":\\\"if (options && options.providedIn !== undefined && !getInjectableDef(injectableType)) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":91,\\\"content\\\":\\\"/**\\\"},{\\\"line\\\":92,\\\"content\\\":\\\"* Supports @Injectable() in JIT mode for Render2.\\\"},{\\\"line\\\":93,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":94,\\\"content\\\":\\\"function render2CompileInjectable(\\\"},{\\\"line\\\":95,\\\"content\\\":\\\"injectableType: Type,\\\"},{\\\"line\\\":96,\\\"content\\\":\\\"options?: {providedIn?: Type|'root'|'platform'|'any'|null}&InjectableProvider): void {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":98,\\\"content\\\":\\\"(injectableType as InjectableType).ɵprov = ɵɵdefineInjectable({\\\"},{\\\"line\\\":99,\\\"content\\\":\\\"token: injectableType,\\\"},{\\\"line\\\":100,\\\"content\\\":\\\"providedIn: options.providedIn,\\\"},{\\\"line\\\":101,\\\"content\\\":\\\"factory: convertInjectableProviderToFactory(injectableType, options),\\\"},{\\\"line\\\":102,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":103,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"getInjectableDef\\\"]},{\\\"file\\\":\\\"debug/debug_node.ts\\\",\\\"line\\\":732,\\\"content\\\":\\\"if (!(nativeNode.hasOwnProperty(NG_DEBUG_PROPERTY))) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":726,\\\"content\\\":\\\"\\\"},{\\\"line\\\":727,\\\"content\\\":\\\"export function getDebugNode__POST_R3__(nativeNode: Element): DebugElement__POST_R3__;\\\"},{\\\"line\\\":728,\\\"content\\\":\\\"export function getDebugNode__POST_R3__(nativeNode: Node): DebugNode__POST_R3__;\\\"},{\\\"line\\\":729,\\\"content\\\":\\\"export function getDebugNode__POST_R3__(nativeNode: null): null;\\\"},{\\\"line\\\":730,\\\"content\\\":\\\"export function getDebugNode__POST_R3__(nativeNode: any): DebugNode|null {\\\"},{\\\"line\\\":731,\\\"content\\\":\\\"if (nativeNode instanceof Node) {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":733,\\\"content\\\":\\\"(nativeNode as any)[NG_DEBUG_PROPERTY] = nativeNode.nodeType == Node.ELEMENT_NODE ?\\\"},{\\\"line\\\":734,\\\"content\\\":\\\"new DebugElement__POST_R3__(nativeNode as Element) :\\\"},{\\\"line\\\":735,\\\"content\\\":\\\"new DebugNode__POST_R3__(nativeNode);\\\"},{\\\"line\\\":736,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":737,\\\"content\\\":\\\"return (nativeNode as any)[NG_DEBUG_PROPERTY];\\\"},{\\\"line\\\":738,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"di/r3_injector.ts\\\",\\\"line\\\":23,\\\"content\\\":\\\"import {getInheritedInjectableDef, getInjectableDef, getInjectorDef, InjectorType, InjectorTypeWithProviders, ɵɵInjectableDef} from './interface/defs';\\\",\\\"contextBefore\\\":[{\\\"line\\\":17,\\\"content\\\":\\\"import {stringify} from '../util/stringify';\\\"},{\\\"line\\\":18,\\\"content\\\":\\\"\\\"},{\\\"line\\\":19,\\\"content\\\":\\\"import {resolveForwardRef} from './forward_ref';\\\"},{\\\"line\\\":20,\\\"content\\\":\\\"import {InjectionToken} from './injection_token';\\\"},{\\\"line\\\":21,\\\"content\\\":\\\"import {Injector} from './injector';\\\"},{\\\"line\\\":22,\\\"content\\\":\\\"import {catchInjectorError, injectArgs, INJECTOR, NG_TEMP_TOKEN_PATH, NullInjector, setCurrentInjector, THROW_IF_NOT_FOUND, USE_VALUE, ɵɵinject} from './injector_compatibility';\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":24,\\\"content\\\":\\\"import {InjectFlags} from './interface/injector';\\\"},{\\\"line\\\":25,\\\"content\\\":\\\"import {ClassProvider, ConstructorProvider, ExistingProvider, FactoryProvider, StaticClassProvider, StaticProvider, TypeProvider, ValueProvider} from './interface/provider';\\\"},{\\\"line\\\":26,\\\"content\\\":\\\"import {INJECTOR_SCOPE} from './scope';\\\"},{\\\"line\\\":27,\\\"content\\\":\\\"\\\"},{\\\"line\\\":28,\\\"content\\\":\\\"\\\"},{\\\"line\\\":29,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"getInjectableDef\\\"]},{\\\"file\\\":\\\"di/r3_injector.ts\\\",\\\"line\\\":196,\\\"content\\\":\\\"const def = couldBeInjectableType(token) && getInjectableDef(token);\\\",\\\"contextBefore\\\":[{\\\"line\\\":190,\\\"content\\\":\\\"if (!(flags & InjectFlags.SkipSelf)) {\\\"},{\\\"line\\\":191,\\\"content\\\":\\\"// SkipSelf isn't set, check if the record belongs to this injector.\\\"},{\\\"line\\\":192,\\\"content\\\":\\\"let record: Record|undefined|null = this.records.get(token);\\\"},{\\\"line\\\":193,\\\"content\\\":\\\"if (record === undefined) {\\\"},{\\\"line\\\":194,\\\"content\\\":\\\"// No record, but maybe the token is scoped to this injector. Look for an injectable\\\"},{\\\"line\\\":195,\\\"content\\\":\\\"// def with a scope matching this injector.\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":197,\\\"content\\\":\\\"if (def && this.injectableDefInScope(def)) {\\\"},{\\\"line\\\":198,\\\"content\\\":\\\"// Found an injectable def and it's scoped to this injector. Pretend as if it was here\\\"},{\\\"line\\\":199,\\\"content\\\":\\\"// all along.\\\"},{\\\"line\\\":200,\\\"content\\\":\\\"record = makeRecord(injectableDefOrInjectorDefFactory(token), NOT_YET);\\\"},{\\\"line\\\":201,\\\"content\\\":\\\"} else {\\\"},{\\\"line\\\":202,\\\"content\\\":\\\"record = null;\\\"}],\\\"matches\\\":[\\\"getInjectableDef\\\"]},{\\\"file\\\":\\\"di/r3_injector.ts\\\",\\\"line\\\":432,\\\"content\\\":\\\"const injectableDef = getInjectableDef(token);\\\",\\\"contextBefore\\\":[{\\\"line\\\":426,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":427,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":428,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":429,\\\"content\\\":\\\"\\\"},{\\\"line\\\":430,\\\"content\\\":\\\"function injectableDefOrInjectorDefFactory(token: Type|InjectionToken): FactoryFn {\\\"},{\\\"line\\\":431,\\\"content\\\":\\\"// Most tokens will have an injectable def directly on them, which specifies a factory directly.\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":433,\\\"content\\\":\\\"const factory = injectableDef !== null ? injectableDef.factory : getFactoryDef(token);\\\"},{\\\"line\\\":434,\\\"content\\\":\\\"\\\"},{\\\"line\\\":435,\\\"content\\\":\\\"if (factory !== null) {\\\"},{\\\"line\\\":436,\\\"content\\\":\\\"return factory;\\\"},{\\\"line\\\":437,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":438,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"getInjectableDef\\\"]},{\\\"file\\\":\\\"di/injector_compatibility.ts\\\",\\\"line\\\":18,\\\"content\\\":\\\"import {getInjectableDef, ɵɵInjectableDef} from './interface/defs';\\\",\\\"contextBefore\\\":[{\\\"line\\\":12,\\\"content\\\":\\\"import {getClosureSafeProperty} from '../util/property';\\\"},{\\\"line\\\":13,\\\"content\\\":\\\"import {stringify} from '../util/stringify';\\\"},{\\\"line\\\":14,\\\"content\\\":\\\"\\\"},{\\\"line\\\":15,\\\"content\\\":\\\"import {resolveForwardRef} from './forward_ref';\\\"},{\\\"line\\\":16,\\\"content\\\":\\\"import {InjectionToken} from './injection_token';\\\"},{\\\"line\\\":17,\\\"content\\\":\\\"import {Injector} from './injector';\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":19,\\\"content\\\":\\\"import {InjectFlags} from './interface/injector';\\\"},{\\\"line\\\":20,\\\"content\\\":\\\"import {ValueProvider} from './interface/provider';\\\"},{\\\"line\\\":21,\\\"content\\\":\\\"import {Inject, Optional, Self, SkipSelf} from './metadata';\\\"},{\\\"line\\\":22,\\\"content\\\":\\\"\\\"},{\\\"line\\\":23,\\\"content\\\":\\\"\\\"},{\\\"line\\\":24,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"getInjectableDef\\\"]},{\\\"file\\\":\\\"di/injector_compatibility.ts\\\",\\\"line\\\":178,\\\"content\\\":\\\"const injectableDef: ɵɵInjectableDef|null = getInjectableDef(token);\\\",\\\"contextBefore\\\":[{\\\"line\\\":172,\\\"content\\\":\\\"* If no injector exists, we can still inject tree-shakable providers which have `providedIn` set to\\\"},{\\\"line\\\":173,\\\"content\\\":\\\"* `\\\\\\\"root\\\\\\\"`. This is known as the limp mode injection. In such case the value is stored in the\\\"},{\\\"line\\\":174,\\\"content\\\":\\\"* `InjectableDef`.\\\"},{\\\"line\\\":175,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":176,\\\"content\\\":\\\"export function injectRootLimpMode(\\\"},{\\\"line\\\":177,\\\"content\\\":\\\"token: Type|InjectionToken, notFoundValue: T|undefined, flags: InjectFlags): T|null {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":179,\\\"content\\\":\\\"if (injectableDef && injectableDef.providedIn == 'root') {\\\"},{\\\"line\\\":180,\\\"content\\\":\\\"return injectableDef.value === undefined ? injectableDef.value = injectableDef.factory() :\\\"},{\\\"line\\\":181,\\\"content\\\":\\\"injectableDef.value;\\\"},{\\\"line\\\":182,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":183,\\\"content\\\":\\\"if (flags & InjectFlags.Optional) return null;\\\"},{\\\"line\\\":184,\\\"content\\\":\\\"if (notFoundValue !== undefined) return notFoundValue;\\\"}],\\\"matches\\\":[\\\"tInjectableDef(t\\\"]},{\\\"file\\\":\\\"di/injector_compatibility.ts\\\",\\\"line\\\":261,\\\"content\\\":\\\"if (obj.hasOwnProperty(key)) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":255,\\\"content\\\":\\\"let context = stringify(obj);\\\"},{\\\"line\\\":256,\\\"content\\\":\\\"if (Array.isArray(obj)) {\\\"},{\\\"line\\\":257,\\\"content\\\":\\\"context = obj.map(stringify).join(' -> ');\\\"},{\\\"line\\\":258,\\\"content\\\":\\\"} else if (typeof obj === 'object') {\\\"},{\\\"line\\\":259,\\\"content\\\":\\\"let parts = [];\\\"},{\\\"line\\\":260,\\\"content\\\":\\\"for (let key in obj) {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":262,\\\"content\\\":\\\"let value = obj[key];\\\"},{\\\"line\\\":263,\\\"content\\\":\\\"parts.push(\\\"},{\\\"line\\\":264,\\\"content\\\":\\\"key + ':' + (typeof value === 'string' ? JSON.stringify(value) : stringify(value)));\\\"},{\\\"line\\\":265,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":266,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":267,\\\"content\\\":\\\"context = `{${parts.join(', ')}}`;\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"metadata/resource_loading.ts\\\",\\\"line\\\":106,\\\"content\\\":\\\"(component.templateUrl && !component.hasOwnProperty('template')) ||\\\",\\\"contextBefore\\\":[{\\\"line\\\":100,\\\"content\\\":\\\"export function isComponentDefPendingResolution(type: Type): boolean {\\\"},{\\\"line\\\":101,\\\"content\\\":\\\"return componentDefPendingResolution.has(type);\\\"},{\\\"line\\\":102,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":103,\\\"content\\\":\\\"\\\"},{\\\"line\\\":104,\\\"content\\\":\\\"export function componentNeedsResolution(component: Component): boolean {\\\"},{\\\"line\\\":105,\\\"content\\\":\\\"return !!(\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":107,\\\"content\\\":\\\"component.styleUrls && component.styleUrls.length);\\\"},{\\\"line\\\":108,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":109,\\\"content\\\":\\\"export function clearResolutionOfComponentResourcesQueue(): Map, Component> {\\\"},{\\\"line\\\":110,\\\"content\\\":\\\"const old = componentResourceResolutionQueue;\\\"},{\\\"line\\\":111,\\\"content\\\":\\\"componentResourceResolutionQueue = new Map();\\\"},{\\\"line\\\":112,\\\"content\\\":\\\"return old;\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"di/injector.ts\\\",\\\"line\\\":15,\\\"content\\\":\\\"import {getInjectableDef, ɵɵdefineInjectable} from './interface/defs';\\\",\\\"contextBefore\\\":[{\\\"line\\\":9,\\\"content\\\":\\\"import {AbstractType, Type} from '../interface/type';\\\"},{\\\"line\\\":10,\\\"content\\\":\\\"import {stringify} from '../util/stringify';\\\"},{\\\"line\\\":11,\\\"content\\\":\\\"\\\"},{\\\"line\\\":12,\\\"content\\\":\\\"import {resolveForwardRef} from './forward_ref';\\\"},{\\\"line\\\":13,\\\"content\\\":\\\"import {InjectionToken} from './injection_token';\\\"},{\\\"line\\\":14,\\\"content\\\":\\\"import {catchInjectorError, formatError, INJECTOR, NG_TEMP_TOKEN_PATH, NullInjector, setCurrentInjector, THROW_IF_NOT_FOUND, USE_VALUE, ɵɵinject} from './injector_compatibility';\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":16,\\\"content\\\":\\\"import {InjectFlags} from './interface/injector';\\\"},{\\\"line\\\":17,\\\"content\\\":\\\"import {ConstructorProvider, ExistingProvider, FactoryProvider, StaticClassProvider, StaticProvider, ValueProvider} from './interface/provider';\\\"},{\\\"line\\\":18,\\\"content\\\":\\\"import {Inject, Optional, Self, SkipSelf} from './metadata';\\\"},{\\\"line\\\":19,\\\"content\\\":\\\"import {createInjector} from './r3_injector';\\\"},{\\\"line\\\":20,\\\"content\\\":\\\"import {INJECTOR_SCOPE} from './scope';\\\"},{\\\"line\\\":21,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"getInjectableDef\\\"]},{\\\"file\\\":\\\"di/injector.ts\\\",\\\"line\\\":164,\\\"content\\\":\\\"const injectableDef = getInjectableDef(token);\\\",\\\"contextBefore\\\":[{\\\"line\\\":158,\\\"content\\\":\\\"get(token: any, notFoundValue?: any): any;\\\"},{\\\"line\\\":159,\\\"content\\\":\\\"get(token: any, notFoundValue?: any, flags: InjectFlags = InjectFlags.Default): any {\\\"},{\\\"line\\\":160,\\\"content\\\":\\\"const records = this._records;\\\"},{\\\"line\\\":161,\\\"content\\\":\\\"let record = records.get(token);\\\"},{\\\"line\\\":162,\\\"content\\\":\\\"if (record === undefined) {\\\"},{\\\"line\\\":163,\\\"content\\\":\\\"// This means we have never seen this record, see if it is tree shakable provider.\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":165,\\\"content\\\":\\\"if (injectableDef) {\\\"},{\\\"line\\\":166,\\\"content\\\":\\\"const providedIn = injectableDef && injectableDef.providedIn;\\\"},{\\\"line\\\":167,\\\"content\\\":\\\"if (providedIn === 'any' || providedIn != null && providedIn === this.scope) {\\\"},{\\\"line\\\":168,\\\"content\\\":\\\"records.set(\\\"},{\\\"line\\\":169,\\\"content\\\":\\\"token,\\\"},{\\\"line\\\":170,\\\"content\\\":\\\"record = resolveProvider(\\\"}],\\\"matches\\\":[\\\"getInjectableDef\\\"]},{\\\"file\\\":\\\"di/forward_ref.ts\\\",\\\"line\\\":69,\\\"content\\\":\\\"return typeof fn === 'function' && fn.hasOwnProperty(__forward_ref__) &&\\\",\\\"contextBefore\\\":[{\\\"line\\\":63,\\\"content\\\":\\\"export function resolveForwardRef(type: T): T {\\\"},{\\\"line\\\":64,\\\"content\\\":\\\"return isForwardRef(type) ? type() : type;\\\"},{\\\"line\\\":65,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":66,\\\"content\\\":\\\"\\\"},{\\\"line\\\":67,\\\"content\\\":\\\"/** Checks whether a function is wrapped by a `forwardRef`. */\\\"},{\\\"line\\\":68,\\\"content\\\":\\\"export function isForwardRef(fn: any): fn is() => any {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":70,\\\"content\\\":\\\"fn.__forward_ref__ === forwardRef;\\\"},{\\\"line\\\":71,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"di/interface/defs.ts\\\",\\\"line\\\":195,\\\"content\\\":\\\"export function getInjectableDef(type: any): ɵɵInjectableDef|null {\\\",\\\"contextBefore\\\":[{\\\"line\\\":189,\\\"content\\\":\\\"/**\\\"},{\\\"line\\\":190,\\\"content\\\":\\\"* Read the injectable def (`ɵprov`) for `type` in a way which is immune to accidentally reading\\\"},{\\\"line\\\":191,\\\"content\\\":\\\"* inherited value.\\\"},{\\\"line\\\":192,\\\"content\\\":\\\"*\\\"},{\\\"line\\\":193,\\\"content\\\":\\\"* @param type A type which may have its own (non-inherited) `ɵprov`.\\\"},{\\\"line\\\":194,\\\"content\\\":\\\"*/\\\"}],\\\"matches\\\":[\\\"getInjectableDef\\\"]},{\\\"file\\\":\\\"di/interface/defs.ts\\\",\\\"line\\\":196,\\\"content\\\":\\\"return getOwnDefinition(type, type[NG_PROV_DEF]) ||\\\",\\\"contextAfter\\\":[{\\\"line\\\":197,\\\"content\\\":\\\"getOwnDefinition(type, type[NG_INJECTABLE_DEF]);\\\"},{\\\"line\\\":198,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":199,\\\"content\\\":\\\"\\\"},{\\\"line\\\":200,\\\"content\\\":\\\"/**\\\"},{\\\"line\\\":201,\\\"content\\\":\\\"* Return `def` only if it is defined directly on `type` and is not inherited from a base\\\"},{\\\"line\\\":202,\\\"content\\\":\\\"* class of `type`.\\\"}],\\\"matches\\\":[\\\"NG_PROV_DEF\\\"]},{\\\"file\\\":\\\"di/interface/defs.ts\\\",\\\"line\\\":204,\\\"content\\\":\\\"* The function `Object.hasOwnProperty` is not sufficient to distinguish this case because in older\\\",\\\"contextBefore\\\":[{\\\"line\\\":198,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":199,\\\"content\\\":\\\"\\\"},{\\\"line\\\":200,\\\"content\\\":\\\"/**\\\"},{\\\"line\\\":201,\\\"content\\\":\\\"* Return `def` only if it is defined directly on `type` and is not inherited from a base\\\"},{\\\"line\\\":202,\\\"content\\\":\\\"* class of `type`.\\\"},{\\\"line\\\":203,\\\"content\\\":\\\"*\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":205,\\\"content\\\":\\\"* browsers (e.g. IE10) static property inheritance is implemented by copying the properties.\\\"},{\\\"line\\\":206,\\\"content\\\":\\\"*\\\"},{\\\"line\\\":207,\\\"content\\\":\\\"* Instead, the definition's `token` is compared to the `type`, and if they don't match then the\\\"},{\\\"line\\\":208,\\\"content\\\":\\\"* property was not defined directly on the type itself, and was likely inherited. The definition\\\"},{\\\"line\\\":209,\\\"content\\\":\\\"* is only returned if the `type` matches the `def.token`.\\\"},{\\\"line\\\":210,\\\"content\\\":\\\"*/\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"di/interface/defs.ts\\\",\\\"line\\\":224,\\\"content\\\":\\\"// See `jit/injectable.ts#compileInjectable` for context on NG_PROV_DEF_FALLBACK.\\\",\\\"contextBefore\\\":[{\\\"line\\\":218,\\\"content\\\":\\\"* @param type A type which may have `ɵprov`, via inheritance.\\\"},{\\\"line\\\":219,\\\"content\\\":\\\"*\\\"},{\\\"line\\\":220,\\\"content\\\":\\\"* @deprecated Will be removed in v10, where an error will occur in the scenario if we find the\\\"},{\\\"line\\\":221,\\\"content\\\":\\\"* `ɵprov` on an ancestor only.\\\"},{\\\"line\\\":222,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":223,\\\"content\\\":\\\"export function getInheritedInjectableDef(type: any): ɵɵInjectableDef|null {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":225,\\\"content\\\":\\\"const def = type &&\\\"}],\\\"matches\\\":[\\\"NG_PROV_DEF\\\"]},{\\\"file\\\":\\\"di/interface/defs.ts\\\",\\\"line\\\":226,\\\"content\\\":\\\"(type[NG_PROV_DEF] || type[NG_INJECTABLE_DEF] ||\\\",\\\"contextBefore\\\":[{\\\"line\\\":225,\\\"content\\\":\\\"const def = type &&\\\"}],\\\"matches\\\":[\\\"NG_PROV_DEF\\\"]},{\\\"file\\\":\\\"di/interface/defs.ts\\\",\\\"line\\\":227,\\\"content\\\":\\\"(type[NG_PROV_DEF_FALLBACK] && type[NG_PROV_DEF_FALLBACK]()));\\\",\\\"contextAfter\\\":[{\\\"line\\\":228,\\\"content\\\":\\\"\\\"},{\\\"line\\\":229,\\\"content\\\":\\\"if (def) {\\\"},{\\\"line\\\":230,\\\"content\\\":\\\"const typeName = getTypeName(type);\\\"},{\\\"line\\\":231,\\\"content\\\":\\\"// TODO(FW-1307): Re-add ngDevMode when closure can handle it\\\"},{\\\"line\\\":232,\\\"content\\\":\\\"// ngDevMode &&\\\"},{\\\"line\\\":233,\\\"content\\\":\\\"console.warn(\\\"}],\\\"matches\\\":[\\\"NG_PROV_DEF\\\"]},{\\\"file\\\":\\\"di/interface/defs.ts\\\",\\\"line\\\":251,\\\"content\\\":\\\"if (type.hasOwnProperty('name')) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":245,\\\"content\\\":\\\"// `Function.prototype.name` behaves differently between IE and other browsers. In most browsers\\\"},{\\\"line\\\":246,\\\"content\\\":\\\"// it'll always return the name of the function itself, no matter how many other functions it\\\"},{\\\"line\\\":247,\\\"content\\\":\\\"// inherits from. On IE the function doesn't have its own `name` property, but it takes it from\\\"},{\\\"line\\\":248,\\\"content\\\":\\\"// the lowest level in the prototype chain. E.g. if we have `class Foo extends Parent` most\\\"},{\\\"line\\\":249,\\\"content\\\":\\\"// browsers will evaluate `Foo.name` to `Foo` while IE will return `Parent`. We work around\\\"},{\\\"line\\\":250,\\\"content\\\":\\\"// the issue by converting the function to a string and parsing its name out that way via a regex.\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":252,\\\"content\\\":\\\"return type.name;\\\"},{\\\"line\\\":253,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":254,\\\"content\\\":\\\"\\\"},{\\\"line\\\":255,\\\"content\\\":\\\"const match = ('' + type).match(/^function\\\\\\\\s*([^\\\\\\\\s(]+)/);\\\"},{\\\"line\\\":256,\\\"content\\\":\\\"return match === null ? '' : match[1];\\\"},{\\\"line\\\":257,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"di/interface/defs.ts\\\",\\\"line\\\":265,\\\"content\\\":\\\"return type && (type.hasOwnProperty(NG_INJ_DEF) || type.hasOwnProperty(NG_INJECTOR_DEF)) ?\\\",\\\"contextBefore\\\":[{\\\"line\\\":259,\\\"content\\\":\\\"/**\\\"},{\\\"line\\\":260,\\\"content\\\":\\\"* Read the injector def type in a way which is immune to accidentally reading inherited value.\\\"},{\\\"line\\\":261,\\\"content\\\":\\\"*\\\"},{\\\"line\\\":262,\\\"content\\\":\\\"* @param type type which may have an injector def (`ɵinj`)\\\"},{\\\"line\\\":263,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":264,\\\"content\\\":\\\"export function getInjectorDef(type: any): ɵɵInjectorDef|null {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":266,\\\"content\\\":\\\"(type as any)[NG_INJ_DEF] :\\\"},{\\\"line\\\":267,\\\"content\\\":\\\"null;\\\"},{\\\"line\\\":268,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":269,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"di/interface/defs.ts\\\",\\\"line\\\":270,\\\"content\\\":\\\"export const NG_PROV_DEF = getClosureSafeProperty({ɵprov: getClosureSafeProperty});\\\",\\\"contextBefore\\\":[{\\\"line\\\":266,\\\"content\\\":\\\"(type as any)[NG_INJ_DEF] :\\\"},{\\\"line\\\":267,\\\"content\\\":\\\"null;\\\"},{\\\"line\\\":268,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":269,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":271,\\\"content\\\":\\\"export const NG_INJ_DEF = getClosureSafeProperty({ɵinj: getClosureSafeProperty});\\\"},{\\\"line\\\":272,\\\"content\\\":\\\"\\\"},{\\\"line\\\":273,\\\"content\\\":\\\"// On IE10 properties defined via `defineProperty` won't be inherited by child classes,\\\"},{\\\"line\\\":274,\\\"content\\\":\\\"// which will break inheriting the injectable definition from a grandparent through an\\\"},{\\\"line\\\":275,\\\"content\\\":\\\"// undecorated parent class. We work around it by defining a fallback method which will be\\\"},{\\\"line\\\":276,\\\"content\\\":\\\"// used to retrieve the definition. This should only be a problem in JIT mode, because in\\\"}],\\\"matches\\\":[\\\"NG_PROV_DEF\\\"]},{\\\"file\\\":\\\"di/interface/defs.ts\\\",\\\"line\\\":279,\\\"content\\\":\\\"export const NG_PROV_DEF_FALLBACK = getClosureSafeProperty({ɵprovFallback: getClosureSafeProperty});\\\",\\\"contextBefore\\\":[{\\\"line\\\":273,\\\"content\\\":\\\"// On IE10 properties defined via `defineProperty` won't be inherited by child classes,\\\"},{\\\"line\\\":274,\\\"content\\\":\\\"// which will break inheriting the injectable definition from a grandparent through an\\\"},{\\\"line\\\":275,\\\"content\\\":\\\"// undecorated parent class. We work around it by defining a fallback method which will be\\\"},{\\\"line\\\":276,\\\"content\\\":\\\"// used to retrieve the definition. This should only be a problem in JIT mode, because in\\\"},{\\\"line\\\":277,\\\"content\\\":\\\"// AOT TypeScript seems to have a workaround for static properties. When inheriting from an\\\"},{\\\"line\\\":278,\\\"content\\\":\\\"// undecorated parent is no longer supported in v10, this can safely be removed.\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":280,\\\"content\\\":\\\"\\\"},{\\\"line\\\":281,\\\"content\\\":\\\"// We need to keep these around so we can read off old defs if new defs are unavailable\\\"},{\\\"line\\\":282,\\\"content\\\":\\\"export const NG_INJECTABLE_DEF = getClosureSafeProperty({ngInjectableDef: getClosureSafeProperty});\\\"},{\\\"line\\\":283,\\\"content\\\":\\\"export const NG_INJECTOR_DEF = getClosureSafeProperty({ngInjectorDef: getClosureSafeProperty});\\\"}],\\\"matches\\\":[\\\"NG_PROV_DEF\\\"]},{\\\"file\\\":\\\"di/jit/injectable.ts\\\",\\\"line\\\":15,\\\"content\\\":\\\"import {NG_PROV_DEF, NG_PROV_DEF_FALLBACK} from '../interface/defs';\\\",\\\"contextBefore\\\":[{\\\"line\\\":9,\\\"content\\\":\\\"import {getCompilerFacade, R3InjectableMetadataFacade} from '../../compiler/compiler_facade';\\\"},{\\\"line\\\":10,\\\"content\\\":\\\"import {Type} from '../../interface/type';\\\"},{\\\"line\\\":11,\\\"content\\\":\\\"import {NG_FACTORY_DEF} from '../../render3/fields';\\\"},{\\\"line\\\":12,\\\"content\\\":\\\"import {getClosureSafeProperty} from '../../util/property';\\\"},{\\\"line\\\":13,\\\"content\\\":\\\"import {resolveForwardRef} from '../forward_ref';\\\"},{\\\"line\\\":14,\\\"content\\\":\\\"import {Injectable} from '../injectable';\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":16,\\\"content\\\":\\\"import {ClassSansProvider, ExistingSansProvider, FactorySansProvider, ValueProvider, ValueSansProvider} from '../interface/provider';\\\"},{\\\"line\\\":17,\\\"content\\\":\\\"\\\"},{\\\"line\\\":18,\\\"content\\\":\\\"import {angularCoreDiEnv} from './environment';\\\"},{\\\"line\\\":19,\\\"content\\\":\\\"import {convertDependencies, reflectDependencies} from './util';\\\"},{\\\"line\\\":20,\\\"content\\\":\\\"\\\"},{\\\"line\\\":21,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"NG_PROV_DEF\\\"]},{\\\"file\\\":\\\"di/jit/injectable.ts\\\",\\\"line\\\":31,\\\"content\\\":\\\"// if NG_PROV_DEF is already defined on this class then don't overwrite it\\\",\\\"contextBefore\\\":[{\\\"line\\\":25,\\\"content\\\":\\\"* injectable def (`ɵprov`) onto the injectable type.\\\"},{\\\"line\\\":26,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":27,\\\"content\\\":\\\"export function compileInjectable(type: Type, srcMeta?: Injectable): void {\\\"},{\\\"line\\\":28,\\\"content\\\":\\\"let ngInjectableDef: any = null;\\\"},{\\\"line\\\":29,\\\"content\\\":\\\"let ngFactoryDef: any = null;\\\"},{\\\"line\\\":30,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"NG_PROV_DEF\\\"]},{\\\"file\\\":\\\"di/jit/injectable.ts\\\",\\\"line\\\":32,\\\"content\\\":\\\"if (!type.hasOwnProperty(NG_PROV_DEF)) {\\\",\\\"matches\\\":[\\\"hasOwnProperty\\\",\\\"NG_PROV_DEF\\\"]},{\\\"file\\\":\\\"di/jit/injectable.ts\\\",\\\"line\\\":33,\\\"content\\\":\\\"Object.defineProperty(type, NG_PROV_DEF, {\\\",\\\"contextAfter\\\":[{\\\"line\\\":34,\\\"content\\\":\\\"get: () => {\\\"},{\\\"line\\\":35,\\\"content\\\":\\\"if (ngInjectableDef === null) {\\\"},{\\\"line\\\":36,\\\"content\\\":\\\"ngInjectableDef = getCompilerFacade().compileInjectable(\\\"},{\\\"line\\\":37,\\\"content\\\":\\\"angularCoreDiEnv, `ng:///${type.name}/ɵprov.js`,\\\"},{\\\"line\\\":38,\\\"content\\\":\\\"getInjectableMetadata(type, srcMeta));\\\"},{\\\"line\\\":39,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"NG_PROV_DEF\\\"]},{\\\"file\\\":\\\"di/jit/injectable.ts\\\",\\\"line\\\":50,\\\"content\\\":\\\"if (!type.hasOwnProperty(NG_PROV_DEF_FALLBACK)) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":44,\\\"content\\\":\\\"// On IE10 properties defined via `defineProperty` won't be inherited by child classes,\\\"},{\\\"line\\\":45,\\\"content\\\":\\\"// which will break inheriting the injectable definition from a grandparent through an\\\"},{\\\"line\\\":46,\\\"content\\\":\\\"// undecorated parent class. We work around it by defining a method which should be used\\\"},{\\\"line\\\":47,\\\"content\\\":\\\"// as a fallback. This should only be a problem in JIT mode, because in AOT TypeScript\\\"},{\\\"line\\\":48,\\\"content\\\":\\\"// seems to have a workaround for static properties. When inheriting from an undecorated\\\"},{\\\"line\\\":49,\\\"content\\\":\\\"// parent is no longer supported in v10, this can safely be removed.\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\",\\\"NG_PROV_DEF\\\"]},{\\\"file\\\":\\\"di/jit/injectable.ts\\\",\\\"line\\\":51,\\\"content\\\":\\\"(type as any)[NG_PROV_DEF_FALLBACK] = () => (type as any)[NG_PROV_DEF];\\\",\\\"contextAfter\\\":[{\\\"line\\\":52,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":53,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":54,\\\"content\\\":\\\"\\\"},{\\\"line\\\":55,\\\"content\\\":\\\"// if NG_FACTORY_DEF is already defined on this class then don't overwrite it\\\"}],\\\"matches\\\":[\\\"NG_PROV_DEF\\\"]},{\\\"file\\\":\\\"di/jit/injectable.ts\\\",\\\"line\\\":56,\\\"content\\\":\\\"if (!type.hasOwnProperty(NG_FACTORY_DEF)) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":52,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":53,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":54,\\\"content\\\":\\\"\\\"},{\\\"line\\\":55,\\\"content\\\":\\\"// if NG_FACTORY_DEF is already defined on this class then don't overwrite it\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":57,\\\"content\\\":\\\"Object.defineProperty(type, NG_FACTORY_DEF, {\\\"},{\\\"line\\\":58,\\\"content\\\":\\\"get: () => {\\\"},{\\\"line\\\":59,\\\"content\\\":\\\"if (ngFactoryDef === null) {\\\"},{\\\"line\\\":60,\\\"content\\\":\\\"const metadata = getInjectableMetadata(type, srcMeta);\\\"},{\\\"line\\\":61,\\\"content\\\":\\\"const compiler = getCompilerFacade();\\\"},{\\\"line\\\":62,\\\"content\\\":\\\"ngFactoryDef = compiler.compileFactory(angularCoreDiEnv, `ng:///${type.name}/ɵfac.js`, {\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"di/jit/environment.ts\\\",\\\"line\\\":12,\\\"content\\\":\\\"import {getInjectableDef, getInjectorDef, ɵɵdefineInjectable, ɵɵdefineInjector} from '../interface/defs';\\\",\\\"contextBefore\\\":[{\\\"line\\\":6,\\\"content\\\":\\\"* found in the LICENSE file at https://angular.io/license\\\"},{\\\"line\\\":7,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":8,\\\"content\\\":\\\"\\\"},{\\\"line\\\":9,\\\"content\\\":\\\"import {Type} from '../../interface/type';\\\"},{\\\"line\\\":10,\\\"content\\\":\\\"import {isForwardRef, resolveForwardRef} from '../forward_ref';\\\"},{\\\"line\\\":11,\\\"content\\\":\\\"import {ɵɵinject, ɵɵinvalidFactoryDep} from '../injector_compatibility';\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":13,\\\"content\\\":\\\"\\\"},{\\\"line\\\":14,\\\"content\\\":\\\"\\\"},{\\\"line\\\":15,\\\"content\\\":\\\"\\\"},{\\\"line\\\":16,\\\"content\\\":\\\"/**\\\"},{\\\"line\\\":17,\\\"content\\\":\\\"* A mapping of the @angular/core API surface used in generated expressions to the actual symbols.\\\"},{\\\"line\\\":18,\\\"content\\\":\\\"*\\\"}],\\\"matches\\\":[\\\"getInjectableDef\\\"]},{\\\"file\\\":\\\"di/jit/environment.ts\\\",\\\"line\\\":39,\\\"content\\\":\\\"const def = getInjectableDef(typeAny) || getInjectorDef(typeAny);\\\",\\\"contextBefore\\\":[{\\\"line\\\":33,\\\"content\\\":\\\"return (() => {\\\"},{\\\"line\\\":34,\\\"content\\\":\\\"const factory = getFactoryOf(resolveForwardRef(typeAny));\\\"},{\\\"line\\\":35,\\\"content\\\":\\\"return factory ? factory() : null;\\\"},{\\\"line\\\":36,\\\"content\\\":\\\"}) as any;\\\"},{\\\"line\\\":37,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":38,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":40,\\\"content\\\":\\\"if (!def || def.factory === undefined) {\\\"},{\\\"line\\\":41,\\\"content\\\":\\\"return null;\\\"},{\\\"line\\\":42,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":43,\\\"content\\\":\\\"return def.factory;\\\"},{\\\"line\\\":44,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"getInjectableDef\\\"]},{\\\"file\\\":\\\"util/decorators.ts\\\",\\\"line\\\":66,\\\"content\\\":\\\"const annotations = cls.hasOwnProperty(ANNOTATIONS) ?\\\",\\\"contextBefore\\\":[{\\\"line\\\":60,\\\"content\\\":\\\"\\\"},{\\\"line\\\":61,\\\"content\\\":\\\"const annotationInstance = new (DecoratorFactory as any)(...args);\\\"},{\\\"line\\\":62,\\\"content\\\":\\\"return function TypeDecorator(cls: Type) {\\\"},{\\\"line\\\":63,\\\"content\\\":\\\"if (typeFn) typeFn(cls, ...args);\\\"},{\\\"line\\\":64,\\\"content\\\":\\\"// Use of Object.defineProperty is important since it creates non-enumerable property which\\\"},{\\\"line\\\":65,\\\"content\\\":\\\"// prevents the property is copied during subclassing.\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":67,\\\"content\\\":\\\"(cls as any)[ANNOTATIONS] :\\\"},{\\\"line\\\":68,\\\"content\\\":\\\"Object.defineProperty(cls, ANNOTATIONS, {value: []})[ANNOTATIONS];\\\"},{\\\"line\\\":69,\\\"content\\\":\\\"annotations.push(annotationInstance);\\\"},{\\\"line\\\":70,\\\"content\\\":\\\"\\\"},{\\\"line\\\":71,\\\"content\\\":\\\"\\\"},{\\\"line\\\":72,\\\"content\\\":\\\"if (additionalProcessing) additionalProcessing(cls);\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"util/decorators.ts\\\",\\\"line\\\":117,\\\"content\\\":\\\"const parameters = cls.hasOwnProperty(PARAMETERS) ?\\\",\\\"contextBefore\\\":[{\\\"line\\\":111,\\\"content\\\":\\\"(ParamDecorator).annotation = annotationInstance;\\\"},{\\\"line\\\":112,\\\"content\\\":\\\"return ParamDecorator;\\\"},{\\\"line\\\":113,\\\"content\\\":\\\"\\\"},{\\\"line\\\":114,\\\"content\\\":\\\"function ParamDecorator(cls: any, unusedKey: any, index: number): any {\\\"},{\\\"line\\\":115,\\\"content\\\":\\\"// Use of Object.defineProperty is important since it creates non-enumerable property which\\\"},{\\\"line\\\":116,\\\"content\\\":\\\"// prevents the property is copied during subclassing.\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":118,\\\"content\\\":\\\"(cls as any)[PARAMETERS] :\\\"},{\\\"line\\\":119,\\\"content\\\":\\\"Object.defineProperty(cls, PARAMETERS, {value: []})[PARAMETERS];\\\"},{\\\"line\\\":120,\\\"content\\\":\\\"\\\"},{\\\"line\\\":121,\\\"content\\\":\\\"// there might be gaps if some in between parameters do not have annotations.\\\"},{\\\"line\\\":122,\\\"content\\\":\\\"// we pad with nulls.\\\"},{\\\"line\\\":123,\\\"content\\\":\\\"while (parameters.length PropDecoratorFactory)(...args);\\\"},{\\\"line\\\":153,\\\"content\\\":\\\"\\\"},{\\\"line\\\":154,\\\"content\\\":\\\"function PropDecorator(target: any, name: string) {\\\"},{\\\"line\\\":155,\\\"content\\\":\\\"const constructor = target.constructor;\\\"},{\\\"line\\\":156,\\\"content\\\":\\\"// Use of Object.defineProperty is important since it creates non-enumerable property which\\\"},{\\\"line\\\":157,\\\"content\\\":\\\"// prevents the property is copied during subclassing.\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":159,\\\"content\\\":\\\"(constructor as any)[PROP_METADATA] :\\\"},{\\\"line\\\":160,\\\"content\\\":\\\"Object.defineProperty(constructor, PROP_METADATA, {value: {}})[PROP_METADATA];\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"util/decorators.ts\\\",\\\"line\\\":161,\\\"content\\\":\\\"meta[name] = meta.hasOwnProperty(name) && meta[name] || [];\\\",\\\"contextBefore\\\":[{\\\"line\\\":159,\\\"content\\\":\\\"(constructor as any)[PROP_METADATA] :\\\"},{\\\"line\\\":160,\\\"content\\\":\\\"Object.defineProperty(constructor, PROP_METADATA, {value: {}})[PROP_METADATA];\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":162,\\\"content\\\":\\\"meta[name].unshift(decoratorInstance);\\\"},{\\\"line\\\":163,\\\"content\\\":\\\"\\\"},{\\\"line\\\":164,\\\"content\\\":\\\"if (additionalProcessing) additionalProcessing(target, name, ...args);\\\"},{\\\"line\\\":165,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":166,\\\"content\\\":\\\"\\\"},{\\\"line\\\":167,\\\"content\\\":\\\"return PropDecorator;\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"render3/i18n.ts\\\",\\\"line\\\":662,\\\"content\\\":\\\"return replacements.hasOwnProperty(key) ? `${start}${replacements[key]}${end}` : match;\\\",\\\"contextBefore\\\":[{\\\"line\\\":656,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":657,\\\"content\\\":\\\"\\\"},{\\\"line\\\":658,\\\"content\\\":\\\"/**\\\"},{\\\"line\\\":659,\\\"content\\\":\\\"* Step 2: replace all ICU vars (like \\\\\\\"VAR_PLURAL\\\\\\\")\\\"},{\\\"line\\\":660,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":661,\\\"content\\\":\\\"result = result.replace(PP_ICU_VARS_REGEXP, (match, start, key, _type, _idx, end): string => {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":663,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":664,\\\"content\\\":\\\"\\\"},{\\\"line\\\":665,\\\"content\\\":\\\"/**\\\"},{\\\"line\\\":666,\\\"content\\\":\\\"* Step 3: replace all placeholders used inside ICUs in a form of {PLACEHOLDER}\\\"},{\\\"line\\\":667,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":668,\\\"content\\\":\\\"result = result.replace(PP_ICU_PLACEHOLDERS_REGEXP, (match, key): string => {\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"render3/i18n.ts\\\",\\\"line\\\":669,\\\"content\\\":\\\"return replacements.hasOwnProperty(key) ? replacements[key] as string : match;\\\",\\\"contextBefore\\\":[{\\\"line\\\":663,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":664,\\\"content\\\":\\\"\\\"},{\\\"line\\\":665,\\\"content\\\":\\\"/**\\\"},{\\\"line\\\":666,\\\"content\\\":\\\"* Step 3: replace all placeholders used inside ICUs in a form of {PLACEHOLDER}\\\"},{\\\"line\\\":667,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":668,\\\"content\\\":\\\"result = result.replace(PP_ICU_PLACEHOLDERS_REGEXP, (match, key): string => {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":670,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":671,\\\"content\\\":\\\"\\\"},{\\\"line\\\":672,\\\"content\\\":\\\"/**\\\"},{\\\"line\\\":673,\\\"content\\\":\\\"* Step 4: replace all ICU references with corresponding values (like �ICU_EXP_ICU_1�) in case\\\"},{\\\"line\\\":674,\\\"content\\\":\\\"* multiple ICUs have the same placeholder name\\\"},{\\\"line\\\":675,\\\"content\\\":\\\"*/\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"render3/i18n.ts\\\",\\\"line\\\":677,\\\"content\\\":\\\"if (replacements.hasOwnProperty(key)) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":671,\\\"content\\\":\\\"\\\"},{\\\"line\\\":672,\\\"content\\\":\\\"/**\\\"},{\\\"line\\\":673,\\\"content\\\":\\\"* Step 4: replace all ICU references with corresponding values (like �ICU_EXP_ICU_1�) in case\\\"},{\\\"line\\\":674,\\\"content\\\":\\\"* multiple ICUs have the same placeholder name\\\"},{\\\"line\\\":675,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":676,\\\"content\\\":\\\"result = result.replace(PP_ICUS_REGEXP, (match, key): string => {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":678,\\\"content\\\":\\\"const list = replacements[key] as string[];\\\"},{\\\"line\\\":679,\\\"content\\\":\\\"if (!list.length) {\\\"},{\\\"line\\\":680,\\\"content\\\":\\\"throw new Error(`i18n postprocess: unmatched ICU - ${match} with key: ${key}`);\\\"},{\\\"line\\\":681,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":682,\\\"content\\\":\\\"return list.shift()!;\\\"},{\\\"line\\\":683,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"render3/i18n.ts\\\",\\\"line\\\":1271,\\\"content\\\":\\\"if (!VALID_ELEMENTS.hasOwnProperty(tagName)) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":1265,\\\"content\\\":\\\"const nextNode: Node|null = currentNode.nextSibling;\\\"},{\\\"line\\\":1266,\\\"content\\\":\\\"const newIndex = expandoStartIndex + ++icuCase.vars;\\\"},{\\\"line\\\":1267,\\\"content\\\":\\\"switch (currentNode.nodeType) {\\\"},{\\\"line\\\":1268,\\\"content\\\":\\\"case Node.ELEMENT_NODE:\\\"},{\\\"line\\\":1269,\\\"content\\\":\\\"const element = currentNode as Element;\\\"},{\\\"line\\\":1270,\\\"content\\\":\\\"const tagName = element.tagName.toLowerCase();\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1272,\\\"content\\\":\\\"// This isn't a valid element, we won't create an element for it\\\"},{\\\"line\\\":1273,\\\"content\\\":\\\"icuCase.vars--;\\\"},{\\\"line\\\":1274,\\\"content\\\":\\\"} else {\\\"},{\\\"line\\\":1275,\\\"content\\\":\\\"icuCase.create.push(\\\"},{\\\"line\\\":1276,\\\"content\\\":\\\"ELEMENT_MARKER, tagName, newIndex,\\\"},{\\\"line\\\":1277,\\\"content\\\":\\\"parentIndex , ProviderOverride>();\\\"},{\\\"line\\\":171,\\\"content\\\":\\\"const viewDefOverrides = new Map();\\\"},{\\\"line\\\":172,\\\"content\\\":\\\"\\\"},{\\\"line\\\":173,\\\"content\\\":\\\"function debugOverrideProvider(override: ProviderOverride) {\\\"},{\\\"line\\\":174,\\\"content\\\":\\\"providerOverrides.set(override.token, override);\\\"},{\\\"line\\\":175,\\\"content\\\":\\\"let injectableDef: ɵɵInjectableDef|null;\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":177,\\\"content\\\":\\\"typeof injectableDef.providedIn === 'function') {\\\"},{\\\"line\\\":178,\\\"content\\\":\\\"providerOverridesWithScope.set(override.token as InjectableType, override);\\\"},{\\\"line\\\":179,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":180,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":181,\\\"content\\\":\\\"\\\"},{\\\"line\\\":182,\\\"content\\\":\\\"function debugOverrideComponentView(comp: any, compFactory: ComponentFactory) {\\\"}],\\\"matches\\\":[\\\"getInjectableDef\\\"]},{\\\"file\\\":\\\"view/services.ts\\\",\\\"line\\\":283,\\\"content\\\":\\\"if (getInjectableDef(token)!.providedIn === module) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":277,\\\"content\\\":\\\"hasOverrides = true;\\\"},{\\\"line\\\":278,\\\"content\\\":\\\"hasDeprecatedOverrides = hasDeprecatedOverrides || override.deprecatedBehavior;\\\"},{\\\"line\\\":279,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":280,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":281,\\\"content\\\":\\\"def.modules.forEach(module => {\\\"},{\\\"line\\\":282,\\\"content\\\":\\\"providerOverridesWithScope.forEach((override, token) => {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":284,\\\"content\\\":\\\"hasOverrides = true;\\\"},{\\\"line\\\":285,\\\"content\\\":\\\"hasDeprecatedOverrides = hasDeprecatedOverrides || override.deprecatedBehavior;\\\"},{\\\"line\\\":286,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":287,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":288,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":289,\\\"content\\\":\\\"return {hasOverrides, hasDeprecatedOverrides};\\\"}],\\\"matches\\\":[\\\"getInjectableDef\\\"]},{\\\"file\\\":\\\"view/services.ts\\\",\\\"line\\\":311,\\\"content\\\":\\\"if (moduleSet.has(getInjectableDef(token)!.providedIn)) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":305,\\\"content\\\":\\\"provider.value = override.value;\\\"},{\\\"line\\\":306,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":307,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":308,\\\"content\\\":\\\"if (providerOverridesWithScope.size > 0) {\\\"},{\\\"line\\\":309,\\\"content\\\":\\\"let moduleSet = new Set(def.modules);\\\"},{\\\"line\\\":310,\\\"content\\\":\\\"providerOverridesWithScope.forEach((override, token) => {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":312,\\\"content\\\":\\\"let provider = {\\\"},{\\\"line\\\":313,\\\"content\\\":\\\"token: token,\\\"},{\\\"line\\\":314,\\\"content\\\":\\\"flags:\\\"},{\\\"line\\\":315,\\\"content\\\":\\\"override.flags | (hasDeprecatedOverrides ? NodeFlags.LazyProvider : NodeFlags.None),\\\"},{\\\"line\\\":316,\\\"content\\\":\\\"deps: splitDepsDsl(override.deps),\\\"},{\\\"line\\\":317,\\\"content\\\":\\\"value: override.value,\\\"}],\\\"matches\\\":[\\\"getInjectableDef\\\"]},{\\\"file\\\":\\\"render3/component_ref.ts\\\",\\\"line\\\":61,\\\"content\\\":\\\"if (map.hasOwnProperty(nonMinified)) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":55,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":56,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":57,\\\"content\\\":\\\"\\\"},{\\\"line\\\":58,\\\"content\\\":\\\"function toRefArray(map: {[key: string]: string}): {propName: string; templateName: string;}[] {\\\"},{\\\"line\\\":59,\\\"content\\\":\\\"const array: {propName: string; templateName: string;}[] = [];\\\"},{\\\"line\\\":60,\\\"content\\\":\\\"for (let nonMinified in map) {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":62,\\\"content\\\":\\\"const minified = map[nonMinified];\\\"},{\\\"line\\\":63,\\\"content\\\":\\\"array.push({propName: minified, templateName: nonMinified});\\\"},{\\\"line\\\":64,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":65,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":66,\\\"content\\\":\\\"return array;\\\"},{\\\"line\\\":67,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"sanitization/html_sanitizer.ts\\\",\\\"line\\\":23,\\\"content\\\":\\\"if (s.hasOwnProperty(v)) res[v] = true;\\\",\\\"contextBefore\\\":[{\\\"line\\\":17,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":18,\\\"content\\\":\\\"\\\"},{\\\"line\\\":19,\\\"content\\\":\\\"function merge(...sets: {[k: string]: boolean}[]): {[k: string]: boolean} {\\\"},{\\\"line\\\":20,\\\"content\\\":\\\"const res: {[k: string]: boolean} = {};\\\"},{\\\"line\\\":21,\\\"content\\\":\\\"for (const s of sets) {\\\"},{\\\"line\\\":22,\\\"content\\\":\\\"for (const v in s) {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":24,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":25,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":26,\\\"content\\\":\\\"return res;\\\"},{\\\"line\\\":27,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":28,\\\"content\\\":\\\"\\\"},{\\\"line\\\":29,\\\"content\\\":\\\"// Good source of info about elements and attributes\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"sanitization/html_sanitizer.ts\\\",\\\"line\\\":161,\\\"content\\\":\\\"if (!VALID_ELEMENTS.hasOwnProperty(tagName)) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":155,\\\"content\\\":\\\"*\\\"},{\\\"line\\\":156,\\\"content\\\":\\\"* @param element The element to sanitize.\\\"},{\\\"line\\\":157,\\\"content\\\":\\\"* @return True if the element's contents should be traversed.\\\"},{\\\"line\\\":158,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":159,\\\"content\\\":\\\"private startElement(element: Element): boolean {\\\"},{\\\"line\\\":160,\\\"content\\\":\\\"const tagName = element.nodeName.toLowerCase();\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":162,\\\"content\\\":\\\"this.sanitizedSomething = true;\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"sanitization/html_sanitizer.ts\\\",\\\"line\\\":163,\\\"content\\\":\\\"return !SKIP_TRAVERSING_CONTENT_IF_INVALID_ELEMENTS.hasOwnProperty(tagName);\\\",\\\"contextBefore\\\":[{\\\"line\\\":162,\\\"content\\\":\\\"this.sanitizedSomething = true;\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":164,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":165,\\\"content\\\":\\\"this.buf.push('');\\\"},{\\\"line\\\":183,\\\"content\\\":\\\"return true;\\\"},{\\\"line\\\":184,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":185,\\\"content\\\":\\\"\\\"},{\\\"line\\\":186,\\\"content\\\":\\\"private endElement(current: Element) {\\\"},{\\\"line\\\":187,\\\"content\\\":\\\"const tagName = current.nodeName.toLowerCase();\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":189,\\\"content\\\":\\\"this.buf.push('');\\\"},{\\\"line\\\":192,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":193,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":194,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"render3/metadata.ts\\\",\\\"line\\\":35,\\\"content\\\":\\\"// We can't use `hasOwnProperty` here because it doesn't work correctly in IE10 for\\\",\\\"contextBefore\\\":[{\\\"line\\\":29,\\\"content\\\":\\\"propDecorators: {[field: string]: any}|null): void {\\\"},{\\\"line\\\":30,\\\"content\\\":\\\"return noSideEffects(() => {\\\"},{\\\"line\\\":31,\\\"content\\\":\\\"const clazz = type as TypeWithMetadata;\\\"},{\\\"line\\\":32,\\\"content\\\":\\\"\\\"},{\\\"line\\\":33,\\\"content\\\":\\\"// We determine whether a class has its own metadata by taking the metadata from the\\\"},{\\\"line\\\":34,\\\"content\\\":\\\"// parent constructor and checking whether it's the same as the subclass metadata below.\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":36,\\\"content\\\":\\\"// static fields that are defined by TS. See\\\"},{\\\"line\\\":37,\\\"content\\\":\\\"// https://github.com/angular/angular/pull/28439#issuecomment-459349218.\\\"},{\\\"line\\\":38,\\\"content\\\":\\\"const parentPrototype = clazz.prototype ? Object.getPrototypeOf(clazz.prototype) : null;\\\"},{\\\"line\\\":39,\\\"content\\\":\\\"const parentConstructor: TypeWithMetadata|null =\\\"},{\\\"line\\\":40,\\\"content\\\":\\\"parentPrototype && parentPrototype.constructor;\\\"},{\\\"line\\\":41,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"render3/instructions/shared.ts\\\",\\\"line\\\":901,\\\"content\\\":\\\"if (inputAliasMap.hasOwnProperty(publicName)) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":895,\\\"content\\\":\\\"\\\"},{\\\"line\\\":896,\\\"content\\\":\\\"\\\"},{\\\"line\\\":897,\\\"content\\\":\\\"function generatePropertyAliases(\\\"},{\\\"line\\\":898,\\\"content\\\":\\\"inputAliasMap: {[publicName: string]: string}, directiveDefIdx: number,\\\"},{\\\"line\\\":899,\\\"content\\\":\\\"propStore: PropertyAliases|null): PropertyAliases|null {\\\"},{\\\"line\\\":900,\\\"content\\\":\\\"for (let publicName in inputAliasMap) {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":902,\\\"content\\\":\\\"propStore = propStore === null ? {} : propStore;\\\"},{\\\"line\\\":903,\\\"content\\\":\\\"const internalName = inputAliasMap[publicName];\\\"},{\\\"line\\\":904,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"render3/instructions/shared.ts\\\",\\\"line\\\":905,\\\"content\\\":\\\"if (propStore.hasOwnProperty(publicName)) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":902,\\\"content\\\":\\\"propStore = propStore === null ? {} : propStore;\\\"},{\\\"line\\\":903,\\\"content\\\":\\\"const internalName = inputAliasMap[publicName];\\\"},{\\\"line\\\":904,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":906,\\\"content\\\":\\\"propStore[publicName].push(directiveDefIdx, internalName);\\\"},{\\\"line\\\":907,\\\"content\\\":\\\"} else {\\\"},{\\\"line\\\":908,\\\"content\\\":\\\"(propStore[publicName] = [directiveDefIdx, internalName]);\\\"},{\\\"line\\\":909,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":910,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":911,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"render3/instructions/shared.ts\\\",\\\"line\\\":946,\\\"content\\\":\\\"if (inputsStore.hasOwnProperty('class')) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":940,\\\"content\\\":\\\"inputsFromAttrs.push(initialInputs);\\\"},{\\\"line\\\":941,\\\"content\\\":\\\"inputsStore = generatePropertyAliases(directiveInputs, i, inputsStore);\\\"},{\\\"line\\\":942,\\\"content\\\":\\\"outputsStore = generatePropertyAliases(directiveDef.outputs, i, outputsStore);\\\"},{\\\"line\\\":943,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":944,\\\"content\\\":\\\"\\\"},{\\\"line\\\":945,\\\"content\\\":\\\"if (inputsStore !== null) {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":947,\\\"content\\\":\\\"tNode.flags |= TNodeFlags.hasClassInput;\\\"},{\\\"line\\\":948,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"render3/instructions/shared.ts\\\",\\\"line\\\":949,\\\"content\\\":\\\"if (inputsStore.hasOwnProperty('style')) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":947,\\\"content\\\":\\\"tNode.flags |= TNodeFlags.hasClassInput;\\\"},{\\\"line\\\":948,\\\"content\\\":\\\"}\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":950,\\\"content\\\":\\\"tNode.flags |= TNodeFlags.hasStyleInput;\\\"},{\\\"line\\\":951,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":952,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":953,\\\"content\\\":\\\"\\\"},{\\\"line\\\":954,\\\"content\\\":\\\"tNode.initialInputs = inputsFromAttrs;\\\"},{\\\"line\\\":955,\\\"content\\\":\\\"tNode.inputs = inputsStore;\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"render3/instructions/shared.ts\\\",\\\"line\\\":1575,\\\"content\\\":\\\"if (inputs.hasOwnProperty(attrName as string)) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":1569,\\\"content\\\":\\\"continue;\\\"},{\\\"line\\\":1570,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1571,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1572,\\\"content\\\":\\\"// If we hit any other attribute markers, we're done anyway. None of those are valid inputs.\\\"},{\\\"line\\\":1573,\\\"content\\\":\\\"if (typeof attrName === 'number') break;\\\"},{\\\"line\\\":1574,\\\"content\\\":\\\"\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":1576,\\\"content\\\":\\\"if (inputsToStore === null) inputsToStore = [];\\\"},{\\\"line\\\":1577,\\\"content\\\":\\\"inputsToStore.push(attrName as string, inputs[attrName as string], attrs[i + 1] as string);\\\"},{\\\"line\\\":1578,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":1579,\\\"content\\\":\\\"\\\"},{\\\"line\\\":1580,\\\"content\\\":\\\"i += 2;\\\"},{\\\"line\\\":1581,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"view/ng_module.ts\\\",\\\"line\\\":12,\\\"content\\\":\\\"import {getInjectableDef, ɵɵInjectableDef} from '../di/interface/defs';\\\",\\\"contextBefore\\\":[{\\\"line\\\":6,\\\"content\\\":\\\"* found in the LICENSE file at https://angular.io/license\\\"},{\\\"line\\\":7,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":8,\\\"content\\\":\\\"\\\"},{\\\"line\\\":9,\\\"content\\\":\\\"import {resolveForwardRef} from '../di/forward_ref';\\\"},{\\\"line\\\":10,\\\"content\\\":\\\"import {Injector} from '../di/injector';\\\"},{\\\"line\\\":11,\\\"content\\\":\\\"import {INJECTOR, setCurrentInjector} from '../di/injector_compatibility';\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":13,\\\"content\\\":\\\"import {INJECTOR_SCOPE} from '../di/scope';\\\"},{\\\"line\\\":14,\\\"content\\\":\\\"import {NgModuleRef} from '../linker/ng_module_factory';\\\"},{\\\"line\\\":15,\\\"content\\\":\\\"import {newArray} from '../util/array_utils';\\\"},{\\\"line\\\":16,\\\"content\\\":\\\"import {stringify} from '../util/stringify';\\\"},{\\\"line\\\":17,\\\"content\\\":\\\"\\\"},{\\\"line\\\":18,\\\"content\\\":\\\"import {DepDef, DepFlags, NgModuleData, NgModuleDefinition, NgModuleProviderDef, NodeFlags} from './types';\\\"}],\\\"matches\\\":[\\\"getInjectableDef\\\"]},{\\\"file\\\":\\\"view/ng_module.ts\\\",\\\"line\\\":113,\\\"content\\\":\\\"(injectableDef = getInjectableDef(depDef.token)) && targetsModule(data, injectableDef)) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":107,\\\"content\\\":\\\"if (providerInstance === undefined) {\\\"},{\\\"line\\\":108,\\\"content\\\":\\\"providerInstance = data._providers[providerDef.index] =\\\"},{\\\"line\\\":109,\\\"content\\\":\\\"_createProviderInstance(data, providerDef);\\\"},{\\\"line\\\":110,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":111,\\\"content\\\":\\\"return providerInstance === UNDEFINED_VALUE ? undefined : providerInstance;\\\"},{\\\"line\\\":112,\\\"content\\\":\\\"} else if (\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":114,\\\"content\\\":\\\"const index = data._providers.length;\\\"},{\\\"line\\\":115,\\\"content\\\":\\\"data._def.providers[index] = data._def.providersByKey[depDef.tokenKey] = {\\\"},{\\\"line\\\":116,\\\"content\\\":\\\"flags: NodeFlags.TypeFactoryProvider | NodeFlags.LazyProvider,\\\"},{\\\"line\\\":117,\\\"content\\\":\\\"value: injectableDef.factory,\\\"},{\\\"line\\\":118,\\\"content\\\":\\\"deps: [],\\\"},{\\\"line\\\":119,\\\"content\\\":\\\"index,\\\"}],\\\"matches\\\":[\\\"getInjectableDef\\\"]},{\\\"file\\\":\\\"core_render3_private_export.ts\\\",\\\"line\\\":30,\\\"content\\\":\\\"NG_PROV_DEF as ɵNG_PROV_DEF,\\\",\\\"contextBefore\\\":[{\\\"line\\\":24,\\\"content\\\":\\\"export {\\\"},{\\\"line\\\":25,\\\"content\\\":\\\"SWITCH_COMPILE_INJECTABLE__POST_R3__ as ɵSWITCH_COMPILE_INJECTABLE__POST_R3__,\\\"},{\\\"line\\\":26,\\\"content\\\":\\\"} from './di/injectable';\\\"},{\\\"line\\\":27,\\\"content\\\":\\\"export {INJECTOR_IMPL__POST_R3__ as ɵINJECTOR_IMPL__POST_R3__} from './di/injector';\\\"},{\\\"line\\\":28,\\\"content\\\":\\\"export {\\\"},{\\\"line\\\":29,\\\"content\\\":\\\"NG_INJ_DEF as ɵNG_INJ_DEF,\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":31,\\\"content\\\":\\\"} from './di/interface/defs';\\\"},{\\\"line\\\":32,\\\"content\\\":\\\"export {createInjector as ɵcreateInjector} from './di/r3_injector';\\\"},{\\\"line\\\":33,\\\"content\\\":\\\"export {\\\"},{\\\"line\\\":34,\\\"content\\\":\\\"SWITCH_IVY_ENABLED__POST_R3__ as ɵSWITCH_IVY_ENABLED__POST_R3__,\\\"},{\\\"line\\\":35,\\\"content\\\":\\\"} from './ivy_switch';\\\"},{\\\"line\\\":36,\\\"content\\\":\\\"export {\\\"}],\\\"matches\\\":[\\\"NG_PROV_DEF\\\",\\\"G_PROV_DEF,\\\"]},{\\\"file\\\":\\\"render3/assert.ts\\\",\\\"line\\\":23,\\\"content\\\":\\\"tNode.hasOwnProperty('tView_') &&\\\",\\\"contextBefore\\\":[{\\\"line\\\":17,\\\"content\\\":\\\"\\\"},{\\\"line\\\":18,\\\"content\\\":\\\"// [Assert functions do not constraint type when they are guarded by a truthy\\\"},{\\\"line\\\":19,\\\"content\\\":\\\"// expression.](https://github.com/microsoft/TypeScript/issues/37295)\\\"},{\\\"line\\\":20,\\\"content\\\":\\\"\\\"},{\\\"line\\\":21,\\\"content\\\":\\\"\\\"},{\\\"line\\\":22,\\\"content\\\":\\\"export function assertTNodeForLView(tNode: TNode, lView: LView) {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":24,\\\"content\\\":\\\"assertEqual(\\\"},{\\\"line\\\":25,\\\"content\\\":\\\"(tNode as any as {tView_: TView}).tView_, lView[TVIEW],\\\"},{\\\"line\\\":26,\\\"content\\\":\\\"'This TNode does not belong to this LView.');\\\"},{\\\"line\\\":27,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":28,\\\"content\\\":\\\"\\\"},{\\\"line\\\":29,\\\"content\\\":\\\"export function assertComponentType(\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"render3/instructions/styling.ts\\\",\\\"line\\\":628,\\\"content\\\":\\\"if (unwrappedValue.hasOwnProperty(key)) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":622,\\\"content\\\":\\\"if (Array.isArray(unwrappedValue)) {\\\"},{\\\"line\\\":623,\\\"content\\\":\\\"for (let i = 0; i (\\\"},{\\\"line\\\":522,\\\"content\\\":\\\"obj?: {[P in keyof T]?: string|[string, string]},\\\"},{\\\"line\\\":523,\\\"content\\\":\\\"secondary?: {[key: string]: string}): {[P in keyof T]: string} {\\\"},{\\\"line\\\":524,\\\"content\\\":\\\"if (obj == null) return EMPTY_OBJ as any;\\\"},{\\\"line\\\":525,\\\"content\\\":\\\"const newLookup: any = {};\\\"},{\\\"line\\\":526,\\\"content\\\":\\\"for (const minifiedKey in obj) {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":528,\\\"content\\\":\\\"let publicName: string|[string, string] = obj[minifiedKey]!;\\\"},{\\\"line\\\":529,\\\"content\\\":\\\"let declaredName = publicName;\\\"},{\\\"line\\\":530,\\\"content\\\":\\\"if (Array.isArray(publicName)) {\\\"},{\\\"line\\\":531,\\\"content\\\":\\\"declaredName = publicName[1];\\\"},{\\\"line\\\":532,\\\"content\\\":\\\"publicName = publicName[0];\\\"},{\\\"line\\\":533,\\\"content\\\":\\\"}\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"render3/definition.ts\\\",\\\"line\\\":753,\\\"content\\\":\\\"const hasFactoryDef = type.hasOwnProperty(NG_FACTORY_DEF);\\\",\\\"contextBefore\\\":[{\\\"line\\\":747,\\\"content\\\":\\\"return type[NG_PIPE_DEF] || null;\\\"},{\\\"line\\\":748,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":749,\\\"content\\\":\\\"\\\"},{\\\"line\\\":750,\\\"content\\\":\\\"export function getFactoryDef(type: any, throwNotFound: true): FactoryFn;\\\"},{\\\"line\\\":751,\\\"content\\\":\\\"export function getFactoryDef(type: any): FactoryFn|null;\\\"},{\\\"line\\\":752,\\\"content\\\":\\\"export function getFactoryDef(type: any, throwNotFound?: boolean): FactoryFn|null {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":754,\\\"content\\\":\\\"if (!hasFactoryDef && throwNotFound === true && ngDevMode) {\\\"},{\\\"line\\\":755,\\\"content\\\":\\\"throw new Error(`Type ${stringify(type)} does not have 'ɵfac' property.`);\\\"},{\\\"line\\\":756,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":757,\\\"content\\\":\\\"return hasFactoryDef ? type[NG_FACTORY_DEF] : null;\\\"},{\\\"line\\\":758,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":759,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"render3/jit/directive.ts\\\",\\\"line\\\":276,\\\"content\\\":\\\"if (propMetadata.hasOwnProperty(field)) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":270,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":271,\\\"content\\\":\\\"function extractQueriesMetadata(\\\"},{\\\"line\\\":272,\\\"content\\\":\\\"type: Type, propMetadata: {[key: string]: any[]},\\\"},{\\\"line\\\":273,\\\"content\\\":\\\"isQueryAnn: (ann: any) => ann is Query): R3QueryMetadataFacade[] {\\\"},{\\\"line\\\":274,\\\"content\\\":\\\"const queriesMeta: R3QueryMetadataFacade[] = [];\\\"},{\\\"line\\\":275,\\\"content\\\":\\\"for (const field in propMetadata) {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":277,\\\"content\\\":\\\"const annotations = propMetadata[field];\\\"},{\\\"line\\\":278,\\\"content\\\":\\\"annotations.forEach(ann => {\\\"},{\\\"line\\\":279,\\\"content\\\":\\\"if (isQueryAnn(ann)) {\\\"},{\\\"line\\\":280,\\\"content\\\":\\\"if (!ann.selector) {\\\"},{\\\"line\\\":281,\\\"content\\\":\\\"throw new Error(\\\"},{\\\"line\\\":282,\\\"content\\\":\\\"`Can't construct a query for the property \\\\\\\"${field}\\\\\\\" of ` +\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"render3/jit/module.ts\\\",\\\"line\\\":397,\\\"content\\\":\\\"if (declaration.hasOwnProperty(NG_COMP_DEF)) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":391,\\\"content\\\":\\\"function setScopeOnDeclaredComponents(moduleType: Type, ngModule: NgModule) {\\\"},{\\\"line\\\":392,\\\"content\\\":\\\"const declarations: Type[] = flatten(ngModule.declarations || EMPTY_ARRAY);\\\"},{\\\"line\\\":393,\\\"content\\\":\\\"\\\"},{\\\"line\\\":394,\\\"content\\\":\\\"const transitiveScopes = transitiveScopesFor(moduleType);\\\"},{\\\"line\\\":395,\\\"content\\\":\\\"\\\"},{\\\"line\\\":396,\\\"content\\\":\\\"declarations.forEach(declaration => {\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":398,\\\"content\\\":\\\"// A `ɵcmp` field exists - go ahead and patch the component directly.\\\"},{\\\"line\\\":399,\\\"content\\\":\\\"const component = declaration as Type& {ɵcmp: ComponentDef};\\\"},{\\\"line\\\":400,\\\"content\\\":\\\"const componentDef = getComponentDef(component)!;\\\"},{\\\"line\\\":401,\\\"content\\\":\\\"patchComponentDefWithScope(componentDef, transitiveScopes);\\\"},{\\\"line\\\":402,\\\"content\\\":\\\"} else if (\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"render3/jit/module.ts\\\",\\\"line\\\":403,\\\"content\\\":\\\"!declaration.hasOwnProperty(NG_DIR_DEF) && !declaration.hasOwnProperty(NG_PIPE_DEF)) {\\\",\\\"contextBefore\\\":[{\\\"line\\\":398,\\\"content\\\":\\\"// A `ɵcmp` field exists - go ahead and patch the component directly.\\\"},{\\\"line\\\":399,\\\"content\\\":\\\"const component = declaration as Type& {ɵcmp: ComponentDef};\\\"},{\\\"line\\\":400,\\\"content\\\":\\\"const componentDef = getComponentDef(component)!;\\\"},{\\\"line\\\":401,\\\"content\\\":\\\"patchComponentDefWithScope(componentDef, transitiveScopes);\\\"},{\\\"line\\\":402,\\\"content\\\":\\\"} else if (\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":404,\\\"content\\\":\\\"// Set `ngSelectorScope` for future reference when the component compilation finishes.\\\"},{\\\"line\\\":405,\\\"content\\\":\\\"(declaration as Type& {ngSelectorScope?: any}).ngSelectorScope = moduleType;\\\"},{\\\"line\\\":406,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":407,\\\"content\\\":\\\"});\\\"},{\\\"line\\\":408,\\\"content\\\":\\\"}\\\"},{\\\"line\\\":409,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]},{\\\"file\\\":\\\"render3/jit/module.ts\\\",\\\"line\\\":419,\\\"content\\\":\\\"dir => dir.hasOwnProperty(NG_COMP_DEF) ? getComponentDef(dir)! : getDirectiveDef(dir)!\\\",\\\"contextBefore\\\":[{\\\"line\\\":413,\\\"content\\\":\\\"*/\\\"},{\\\"line\\\":414,\\\"content\\\":\\\"export function patchComponentDefWithScope(\\\"},{\\\"line\\\":415,\\\"content\\\":\\\"componentDef: ComponentDef, transitiveScopes: NgModuleTransitiveScopes) {\\\"},{\\\"line\\\":416,\\\"content\\\":\\\"componentDef.directiveDefs = () =>\\\"},{\\\"line\\\":417,\\\"content\\\":\\\"Array.from(transitiveScopes.compilation.directives)\\\"},{\\\"line\\\":418,\\\"content\\\":\\\".map(\\\"}],\\\"contextAfter\\\":[{\\\"line\\\":420,\\\"content\\\":\\\")\\\"},{\\\"line\\\":421,\\\"content\\\":\\\".filter(def => !!def);\\\"},{\\\"line\\\":422,\\\"content\\\":\\\"componentDef.pipeDefs = () =>\\\"},{\\\"line\\\":423,\\\"content\\\":\\\"Array.from(transitiveScopes.compilation.pipes).map(pipe => getPipeDef(pipe)!);\\\"},{\\\"line\\\":424,\\\"content\\\":\\\"componentDef.schemas = transitiveScopes.schemas;\\\"},{\\\"line\\\":425,\\\"content\\\":\\\"\\\"}],\\\"matches\\\":[\\\"hasOwnProperty\\\"]}]}\"}"
+> > > }
+> > > ```
+> > > 
+> > > 100. **Sub-agent event: tool_output**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_output",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "toolName": "run_terminal_command",
+> > >   "toolCallId": "call_8bEXsXYcGo781Hb3BvPMM7po|fc_032f22962d24028b016ab56e6e4e9087d19ba5ec7c9acbc2c6",
+> > >   "isError": false,
+> > >   "output": "{\"status\":\"success\",\"message\":\"I ran all provided commands and below are the outcomes for each command with their status. Please analyze each output carefully and run the commands again for which you see errors to get their output by correcting the command and other parameters.\\n\\n=== EXECUTION SUMMARY ===\\nTotal Commands: 2\\nNumber of Successful Commands: 2\\nNumber of Failed Commands: 0\\nNumber of Timed Out Commands: 0\\n========================\\n\\n╔══════════════════════════════════════════════════════════════════════╗\\n║ COMMAND 1 of 2                                                        ║\\n╚══════════════════════════════════════════════════════════════════════╝\\nCommand: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc 'git --no-pager log --all --oneline --decorate --grep='\\\"'\\\"'decorator'\\\"'\\\"' --grep='\\\"'\\\"'subclass'\\\"'\\\"' --grep='\\\"'\\\"'injectable'\\\"'\\\"' -i -n 50'\\nStatus: SUCCESS\\n─────────────────────────────────────────────────────────────────────────\\nOutput:\\nCommand success.\\n\\n--- Full Output ---\\n__CMD_FINISHED__ 0\\n--- End of Full Output ---\\n═════════════════════════════════════════════════════════════════════════\\n\\n╔══════════════════════════════════════════════════════════════════════╗\\n║ COMMAND 2 of 2                                                        ║\\n╚══════════════════════════════════════════════════════════════════════╝\\nCommand: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc 'git --no-pager branch -a --contains f799725'\\nStatus: SUCCESS\\n─────────────────────────────────────────────────────────────────────────\\nOutput:\\nCommand success.\\n\\n--- Full Output ---\\n* (HEAD detached at FETCH_HEAD)\\n__CMD_FINISHED__ 0\\n--- End of Full Output ---\\n═════════════════════════════════════════════════════════════════════════\\n\\n\"}"
+> > > }
+> > > ```
+> > > 
+> > > 101. **Sub-agent event: token_usage**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "token_usage",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> > >   "parentToolCallId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parentSubagentBlockKey": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "parallelBatchId": "call_S8dcdVooTIhunq3POpxlHxPs|fc_00d1729a94ae60a2016ab56e3cbfa887d19e76554116a8666d",
+> > >   "tokenUsage": {
+> > >     "inputTokens": 22444,
+> > >     "outputTokens": 968,
+> > >     "totalTokens": 56583,
+> > >     "cost": {
+> > >       "total": 0.10477056000000001
+> > >     }
+> > >   },
+> > >   "cumulativeTokenUsage": {
+> > >     "inputTokens": 45949,
+> > >     "outputTokens": 3412,
+> > >     "totalTokens": 175147,
+> > >     "cost": {
+> > >       "total": 0.24195456000000004
+> > >     }
+> > >   },
+> > >   "status": "running"
+> > > }
+> > > ```
+> > > 
+> > > 102. **Sub-agent event: tool_call**
+> > > worker-compiler-injectable
+> > > Input:
+> > > ```json
+> > > {
+> > >   "type": "tool_call",
+> > >   "subagentId": "worker-compiler-injectable",
+> > >   "role": "worker",
+> > >   "baseSubagentId": "worker-compiler-injectable",
+> 
+> ```
+> 
+> 6. **Tool call: get_workspace_files_list**
+> Input:
+> ```json
+> {
+>   "folderPaths": [
+>     "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657"
+>   ],
+>   "maxTokens": 20000,
+>   "toolPurpose": "- I want to inspect the isolated repository structure to locate the TreeView implementation, package metadata, and relevant validation setup without accessing external sources."
+> }
+> ```
+> Output:
+> ```
+> The workspace folder structure was very large so it has been truncated to reduce the context length. If you need further information about any missing files/folders use the get_filenames_using_content_search tool to perform a semantic search that searches workspace based on a search query.
+> Here is the folder structure for 'Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657':
+> - mui__material-ui-20657
+>   - .browserslistrc
+>   - .circleci
+>     - config.yml
+>   - .codecov.yml
+>   - .codesandbox
+>     - ci.json
+>   - .dependabot
+>     - config.yml
+>   - .editorconfig
+>   - .eslintignore
+>   - .eslintrc.js
+>   - .github
+>     - CODEOWNERS
+>     - FUNDING.yml
+>     - ISSUE_TEMPLATE
+>       - 1.bug.md
+>       - 2.feature.md
+>       - config.yml
+>     - PULL_REQUEST_TEMPLATE.md
+>     - support.yml
+>     - workflows
+>       - maintenance.yml
+>       - scripts.yml
+>   - .mocharc.js
+>   - .tidelift.yml
+>   - .yarnrc
+>   - CHANGELOG.md
+>   - CODE_OF_CONDUCT.md
+>   - CONTRIBUTING.md
+>   - LICENSE
+>   - README.md
+>   - SECURITY.md
+>   - azure-pipelines.yml
+>   - babel.config.js
+>   - crowdin.yml
+>   - dangerfile.js
+>   - docker-compose.yml
+>   - docs
+>     - README.md
+>     - babel.config.js
+>     - next-env.d.ts
+>     - next.config.js
+>     - notifications.json
+>     - package.json
+>     - pages
+>       - _app.js
+>       - _document.js
+>       - api-docs
+>         - alert-title.js
+>         - alert-title.md
+>         - alert.js
+>         - alert.md
+>         - app-bar.js
+>         - app-bar.md
+>         - autocomplete.js
+>         - autocomplete.md
+>         - avatar-group.js
+>         - avatar-group.md
+>         - avatar.js
+>         - avatar.md
+>         - backdrop.js
+>         - backdrop.md
+>         - badge.js
+>         - badge.md
+>         - bottom-navigation-action.js
+>         - bottom-navigation-action.md
+>         - bottom-navigation.js
+>         - bottom-navigation.md
+>         - breadcrumbs.js
+>         - breadcrumbs.md
+>         - button-base.js
+>         - button-base.md
+>         - button-group.js
+>         - button-group.md
+>         - button.js
+>         - button.md
+>         - card-action-area.js
+>         - card-action-area.md
+>         - card-actions.js
+>         - card-actions.md
+>         - card-content.js
+>         - card-content.md
+>         - card-header.js
+>         - card-header.md
+>         - card-media.js
+>         - card-media.md
+>         - card.js
+>         - card.md
+>         - checkbox.js
+>         - checkbox.md
+>         - chip.js
+>         - chip.md
+>         - circular-progress.js
+>         - circular-progress.md
+>         - click-away-listener.js
+>         - click-away-listener.md
+>         - collapse.js
+>         - collapse.md
+>         - container.js
+>         - container.md
+>         - css-baseline.js
+>         - css-baseline.md
+>         - dialog-actions.js
+>         - dialog-actions.md
+>         - dialog-content-text.js
+>         - dialog-content-text.md
+>         - dialog-content.js
+>         - dialog-content.md
+>         - dialog-title.js
+>         - dialog-title.md
+>         - dialog.js
+>         - dialog.md
+>         - divider.js
+>         - divider.md
+>         - drawer.js
+>         - drawer.md
+>         - expansion-panel-actions.js
+>         - expansion-panel-actions.md
+>         - expansion-panel-details.js
+>         - expansion-panel-details.md
+>         - expansion-panel-summary.js
+>         - expansion-panel-summary.md
+>         - expansion-panel.js
+>         - expansion-panel.md
+>         - fab.js
+>         - fab.md
+>         - fade.js
+>         - fade.md
+>         - filled-input.js
+>         - filled-input.md
+>         - form-control-label.js
+>         - form-control-label.md
+>         - form-control.js
+>         - form-control.md
+>         - form-group.js
+>         - form-group.md
+>         - form-helper-text.js
+>         - form-helper-text.md
+>         - form-label.js
+>         - form-label.md
+>         - grid-list-tile-bar.js
+>         - grid-list-tile-bar.md
+>         - grid-list-tile.js
+>         - grid-list-tile.md
+>         - grid-list.js
+>         - grid-list.md
+>         - grid.js
+>         - grid.md
+>         - grow.js
+>         - grow.md
+>         - hidden.js
+>         - hidden.md
+>         - icon-button.js
+>         - icon-button.md
+>         - icon.js
+>         - icon.md
+>         - input-adornment.js
+>         - input-adornment.md
+>         - input-base.js
+>         - input-base.md
+>         - input-label.js
+>         - input-label.md
+>         - input.js
+>         - input.md
+>         - linear-progress.js
+>         - linear-progress.md
+>         - link.js
+>         - link.md
+>         - list-item-avatar.js
+>         - list-item-avatar.md
+>         - list-item-icon.js
+>         - list-item-icon.md
+>         - list-item-secondary-action.js
+>         - list-item-secondary-action.md
+>         - list-item-text.js
+>         - list-item-text.md
+>         - list-item.js
+>         - list-item.md
+>         - list-subheader.js
+>         - list-subheader.md
+>         - list.js
+>         - list.md
+>         - menu-item.js
+>         - menu-item.md
+>         - menu-list.js
+>         - menu-list.md
+>         - menu.js
+>         - menu.md
+>         - mobile-stepper.js
+>         - mobile-stepper.md
+>         - modal.js
+>         - modal.md
+>         - native-select.js
+>         - native-select.md
+>         - no-ssr.js
+>         - no-ssr.md
+>         - outlined-input.js
+>         - outlined-input.md
+>         - pagination-item.js
+>         - pagination-item.md
+>         - pagination.js
+>         - pagination.md
+>         - paper.js
+>         - paper.md
+>         - popover.js
+>         - popover.md
+>         - popper.js
+>         - popper.md
+>         - portal.js
+>         - portal.md
+>         - radio-group.js
+>         - radio-group.md
+>         - radio.js
+>         - radio.md
+>         - rating.js
+>         - rating.md
+>         - root-ref.js
+>         - root-ref.md
+>         - scoped-css-baseline.js
+>         - scoped-css-baseline.md
+>         - select.js
+>         - select.md
+>         - skeleton.js
+>         - skeleton.md
+>         - slide.js
+>         - slide.md
+>         - slider.js
+>         - slider.md
+>         - snackbar-content.js
+>         - snackbar-content.md
+>         - snackbar.js
+>         - snackbar.md
+>         - speed-dial-action.js
+>         - speed-dial-action.md
+>         - speed-dial-icon.js
+>         - speed-dial-icon.md
+>         - speed-dial.js
+>         - speed-dial.md
+>         - step-button.js
+>         - step-button.md
+>         - step-connector.js
+>         - step-connector.md
+>         - step-content.js
+>         - step-content.md
+>         - step-icon.js
+>         - step-icon.md
+>         - step-label.js
+>         - step-label.md
+>         - step.js
+>         - step.md
+>         - stepper.js
+>         - stepper.md
+>         - svg-icon.js
+>         - svg-icon.md
+>         - swipeable-drawer.js
+>         - swipeable-drawer.md
+>         - switch.js
+>         - switch.md
+>         - tab.js
+>         - tab.md
+>         - table-body.js
+>         - table-body.md
+>         - table-cell.js
+>         - table-cell.md
+>         - table-container.js
+>         - table-container.md
+>         - table-footer.js
+>         - table-footer.md
+>         - table-head.js
+>         - table-head.md
+>         - table-pagination.js
+>         - table-pagination.md
+>         - table-row.js
+>         - table-row.md
+>         - table-sort-label.js
+>         - table-sort-label.md
+>         - table.js
+>         - table.md
+>         - tabs.js
+>         - tabs.md
+>         - text-field.js
+>         - text-field.md
+>         - textarea-autosize.js
+>         - textarea-autosize.md
+>         - toggle-button-group.js
+>         - toggle-button-group.md
+>         - toggle-button.js
+>         - toggle-button.md
+>         - toolbar.js
+>         - toolbar.md
+>         - tooltip.js
+>         - tooltip.md
+>         - tree-item.js
+>         - tree-item.md
+>         - tree-view.js
+>         - tree-view.md
+>         - typography.js
+>         - typography.md
+>         - zoom.js
+>         - zoom.md
+>       - blog
+>         - 2019-developer-survey-results.js
+>         - 2019-developer-survey-results.md
+>         - 2019.js
+>         - 2019.md
+>         - 2020-introducing-sketch.js
+>         - 2020-introducing-sketch.md
+>         - 2020-q1-update.js
+>         - 2020-q1-update.md
+>         - april-2019-update.js
+>         - april-2019-update.md
+>         - august-2019-update.js
+>         - august-2019-update.md
+>         - december-2019-update.js
+>         - december-2019-update.md
+>         - july-2019-update.js
+>         - july-2019-update.md
+>         - june-2019-update.js
+>         - june-2019-update.md
+>         - march-2019-update.js
+>         - march-2019-update.md
+>         - material-ui-v1-is-out.js
+>         - material-ui-v1-is-out.md
+>         - material-ui-v4-is-out.js
+>         - material-ui-v4-is-out.md
+>         - may-2019-update.js
+>         - may-2019-update.md
+>         - november-2019-update.js
+>         - november-2019-update.md
+>         - october-2019-update.js
+>         - october-2019-update.md
+>         - september-2019-update.js
+>         - september-2019-update.md
+>       - company
+>         - about.js
+>         - contact.js
+>         - jobs.js
+>       - components
+>         - about-the-lab.js
+>         - alert.js
+>         - app-bar.js
+>         - autocomplete.js
+>         - avatars.js
+>         - backdrop.js
+>         - badges.js
+>         - bottom-navigation.js
+>         - box.js
+>         - breadcrumbs.js
+>         - button-group.js
+>         - buttons.js
+>         - cards.js
+>         - checkboxes.js
+>         - chips.js
+>         - click-away-listener.js
+>         - container.js
+>         - css-baseline.js
+>         - dialogs.js
+>         - dividers.js
+>         - drawers.js
+>         - expansion-panels.js
+>         - floating-action-button.js
+>         - grid-list.js
+>         - grid.js
+>         - hidden.js
+>         - icons.js
+>         - links.js
+>         - lists.js
+>         - material-icons.js
+>         - menus.js
+>         - modal.js
+>         - no-ssr.js
+>         - pagination.js
+>         - paper.js
+>         - pickers.js
+>         - popover.js
+>         - popper.js
+>         - portal.js
+>         - progress.js
+>         - radio-buttons.js
+>         - rating.js
+>         - selects.js
+>         - skeleton.js
+>         - slider.js
+>         - snackbars.js
+>         - speed-dial.js
+>         - steppers.js
+>         - switches.js
+>         - tables.js
+>         - tabs.js
+>         - text-fields.js
+>         - textarea-autosize.js
+>         - toggle-button.js
+>         - tooltips.js
+>         - transfer-list.js
+>         - transitions.js
+>         - tree-view.js
+>         - typography.js
+>         - use-media-query.js
+>       - customization
+>         - breakpoints.js
+>         - color.js
+>         - components.js
+>         - default-theme.js
+>         - density.js
+>         - globals.js
+>         - palette.js
+>         - spacing.js
+>         - theming.js
+>         - typography.js
+>         - z-index.js
+>       - discover-more
+>         - backers.js
+>         - changelog.js
+>         - languages.js
+>         - related-projects.js
+>         - roadmap.js
+>         - showcase.js
+>         - team.js
+>         - vision.js
+>       - getting-started
+>         - example-projects.js
+>         - faq.js
+>         - installation.js
+>         - learn.js
+>         - support.js
+>         - supported-components.js
+>         - supported-platforms.js
+>         - templates
+>           - album.js
+>           - blog.js
+>           - checkout.js
+>           - dashboard.js
+>           - pricing.js
+>           - sign-in-side.js
+>           - sign-in.js
+>           - sign-up.js
+>           - sticky-footer.js
+>         - templates.js
+>         - usage.js
+>       - guides
+>         - api.js
+>         - composition.js
+>         - flow.js
+>         - interoperability.js
+>         - localization.js
+>         - migration-v0x.js
+>         - migration-v3.js
+>         - minimizing-bundle-size.js
+>         - responsive-ui.js
+>         - right-to-left.js
+>         - server-rendering.js
+>         - testing.js
+>         - typescript.js
+>       - index.js
+>       - performance
+>         - table-component.js
+>         - table-emotion.js
+>         - table-hook.js
+>         - table-mui.js
+>         - table-raw.js
+>         - table-styled-components.js
+>       - premium-themes
+>         - onepirate
+>           - forgot-password.js
+>           - index.js
+>           - privacy.js
+>           - sign-in.js
+>           - sign-up.js
+>           - terms.js
+>         - paperbase
+>           - index.js
+>       - styles
+>         - advanced.js
+>         - api.js
+>         - basics.js
+>       - system
+>         - api.js
+>         - basics.js
+>         - borders.js
+>         - display.js
+>         - flexbox.js
+>         - palette.js
+>         - positions.js
+>         - shadows.js
+>         - sizing.js
+>         - spacing.js
+>         - typography.js
+>       - versions.js
+>     - public
+>       - _headers
+>       - _redirects
+>       - favicon.ico
+>       - robots.txt
+>       - static
+>         - blog
+>           - 2019-survey
+>             - 1.png
+>             - 10.png
+>             - 11.png
+>             - 12.png
+>             - 13.png
+>             - 16.png
+>             - 2.png
+>             - 3.png
+>             - 5a.png
+>             - 5b.png
+>             - 6.png
+>             - 7.png
+>             - 8.png
+>             - 9.png
+>             - vote.gif
+>           - 2020-introducing-sketch
+>             - design-tools.png
+>             - product-preview.png
+>           - 2020-q1-update
+>             - alert.png
+>             - autocomplete.gif
+>             - chinese.png
+>             - colors.png
+>             - data-grid.png
+>             - date-picker.png
+>             - figma.png
+>             - pagination.png
+>             - props.png
+>             - skeleton.webm
+>             - sketch.png
+>             - snippets.gif
+>           - april-2019-update
+>             - global-class-names.png
+>             - responsive.png
+>             - scroll-trigger.mp4
+>             - transfer-list.png
+>             - typescript.png
+>           - august-2019-update
+>             - material-icons.png
+>             - typescript.png
+>           - december-2019-update
+>             - alert-filled.png
+>             - alert.png
+>             - data-grid.png
+>             - date-picker.png
+>             - pagination.png
+>             - stacking.png
+>             - vertical-buttons.png
+>           - july-2019-update
+>             - rating.png
+>             - skeleton.png
+>             - tree-view.gif
+>             - vertical-tabs.png
+>           - june-2019-update
+>             - button-group.png
+>             - rating.png
+>             - slider.png
+>             - textarea-autosize.mp4
+>           - material-ui-v4-is-out
+>             - Box.png
+>             - banner.png
+>             - bundle-size.png
+>             - cookbook.png
+>             - demo1.png
+>             - demo2.png
+>             - demo3.png
+>             - devtools.png
+>             - font-size.png
+>             - injectFirst.png
+>             - inlinepickers.png
+>             - layout.png
+>             - material1.png
+>             - material2.png
+>             - pickers.png
+>             - spacing.png
+>             - styled-components.png
+>             - switch.png
+>             - trackbundle.png
+>             - typescript.png
+>           - may-2019-update
+>             - slider.png
+>             - tree-view.png
+>           - november-2019-update
+>             - arrow.png
+>             - framer.jpg
+>             - loading-avatar-after.gif
+>             - loading-avatar-before.gif
+>             - typescript-demos.png
+>           - october-2019-update
+>             - preview.png
+>           - september-2019-update
+>             - autocomplete.png
+>             - autofill.png
+>             - button-icon.png
+>             - combobox.png
+>             - multiselect.png
+>         - colors-preview
+>           - amber-100-24x24.svg
+>           - amber-200-24x24.svg
+>           - amber-300-24x24.svg
+>           - amber-400-24x24.svg
+>           - amber-50-24x24.svg
+>           - amber-500-24x24.svg
+>           - amber-600-24x24.svg
+>           - amber-700-24x24.svg
+>           - amber-800-24x24.svg
+>           - amber-900-24x24.svg
+>           - amber-A100-24x24.svg
+>           - amber-A200-24x24.svg
+>           - amber-A400-24x24.svg
+>           - amber-A700-24x24.svg
+>           - blue-100-24x24.svg
+>           - blue-200-24x24.svg
+>           - blue-300-24x24.svg
+>           - blue-400-24x24.svg
+>           - blue-50-24x24.svg
+>           - blue-500-24x24.svg
+>           - blue-600-24x24.svg
+>           - blue-700-24x24.svg
+>           - blue-800-24x24.svg
+>           - blue-900-24x24.svg
+>           - blue-A100-24x24.svg
+>           - blue-A200-24x24.svg
+>           - blue-A400-24x24.svg
+>           - blue-A700-24x24.svg
+>           - blueGrey-100-24x24.svg
+>           - blueGrey-200-24x24.svg
+>           - blueGrey-300-24x24.svg
+>           - blueGrey-400-24x24.svg
+>           - blueGrey-50-24x24.svg
+>           - blueGrey-500-24x24.svg
+>           - blueGrey-600-24x24.svg
+>           - blueGrey-700-24x24.svg
+>           - blueGrey-800-24x24.svg
+>           - blueGrey-900-24x24.svg
+>           - blueGrey-A100-24x24.svg
+>           - blueGrey-A200-24x24.svg
+>           - blueGrey-A400-24x24.svg
+>           - blueGrey-A700-24x24.svg
+>           - brown-100-24x24.svg
+>           - brown-200-24x24.svg
+>           - brown-300-24x24.svg
+>           - brown-400-24x24.svg
+>           - brown-50-24x24.svg
+>           - brown-500-24x24.svg
+>           - brown-600-24x24.svg
+>           - brown-700-24x24.svg
+>           - brown-800-24x24.svg
+>           - brown-900-24x24.svg
+>           - brown-A100-24x24.svg
+>           - brown-A200-24x24.svg
+>           - brown-A400-24x24.svg
+>           - brown-A700-24x24.svg
+>           - common-black-24x24.svg
+>           - common-white-24x24.svg
+>           - cyan-100-24x24.svg
+>           - cyan-200-24x24.svg
+>           - cyan-300-24x24.svg
+>           - cyan-400-24x24.svg
+>           - cyan-50-24x24.svg
+>           - cyan-500-24x24.svg
+>           - cyan-600-24x24.svg
+>           - cyan-700-24x24.svg
+>           - cyan-800-24x24.svg
+>           - cyan-900-24x24.svg
+>           - cyan-A100-24x24.svg
+>           - cyan-A200-24x24.svg
+>           - cyan-A400-24x24.svg
+>           - cyan-A700-24x24.svg
+>           - deepOrange-100-24x24.svg
+>           - deepOrange-200-24x24.svg
+>           - deepOrange-300-24x24.svg
+>           - deepOrange-400-24x24.svg
+>           - deepOrange-50-24x24.svg
+>           - deepOrange-500-24x24.svg
+>           - deepOrange-600-24x24.svg
+>           - deepOrange-700-24x24.svg
+>           - deepOrange-800-24x24.svg
+>           - deepOrange-900-24x24.svg
+>           - deepOrange-A100-24x24.svg
+>           - deepOrange-A200-24x24.svg
+>           - deepOrange-A400-24x24.svg
+>           - deepOrange-A700-24x24.svg
+>           - deepPurple-100-24x24.svg
+>           - deepPurple-200-24x24.svg
+>           - deepPurple-300-24x24.svg
+>           - deepPurple-400-24x24.svg
+>           - deepPurple-50-24x24.svg
+>           - deepPurple-500-24x24.svg
+>           - deepPurple-600-24x24.svg
+>           - deepPurple-700-24x24.svg
+>           - deepPurple-800-24x24.svg
+>           - deepPurple-900-24x24.svg
+>           - deepPurple-A100-24x24.svg
+>           - deepPurple-A200-24x24.svg
+>           - deepPurple-A400-24x24.svg
+>           - deepPurple-A700-24x24.svg
+>           - green-100-24x24.svg
+>           - green-200-24x24.svg
+>           - green-300-24x24.svg
+>           - green-400-24x24.svg
+>           - green-50-24x24.svg
+>           - green-500-24x24.svg
+>           - green-600-24x24.svg
+>           - green-700-24x24.svg
+>           - green-800-24x24.svg
+>           - green-900-24x24.svg
+>           - green-A100-24x24.svg
+>           - green-A200-24x24.svg
+>           - green-A400-24x24.svg
+>           - green-A700-24x24.svg
+>           - grey-100-24x24.svg
+>           - grey-200-24x24.svg
+>           - grey-300-24x24.svg
+>           - grey-400-24x24.svg
+>           - grey-50-24x24.svg
+>           - grey-500-24x24.svg
+>           - grey-600-24x24.svg
+>           - grey-700-24x24.svg
+>           - grey-800-24x24.svg
+>           - grey-900-24x24.svg
+>           - grey-A100-24x24.svg
+>           - grey-A200-24x24.svg
+>           - grey-A400-24x24.svg
+>           - grey-A700-24x24.svg
+>           - indigo-100-24x24.svg
+>           - indigo-200-24x24.svg
+>           - indigo-300-24x24.svg
+>           - indigo-400-24x24.svg
+>           - indigo-50-24x24.svg
+>           - indigo-500-24x24.svg
+>           - indigo-600-24x24.svg
+>           - indigo-700-24x24.svg
+>           - indigo-800-24x24.svg
+>           - indigo-900-24x24.svg
+>           - indigo-A100-24x24.svg
+>           - indigo-A200-24x24.svg
+>           - indigo-A400-24x24.svg
+>           - indigo-A700-24x24.svg
+>           - lightBlue-100-24x24.svg
+>           - lightBlue-200-24x24.svg
+>           - lightBlue-300-24x24.svg
+>           - lightBlue-400-24x24.svg
+>           - lightBlue-50-24x24.svg
+>           - lightBlue-500-24x24.svg
+>           - lightBlue-600-24x24.svg
+>           - lightBlue-700-24x24.svg
+>           - lightBlue-800-24x24.svg
+>           - lightBlue-900-24x24.svg
+>           - lightBlue-A100-24x24.svg
+>           - lightBlue-A200-24x24.svg
+>           - lightBlue-A400-24x24.svg
+>           - lightBlue-A700-24x24.svg
+>           - lightGreen-100-24x24.svg
+>           - lightGreen-200-24x24.svg
+>           - lightGreen-300-24x24.svg
+>           - lightGreen-400-24x24.svg
+>           - lightGreen-50-24x24.svg
+>           - lightGreen-500-24x24.svg
+>           - lightGreen-600-24x24.svg
+>           - lightGreen-700-24x24.svg
+>           - lightGreen-800-24x24.svg
+>           - lightGreen-900-24x24.svg
+>           - lightGreen-A100-24x24.svg
+>           - lightGreen-A200-24x24.svg
+>           - lightGreen-A400-24x24.svg
+>           - lightGreen-A700-24x24.svg
+>           - lime-100-24x24.svg
+>           - lime-200-24x24.svg
+>           - lime-300-24x24.svg
+>           - lime-400-24x24.svg
+>           - lime-50-24x24.svg
+>           - lime-500-24x24.svg
+>           - lime-600-24x24.svg
+>           - lime-700-24x24.svg
+>           - lime-800-24x24.svg
+>           - lime-900-24x24.svg
+>           - lime-A100-24x24.svg
+>           - lime-A200-24x24.svg
+>           - lime-A400-24x24.svg
+>           - lime-A700-24x24.svg
+>           - orange-100-24x24.svg
+>           - orange-200-24x24.svg
+>           - orange-300-24x24.svg
+>           - orange-400-24x24.svg
+>           - orange-50-24x24.svg
+>           - orange-500-24x24.svg
+>           - orange-600-24x24.svg
+>           - orange-700-24x24.svg
+>           - orange-800-24x24.svg
+>           - orange-900-24x24.svg
+>           - orange-A100-24x24.svg
+>           - orange-A200-24x24.svg
+>           - orange-A400-24x24.svg
+>           - orange-A700-24x24.svg
+>           - pink-100-24x24.svg
+>           - pink-200-24x24.svg
+>           - pink-300-24x24.svg
+>           - pink-400-24x24.svg
+>           - pink-50-24x24.svg
+>           - pink-500-24x24.svg
+>           - pink-600-24x24.svg
+>           - pink-700-24x24.svg
+>           - pink-800-24x24.svg
+>           - pink-900-24x24.svg
+>           - pink-A100-24x24.svg
+>           - pink-A200-24x24.svg
+>           - pink-A400-24x24.svg
+>           - pink-A700-24x24.svg
+>           - purple-100-24x24.svg
+>           - purple-200-24x24.svg
+>           - purple-300-24x24.svg
+>           - purple-400-24x24.svg
+>           - purple-50-24x24.svg
+>           - purple-500-24x24.svg
+>           - purple-600-24x24.svg
+>           - purple-700-24x24.svg
+>           - purple-800-24x24.svg
+>           - purple-900-24x24.svg
+>           - purple-A100-24x24.svg
+>           - purple-A200-24x24.svg
+>           - purple-A400-24x24.svg
+>           - purple-A700-24x24.svg
+>           - red-100-24x24.svg
+>           - red-200-24x24.svg
+>           - red-300-24x24.svg
+>           - red-400-24x24.svg
+>           - red-50-24x24.svg
+>           - red-500-24x24.svg
+>           - red-600-24x24.svg
+>           - red-700-24x24.svg
+>           - red-800-24x24.svg
+>           - red-900-24x24.svg
+>           - red-A100-24x24.svg
+>           - red-A200-24x24.svg
+>           - red-A400-24x24.svg
+>           - red-A700-24x24.svg
+>           - teal-100-24x24.svg
+>           - teal-200-24x24.svg
+>           - teal-300-24x24.svg
+>           - teal-400-24x24.svg
+>           - teal-50-24x24.svg
+>           - teal-500-24x24.svg
+>           - teal-600-24x24.svg
+>           - teal-700-24x24.svg
+>           - teal-800-24x24.svg
+>           - teal-900-24x24.svg
+>           - teal-A100-24x24.svg
+>           - teal-A200-24x24.svg
+>           - teal-A400-24x24.svg
+>           - teal-A700-24x24.svg
+>           - yellow-100-24x24.svg
+>           - yellow-200-24x24.svg
+>           - yellow-300-24x24.svg
+>           - yellow-400-24x24.svg
+>           - yellow-50-24x24.svg
+>           - yellow-500-24x24.svg
+>           - yellow-600-24x24.svg
+>           - yellow-700-24x24.svg
+>           - yellow-800-24x24.svg
+>           - yellow-900-24x24.svg
+>           - yellow-A100-24x24.svg
+>           - yellow-A200-24x24.svg
+>           - yellow-A400-24x24.svg
+>           - yellow-A700-24x24.svg
+>         - favicon.ico
+>         - icons
+>           - 180x180.png
+>           - 192x192.png
+>           - 256x256.png
+>           - 384x384.png
+>           - 48x48.png
+>           - 512x512.png
+>           - 96x96.png
+>         - images
+>           - avatar
+>             - 1.jpg
+>             - 2.jpg
+>             - 3.jpg
+>             - 4.jpg
+>             - 5.jpg
+>             - 6.jpg
+>             - 7.jpg
+>           - blokt.jpg
+>           - cards
+>             - contemplative-reptile.jpg
+>             - live-from-space.jpg
+>             - paella.jpg
+>           - color
+>             - colorTool.png
+>           - customization
+>             - dev-tools.png
+>           - font-size.gif
+>           - grid
+>             - complex.jpg
+>           - grid-list
+>             - bike.jpg
+>             - breakfast.jpg
+>             - burgers.jpg
+>             - camera.jpg
+>             - hats.jpg
+>             - honey.jpg
+>             - morning.jpg
+>             - mushroom.jpg
+>             - olive.jpg
+>             - plant.jpg
+>             - star.jpg
+>             - vegetables.jpg
+>           - logos
+>             - github.svg
+>             - stackoverflow.svg
+>             - tidelift.svg
+>             - twitter.svg
+>           - progress
+>             - heavy-load.gif
+>           - showcase
+>             - aexdownloadcenter.jpg
+>             - arkoclub.jpg
+>             - audionodes.jpg
+>             - barks.jpg
+>             - bethesda.jpg
+>             - bitcambio.jpg
+>             - builderbook.jpg
+>             - cinemaplus.jpg
+>             - cityads.jpg
+>             - cloudhealth.jpg
+>             - codementor.jpg
+>             - collegeai.jpg
+>             - comet.jpg
+>             - commitswimming.jpg
+>             - cryptoverview.jpg
+>             - dropdesk.jpg
+>             - eostoolkit.jpg
+>             - eq3.jpg
+>             - eventhi.jpg
+>             - fizix.jpg
+>             - flink.jpg
+>             - forex.jpg
+>             - googlekeepclone.jpg
+>             - govx.jpg
+>             - hifivework.png
+>             - hijup.jpg
+>             - hkn.jpg
+>             - housecall.jpg
+>             - icebergfinder.jpg
+>             - ifit.jpg
+>             - johnnymetrics.jpg
+>             - leroymerlin.jpg
+>             - lesswrong.jpg
+>             - localmonero.jpg
+>             - magicmondayz.jpg
+>             - manty.jpg
+>             - melbournemint.jpg
+>             - metafact.jpg
+>             - mqtt-explorer.png
+>             - neotracker.jpg
+>             - npm-registry-browser.jpg
+>             - numerai.jpg
+>             - odigeo.jpg
+>             - oneplanetcrowd.jpg
+>             - oneshotmove.jpg
+>             - openclassrooms.jpg
+>             - pilcro.jpg
+>             - planalyze.jpg
+>             - pointer.jpg
+>             - posters-galore.jpg
+>             - quintoandar.png
+>             - rarebits.jpg
+>             - roast.jpg
+>             - rung.jpg
+>             - selfeducationapp.jpg
+>             - sfrpresse.jpg
+>             - slidesup.jpg
+>             - snippets.jpg
+>             - sweek.jpg
+>             - swimmy.jpg
+>             - tagspaces.jpg
+>             - themediaant.jpg
+>             - tradenba.jpg
+>             - tree.jpg
+>             - tudiscovery.jpg
+>             - typekev.jpg
+>             - venuemob.jpg
+>           - templates
+>             - album.png
+>             - blog.png
+>             - checkout.png
+>             - dashboard.png
+>             - pricing.png
+>             - sign-in-side.png
+>             - sign-in.png
+>             - sign-up.png
+>             - sticky-footer.png
+>           - text-fields
+>             - shrink.png
+>           - themes-dark.jpg
+>           - themes-light.jpg
+>           - users
+>             - amazon.svg
+>             - bethesda.svg
+>             - capgemini.svg
+>             - coursera.svg
+>             - jpmorgan.svg
+>             - nasa.svg
+>             - netflix.svg
+>             - shutterstock.svg
+>             - uniqlo.svg
+>             - unity.svg
+>             - walmart-labs.svg
+>         - in-house
+>           - bonsaiilabs.png
+>           - scaffoldhub.png
+>           - sketch.png
+>           - themes-2.jpg
+>           - themes.png
+>           - tidelift.png
+>         - logo.png
+>         - logo.svg
+>         - logo_raw.svg
+>         - manifest.json
+>         - styles
+>           - prism-okaidia.css
+>         - themes
+>           - onepirate
+>             - appCurvyLines.png
+>             - appFooterFacebook.png
+>             - appFooterTwitter.png
+>             - producBuoy.svg
+>             - productCTAImageDots.png
+>             - productCurvyLines.png
+>             - productHeroArrowDown.png
+>             - productHeroWonder.png
+>             - productHowItWorks1.svg
+>             - productHowItWorks2.svg
+>             - productHowItWorks3.svg
+>             - productValues1.svg
+>             - productValues2.svg
+>             - productValues3.svg
+>           - onepirate.jpg
+>           - paperbase.png
+>     - scripts
+>       - buildApi.js
+>       - buildIcons.js
+>       - buildServiceWorker.js
+>       - formattedTSDemos.js
+>       - helpers.js
+>       - i18n.js
+>       - updateIconSynonyms.js
+>     - src
+>       - modules
+>         - components
+>           - Ad.js
+>           - AdCarbon.js
+>           - AdCodeFund.js
+>           - AdInHouse.js
+>           - AppContainer.js
+>           - AppDrawer.js
+>           - AppDrawerNavItem.js
+>           - AppFooter.js
+>           - AppFrame.js
+>           - AppSearch.js
+>           - AppTableOfContents.js
+>           - AppTheme.js
+>           - Demo.js
+>           - DemoErrorBoundary.js
+>           - DemoLanguages.js
+>           - DemoSandboxed.js
+>           - DiamondSponsors.js
+>           - EditPage.js
+>           - GoogleAnalytics.js
+>           - Head.js
+>           - HighlightedCode.js
+>           - Link.js
+>           - MarkdownDocs.js
+>           - MarkdownElement.js
+>           - MarkdownLinks.js
+>           - Notifications.js
+>           - PageContext.js
+>           - ThemeContext.js
+>           - TopLayoutBlog.js
+>           - TopLayoutCompany.js
+>           - bootstrap.js
+>         - constants.js
+>         - redux
+>           - initRedux.js
+>           - notificationsReducer.js
+>           - optionsReducer.js
+>         - utils
+>           - defaultPropsHandler.js
+>           - find.js
+>           - findPages.js
+>           - generateMarkdown.js
+>           - getDemoConfig.js
+>           - getJsxPreview.js
+>           - getJsxPreview.test.js
+>           - helpers.js
+>           - helpers.test.js
+>           - loadScript.js
+>           - mapTranslations.js
+>           - parseMarkdown.js
+>           - parseMarkdown.test.js
+>           - parseTest.js
+>           - prism.js
+>           - textToHash.js
+>           - textToHash.test.js
+>       - pages
+>         - company
+>           - about
+>             - about.md
+>           - contact
+>             - contact.md
+>           - jobs
+>             - jobs.md
+>           - software-engineer
+>             - software-engineer.md
+>         - components
+>           - .eslintrc.js
+>           - about-the-lab
+>             - about-the-lab-aa.md
+>             - about-the-lab-de.md
+>             - about-the-lab-es.md
+>             - about-the-lab-fr.md
+>             - about-the-lab-ja.md
+>             - about-the-lab-pt.md
+>             - about-the-lab-ru.md
+>             - about-the-lab-zh.md
+>             - about-the-lab.md
+>           - alert
+>             - ActionAlerts.js
+>             - ActionAlerts.tsx
+>             - ColorAlerts.js
+>             - ColorAlerts.tsx
+>             - DescriptionAlerts.js
+>             - DescriptionAlerts.tsx
+>             - FilledAlerts.js
+>             - FilledAlerts.tsx
+>             - IconAlerts.js
+>             - IconAlerts.tsx
+>             - OutlinedAlerts.js
+>             - OutlinedAlerts.tsx
+>             - SimpleAlerts.js
+>             - SimpleAlerts.tsx
+>             - TransitionAlerts.js
+>             - TransitionAlerts.tsx
+>             - alert-aa.md
+>             - alert-de.md
+>             - alert-es.md
+>             - alert-fr.md
+>             - alert-ja.md
+>             - alert-pt.md
+>             - alert-ru.md
+>             - alert-zh.md
+>             - alert.md
+>           - app-bar
+>             - BackToTop.js
+>             - BackToTop.tsx
+>             - BottomAppBar.js
+>             - BottomAppBar.tsx
+>             - ButtonAppBar.js
+>             - ButtonAppBar.tsx
+>             - DenseAppBar.js
+>             - DenseAppBar.tsx
+>             - ElevateAppBar.js
+>             - ElevateAppBar.tsx
+>             - HideAppBar.js
+>             - HideAppBar.tsx
+>             - MenuAppBar.js
+>             - MenuAppBar.tsx
+>             - PrimarySearchAppBar.js
+>             - PrimarySearchAppBar.tsx
+>             - ProminentAppBar.js
+>             - ProminentAppBar.tsx
+>             - SearchAppBar.js
+>             - SearchAppBar.tsx
+>             - app-bar-aa.md
+>             - app-bar-de.md
+>             - app-bar-es.md
+>             - app-bar-fr.md
+>             - app-bar-ja.md
+>             - app-bar-pt.md
+>             - app-bar-ru.md
+>             - app-bar-zh.md
+>             - app-bar.md
+>           - autocomplete
+>             - Asynchronous.js
+>             - Asynchronous.tsx
+>             - CheckboxesTags.js
+>             - CheckboxesTags.tsx
+>             - ComboBox.js
+>             - ComboBox.tsx
+>             - ControllableStates.js
+>             - ControllableStates.tsx
+>             - CountrySelect.js
+>             - CountrySelect.tsx
+>             - CustomizedHook.js
+>             - CustomizedHook.tsx
+>             - DisabledOptions.js
+>             - DisabledOptions.tsx
+>             - Filter.js
+>             - Filter.tsx
+>             - FixedTags.js
+>             - FixedTags.tsx
+>             - FreeSolo.js
+>             - FreeSolo.tsx
+>             - FreeSoloCreateOption.js
+>             - FreeSoloCreateOption.tsx
+>             - FreeSoloCreateOptionDialog.js
+>             - FreeSoloCreateOptionDialog.tsx
+>             - GitHubLabel.js
+>             - GitHubLabel.tsx
+>             - GoogleMaps.js
+>             - GoogleMaps.tsx
+>             - Grouped.js
+>             - Grouped.tsx
+>             - Highlights.js
+>             - Highlights.tsx
+>             - LimitTags.js
+>             - LimitTags.tsx
+>             - Playground.js
+>             - Playground.tsx
+>             - Sizes.js
+>             - Sizes.tsx
+>             - Tags.js
+>             - Tags.tsx
+>             - UseAutocomplete.js
+>             - UseAutocomplete.tsx
+>             - Virtualize.js
+>             - Virtualize.tsx
+>             - autocomplete-aa.md
+>             - autocomplete-de.md
+>             - autocomplete-es.md
+>             - autocomplete-fr.md
+>             - autocomplete-ja.md
+>             - autocomplete-pt.md
+>             - autocomplete-ru.md
+>             - autocomplete-zh.md
+>             - autocomplete.md
+>           - avatars
+>             - BadgeAvatars.js
+>             - BadgeAvatars.tsx
+>             - FallbackAvatars.js
+>             - FallbackAvatars.tsx
+>             - GroupAvatars.js
+>             - GroupAvatars.tsx
+>             - IconAvatars.js
+>             - IconAvatars.tsx
+>             - ImageAvatars.js
+>             - ImageAvatars.tsx
+>             - LetterAvatars.js
+>             - LetterAvatars.tsx
+>             - SizeAvatars.js
+>             - SizeAvatars.tsx
+>             - VariantAvatars.js
+>             - VariantAvatars.tsx
+>             - avatars-aa.md
+>             - avatars-de.md
+>             - avatars-es.md
+>             - avatars-fr.md
+>             - avatars-ja.md
+>             - avatars-pt.md
+>             - avatars-ru.md
+>             - avatars-zh.md
+>             - avatars.md
+>           - backdrop
+>             - SimpleBackdrop.js
+>             - SimpleBackdrop.tsx
+>             - backdrop-aa.md
+>             - backdrop-de.md
+>             - backdrop-es.md
+>             - backdrop-fr.md
+>             - backdrop-ja.md
+>             - backdrop-pt.md
+>             - backdrop-ru.md
+>             - backdrop-zh.md
+>             - backdrop.md
+>           - badges
+>             - BadgeAlignment.js
+>             - BadgeMax.js
+>             - BadgeMax.tsx
+>             - BadgeOverlap.js
+>             - BadgeOverlap.tsx
+>             - BadgeVisibility.js
+>             - BadgeVisibility.tsx
+>             - CustomizedBadges.js
+>             - CustomizedBadges.tsx
+>             - DotBadge.js
+>             - DotBadge.tsx
+>             - ShowZeroBadge.js
+>             - ShowZeroBadge.tsx
+>             - SimpleBadge.js
+>             - SimpleBadge.tsx
+>             - badges-aa.md
+>             - badges-de.md
+>             - badges-es.md
+>             - badges-fr.md
+>             - badges-ja.md
+>             - badges-pt.md
+>             - badges-ru.md
+>             - badges-zh.md
+>             - badges.md
+>           - bottom-navigation
+>             - LabelBottomNavigation.js
+>             - LabelBottomNavigation.tsx
+>             - SimpleBottomNavigation.js
+>             - SimpleBottomNavigation.tsx
+>             - bottom-navigation-aa.md
+>             - bottom-navigation-de.md
+>             - bottom-navigation-es.md
+>             - bottom-navigation-fr.md
+>             - bottom-navigation-ja.md
+>             - bottom-navigation-pt.md
+>             - bottom-navigation-ru.md
+>             - bottom-navigation-zh.md
+>             - bottom-navigation.md
+>           - box
+>             - box-aa.md
+>             - box-de.md
+>             - box-es.md
+>             - box-fr.md
+>             - box-ja.md
+>             - box-pt.md
+>             - box-ru.md
+>             - box-zh.md
+>             - box.md
+>           - breadcrumbs
+>             - ActiveLastBreadcrumb.js
+>             - ActiveLastBreadcrumb.tsx
+>             - CollapsedBreadcrumbs.js
+>             - CollapsedBreadcrumbs.tsx
+>             - CustomSeparator.js
+>             - CustomSeparator.tsx
+>             - CustomizedBreadcrumbs.js
+>             - CustomizedBreadcrumbs.tsx
+>             - IconBreadcrumbs.js
+>             - IconBreadcrumbs.tsx
+>             - RouterBreadcrumbs.js
+>             - RouterBreadcrumbs.tsx
+>             - SimpleBreadcrumbs.js
+>             - SimpleBreadcrumbs.tsx
+>             - breadcrumbs-aa.md
+>             - breadcrumbs-de.md
+>             - breadcrumbs-es.md
+>             - breadcrumbs-fr.md
+>             - breadcrumbs-ja.md
+>             - breadcrumbs-pt.md
+>             - breadcrumbs-ru.md
+>             - breadcrumbs-zh.md
+>             - breadcrumbs.md
+>           - breakpoints
+>             - breakpoints-de.md
+>             - breakpoints-es.md
+>             - breakpoints-fr.md
+>             - breakpoints-ja.md
+>             - breakpoints-pt.md
+>             - breakpoints-ru.md
+>             - breakpoints-zh.md
+>           - button-group
+>             - BasicButtonGroup.js
+>             - BasicButtonGroup.tsx
+>             - GroupOrientation.js
+>             - GroupOrientation.tsx
+>             - GroupSizesColors.js
+>             - GroupSizesColors.tsx
+>             - SplitButton.js
+>             - SplitButton.tsx
+>             - button-group-aa.md
+>             - button-group-de.md
+>             - button-group-es.md
+>             - button-group-fr.md
+>             - button-group-ja.md
+>             - button-group-pt.md
+>             - button-group-ru.md
+>             - button-group-zh.md
+>             - button-group.md
+>           - buttons
+>             - ButtonBase.js
+>             - ButtonBase.tsx
+>             - ButtonSizes.js
+>             - ButtonSizes.tsx
+>             - ContainedButtons.js
+>             - ContainedButtons.tsx
+>             - CustomizedButtons.js
+>             - CustomizedButtons.tsx
+>             - DisableElevation.js
+>             - DisableElevation.tsx
+>             - IconButtons.js
+>             - IconButtons.tsx
+>             - IconLabelButtons.js
+>             - IconLabelButtons.tsx
+>             - OutlinedButtons.js
+>             - OutlinedButtons.tsx
+>             - TextButtons.js
+>             - TextButtons.tsx
+>             - UploadButtons.js
+>             - UploadButtons.tsx
+>             - buttons-aa.md
+>             - buttons-de.md
+>             - buttons-es.md
+>             - buttons-fr.md
+>             - buttons-ja.md
+>             - buttons-pt.md
+>             - buttons-ru.md
+>             - buttons-zh.md
+>             - buttons.md
+>           - cards
+>             - ImgMediaCard.js
+>             - ImgMediaCard.tsx
+>             - MediaCard.js
+>             - MediaCard.tsx
+>             - MediaControlCard.js
+>             - MediaControlCard.tsx
+>             - OutlinedCard.js
+>             - OutlinedCard.tsx
+>             - RecipeReviewCard.js
+>             - RecipeReviewCard.tsx
+>             - SimpleCard.js
+>             - SimpleCard.tsx
+>             - cards-aa.md
+>             - cards-de.md
+>             - cards-es.md
+>             - cards-fr.md
+>             - cards-ja.md
+>             - cards-pt.md
+>             - cards-ru.md
+>             - cards-zh.md
+>             - cards.md
+>           - checkboxes
+>             - CheckboxLabels.js
+>             - CheckboxLabels.tsx
+>             - Checkboxes.js
+>             - Checkboxes.tsx
+>             - CheckboxesGroup.js
+>             - CheckboxesGroup.tsx
+>             - CustomizedCheckbox.js
+>             - CustomizedCheckbox.tsx
+>             - FormControlLabelPosition.js
+>             - FormControlLabelPosition.tsx
+>             - checkboxes-aa.md
+>             - checkboxes-de.md
+>             - checkboxes-es.md
+>             - checkboxes-fr.md
+>             - checkboxes-ja.md
+>             - checkboxes-pt.md
+>             - checkboxes-ru.md
+>             - checkboxes-zh.md
+>             - checkboxes.md
+>           - chips
+>             - Chips.js
+>             - Chips.tsx
+>             - ChipsArray.js
+>             - ChipsArray.tsx
+>             - ChipsPlayground.js
+>             - OutlinedChips.js
+>             - OutlinedChips.tsx
+>             - SmallChips.js
+>             - SmallChips.tsx
+>             - SmallOutlinedChips.js
+>             - SmallOutlinedChips.tsx
+>             - chips-aa.md
+>             - chips-de.md
+>             - chips-es.md
+>             - chips-fr.md
+>             - chips-ja.md
+>             - chips-pt.md
+>             - chips-ru.md
+>             - chips-zh.md
+>             - chips.md
+>           - click-away-listener
+>             - ClickAway.js
+>             - ClickAway.tsx
+>             - LeadingClickAway.js
+>             - LeadingClickAway.tsx
+>             - PortalClickAway.js
+>             - PortalClickAway.tsx
+>             - click-away-listener-aa.md
+>             - click-away-listener-de.md
+>             - click-away-listener-es.md
+>             - click-away-listener-fr.md
+>             - click-away-listener-ja.md
+>             - click-away-listener-pt.md
+>             - click-away-listener-ru.md
+>             - click-away-listener-zh.md
+>             - click-away-listener.md
+>           - container
+>             - FixedContainer.js
+>             - FixedContainer.tsx
+>             - SimpleContainer.js
+>             - SimpleContainer.tsx
+>             - container-aa.md
+>             - container-de.md
+>             - container-es.md
+>             - container-fr.md
+>             - container-ja.md
+>             - container-pt.md
+>             - container-ru.md
+>             - container-zh.md
+>             - container.md
+>           - css-baseline
+>             - css-baseline-aa.md
+>             - css-baseline-de.md
+>             - css-baseline-es.md
+>             - css-baseline-fr.md
+>             - css-baseline-ja.md
+>             - css-baseline-pt.md
+>             - css-baseline-ru.md
+>             - css-baseline-zh.md
+>             - css-baseline.md
+>           - dialogs
+>             - AlertDialog.js
+>             - AlertDialog.tsx
+>             - AlertDialogSlide.js
+>             - AlertDialogSlide.tsx
+>             - ConfirmationDialog.js
+>             - ConfirmationDialog.tsx
+>             - CustomizedDialogs.js
+>             - CustomizedDialogs.tsx
+>             - DraggableDialog.js
+>             - DraggableDialog.tsx
+>             - FormDialog.js
+>             - FormDialog.tsx
+>             - FullScreenDialog.js
+>             - FullScreenDialog.tsx
+>             - MaxWidthDialog.js
+>             - MaxWidthDialog.tsx
+>             - ResponsiveDialog.js
+>             - ResponsiveDialog.tsx
+>             - ScrollDialog.js
+>             - ScrollDialog.tsx
+>             - SimpleDialog.js
+>             - SimpleDialog.tsx
+>             - dialogs-aa.md
+>             - dialogs-de.md
+>             - dialogs-es.md
+>             - dialogs-fr.md
+>             - dialogs-ja.md
+>             - dialogs-pt.md
+>             - dialogs-ru.md
+>             - dialogs-zh.md
+>             - dialogs.md
+>           - dividers
+>             - InsetDividers.js
+>             - InsetDividers.tsx
+>             - ListDividers.js
+>             - ListDividers.tsx
+>             - MiddleDividers.js
+>             - MiddleDividers.tsx
+>             - SubheaderDividers.js
+>             - SubheaderDividers.tsx
+>             - VerticalDividers.js
+>             - VerticalDividers.tsx
+>             - dividers-aa.md
+>             - dividers-de.md
+>             - dividers-es.md
+>             - dividers-fr.md
+>             - dividers-ja.md
+>             - dividers-pt.md
+>             - dividers-ru.md
+>             - dividers-zh.md
+>             - dividers.md
+>           - drawers
+>             - ClippedDrawer.js
+>             - ClippedDrawer.tsx
+>             - MiniDrawer.js
+>             - MiniDrawer.tsx
+>             - PermanentDrawerLeft.js
+>             - PermanentDrawerLeft.tsx
+>             - PermanentDrawerRight.js
+>             - PermanentDrawerRight.tsx
+>             - PersistentDrawerLeft.js
+>             - PersistentDrawerLeft.tsx
+>             - PersistentDrawerRight.js
+>             - PersistentDrawerRight.tsx
+>             - ResponsiveDrawer.js
+>             - ResponsiveDrawer.tsx
+>             - SwipeableTemporaryDrawer.js
+>             - SwipeableTemporaryDrawer.tsx
+>             - TemporaryDrawer.js
+>             - TemporaryDrawer.tsx
+>             - drawers-aa.md
+>             - drawers-de.md
+>             - drawers-es.md
+>             - drawers-fr.md
+>             - drawers-ja.md
+>             - drawers-pt.md
+>             - drawers-ru.md
+>             - drawers-zh.md
+>             - drawers.md
+>           - expansion-panels
+>             - ActionsInExpansionPanelSummary.js
+>             - ActionsInExpansionPanelSummary.tsx
+>             - ControlledExpansionPanels.js
+>             - ControlledExpansionPanels.tsx
+>             - CustomizedExpansionPanels.js
+>             - CustomizedExpansionPanels.tsx
+>             - DetailedExpansionPanel.js
+>             - DetailedExpansionPanel.tsx
+>             - SimpleExpansionPanel.js
+>             - SimpleExpansionPanel.tsx
+>             - expansion-panels-aa.md
+>             - expansion-panels-de.md
+>             - expansion-panels-es.md
+>             - expansion-panels-fr.md
+>             - expansion-panels-ja.md
+>             - expansion-panels-pt.md
+>             - expansion-panels-ru.md
+>             - expansion-panels-zh.md
+>             - expansion-panels.md
+>           - floating-action-button
+>             - FloatingActionButtonSize.js
+>             - FloatingActionButtonSize.tsx
+>             - FloatingActionButtonZoom.js
+>             - FloatingActionButtonZoom.tsx
+>             - FloatingActionButtons.js
+>             - FloatingActionButtons.tsx
+>             - floating-action-button-aa.md
+>             - floating-action-button-de.md
+>             - floating-action-button-es.md
+>             - floating-action-button-fr.md
+>             - floating-action-button-ja.md
+>             - floating-action-button-pt.md
+>             - floating-action-button-ru.md
+>             - floating-action-button-zh.md
+>             - floating-action-button.md
+>           - grid
+>             - AutoGrid.js
+>             - AutoGrid.tsx
+>             - AutoGridNoWrap.js
+>             - AutoGridNoWrap.tsx
+>             - CSSGrid.js
+>             - CSSGrid.tsx
+>             - CenteredGrid.js
+>             - CenteredGrid.tsx
+>             - ComplexGrid.js
+>             - ComplexGrid.tsx
+>             - FullWidthGrid.js
+>             - FullWidthGrid.tsx
+>             - InteractiveGrid.js
+>             - InteractiveGrid.tsx
+>             - NestedGrid.js
+>             - NestedGrid.tsx
+>             - SpacingGrid.js
+>             - SpacingGrid.tsx
+>             - grid-aa.md
+>             - grid-de.md
+>             - grid-es.md
+>             - grid-fr.md
+>             - grid-ja.md
+>             - grid-pt.md
+>             - grid-ru.md
+>             - grid-zh.md
+>             - grid.md
+>           - grid-list
+>             - AdvancedGridList.js
+>             - AdvancedGridList.tsx
+>             - ImageGridList.js
+>             - ImageGridList.tsx
+>             - SingleLineGridList.js
+>             - SingleLineGridList.tsx
+>             - TitlebarGridList.js
+>             - TitlebarGridList.tsx
+>             - grid-list-aa.md
+>             - grid-list-de.md
+>             - grid-list-es.md
+>             - grid-list-fr.md
+>             - grid-list-ja.md
+>             - grid-list-pt.md
+>             - grid-list-ru.md
+>             - grid-list-zh.md
+>             - grid-list.md
+>             - tileData.d.ts
+>             - tileData.js
+>             - tslint.json
+>           - hidden
+>             - BreakpointDown.js
+>             - BreakpointDown.tsx
+>             - BreakpointOnly.js
+>             - BreakpointOnly.tsx
+>             - BreakpointUp.js
+>             - BreakpointUp.tsx
+>             - GridIntegration.js
+>             - GridIntegration.tsx
+>             - hidden-aa.md
+>             - hidden-de.md
+>             - hidden-es.md
+>             - hidden-fr.md
+>             - hidden-ja.md
+>             - hidden-pt.md
+>             - hidden-ru.md
+>             - hidden-zh.md
+>             - hidden.md
+>           - icons
+>             - FontAwesome.js
+>             - FontAwesome.tsx
+>             - Icons.js
+>             - Icons.tsx
+>             - SvgIconsColor.js
+>             - SvgIconsColor.tsx
+>             - SvgIconsSize.js
+>             - SvgIconsSize.tsx
+>             - SvgMaterialIcons.js
+>             - SvgMaterialIcons.tsx
+>             - icons-aa.md
+>             - icons-de.md
+>             - icons-es.md
+>             - icons-fr.md
+>             - icons-ja.md
+>             - icons-pt.md
+>             - icons-ru.md
+>             - icons-zh.md
+>             - icons.md
+>           - links
+>             - ButtonLink.js
+>             - ButtonLink.tsx
+>             - Links.js
+>             - Links.tsx
+>             - links-aa.md
+>             - links-de.md
+>             - links-es.md
+>             - links-fr.md
+>             - links-ja.md
+>             - links-pt.md
+>             - links-ru.md
+>             - links-zh.md
+>             - links.md
+>           - lists
+>             - AlignItemsList.js
+>             - AlignItemsList.tsx
+>             - CheckboxList.js
+>             - CheckboxList.tsx
+>             - CheckboxListSecondary.js
+>             - CheckboxListSecondary.tsx
+>             - FolderList.js
+>             - FolderList.tsx
+>             - InsetList.js
+>             - InsetList.tsx
+>             - InteractiveList.js
+>             - InteractiveList.tsx
+>             - NestedList.js
+>             - NestedList.tsx
+>             - PinnedSubheaderList.js
+>             - PinnedSubheaderList.tsx
+>             - SelectedListItem.js
+>             - SelectedListItem.tsx
+>             - SimpleList.js
+>             - SimpleList.tsx
+>             - SwitchListSecondary.js
+>             - SwitchListSecondary.tsx
+>             - VirtualizedList.js
+>             - VirtualizedList.tsx
+>             - lists-aa.md
+>             - lists-de.md
+>             - lists-es.md
+>             - lists-fr.md
+>             - lists-ja.md
+>             - lists-pt.md
+>             - lists-ru.md
+>             - lists-zh.md
+>             - lists.md
+>           - material-icons
+>             - SearchIcons.js
+>             - material-icons-aa.md
+>             - material-icons-de.md
+>             - material-icons-es.md
+>             - material-icons-fr.md
+>             - material-icons-ja.md
+>             - material-icons-pt.md
+>             - material-icons-ru.md
+>             - material-icons-zh.md
+>             - material-icons.md
+>             - synonyms.js
+>           - menus
+>             - ContextMenu.js
+>             - ContextMenu.tsx
+>             - CustomizedMenus.js
+>             - CustomizedMenus.tsx
+>             - FadeMenu.js
+>             - FadeMenu.tsx
+>             - LongMenu.js
+>             - LongMenu.tsx
+>             - MenuListComposition.js
+>             - MenuListComposition.tsx
+>             - MenuPopupState.js
+>             - MenuPopupState.tsx
+>             - SimpleListMenu.js
+>             - SimpleListMenu.tsx
+>             - SimpleMenu.js
+>             - SimpleMenu.tsx
+>             - TypographyMenu.js
+>             - TypographyMenu.tsx
+>             - menus-aa.md
+>             - menus-de.md
+>             - menus-es.md
+>             - menus-fr.md
+>             - menus-ja.md
+>             - menus-pt.md
+>             - menus-ru.md
+>             - menus-zh.md
+>             - menus.md
+>           - modal
+>             - ServerModal.js
+>             - ServerModal.tsx
+>             - SimpleModal.js
+>             - SimpleModal.tsx
+>             - SpringModal.js
+>             - SpringModal.tsx
+>             - TransitionsModal.js
+>             - TransitionsModal.tsx
+>             - modal-aa.md
+>             - modal-de.md
+>             - modal-es.md
+>             - modal-fr.md
+>             - modal-ja.md
+>             - modal-pt.md
+>             - modal-ru.md
+>             - modal-zh.md
+>             - modal.md
+>           - no-ssr
+>             - FrameDeferring.js
+>             - FrameDeferring.tsx
+>             - SimpleNoSsr.js
+>             - SimpleNoSsr.tsx
+>             - no-ssr-aa.md
+>             - no-ssr-de.md
+>             - no-ssr-es.md
+>             - no-ssr-fr.md
+>             - no-ssr-ja.md
+>             - no-ssr-pt.md
+>             - no-ssr-ru.md
+>             - no-ssr-zh.md
+>             - no-ssr.md
+>           - pagination
+>             - BasicPagination.js
+>             - BasicPagination.tsx
+>             - PaginationButtons.js
+>             - PaginationButtons.tsx
+>             - PaginationControlled.js
+>             - PaginationControlled.tsx
+>             - PaginationLink.js
+>             - PaginationLink.tsx
+>             - PaginationOutlined.js
+>             - PaginationOutlined.tsx
+>             - PaginationRanges.js
+>             - PaginationRanges.tsx
+>             - PaginationRounded.js
+>             - PaginationRounded.tsx
+>             - PaginationSize.js
+>             - PaginationSize.tsx
+>             - UsePagination.js
+>             - UsePagination.tsx
+>             - pagination-aa.md
+>             - pagination-de.md
+>             - pagination-es.md
+>             - pagination-fr.md
+>             - pagination-ja.md
+>             - pagination-pt.md
+>             - pagination-ru.md
+>             - pagination-zh.md
+>             - pagination.md
+>           - paper
+>             - SimplePaper.js
+>             - SimplePaper.tsx
+>             - Variants.js
+>             - Variants.tsx
+>             - paper-aa.md
+>             - paper-de.md
+>             - paper-es.md
+>             - paper-fr.md
+>             - paper-ja.md
+>             - paper-pt.md
+>             - paper-ru.md
+>             - paper-zh.md
+>             - paper.md
+>           - pickers
+>             - DateAndTimePickers.js
+>             - DateAndTimePickers.tsx
+>             - DatePickers.js
+>             - DatePickers.tsx
+>             - MaterialUIPickers.js
+>             - MaterialUIPickers.tsx
+>             - TimePickers.js
+>             - TimePickers.tsx
+>             - pickers-aa.md
+>             - pickers-de.md
+>             - pickers-es.md
+>             - pickers-fr.md
+>             - pickers-ja.md
+>             - pickers-pt.md
+>             - pickers-ru.md
+>             - pickers-zh.md
+>             - pickers.md
+>           - popover
+>             - AnchorPlayground.js
+>             - MouseOverPopover.js
+>             - MouseOverPopover.tsx
+>             - PopoverPopupState.js
+>             - PopoverPopupState.tsx
+>             - SimplePopover.js
+>             - SimplePopover.tsx
+>             - popover-aa.md
+>             - popover-de.md
+>             - popover-es.md
+>             - popover-fr.md
+>             - popover-ja.md
+>             - popover-pt.md
+>             - popover-ru.md
+>             - popover-zh.md
+>             - popover.md
+>           - popper
+>             - FakedReferencePopper.js
+>             - FakedReferencePopper.tsx
+>             - PopperPopupState.js
+>             - PopperPopupState.tsx
+>             - PositionedPopper.js
+>             - PositionedPopper.tsx
+>             - ScrollPlayground.js
+>             - SimplePopper.js
+>             - SimplePopper.tsx
+>             - SpringPopper.js
+>             - SpringPopper.tsx
+>             - TransitionsPopper.js
+>             - TransitionsPopper.tsx
+>             - popper-aa.md
+>             - popper-de.md
+>             - popper-es.md
+>             - popper-fr.md
+>             - popper-ja.md
+>             - popper-pt.md
+>             - popper-ru.md
+>             - popper-zh.md
+>             - popper.md
+>           - portal
+>             - SimplePortal.js
+>             - SimplePortal.tsx
+>             - portal-aa.md
+>             - portal-de.md
+>             - portal-es.md
+>             - portal-fr.md
+>             - portal-ja.md
+>             - portal-pt.md
+>             - portal-ru.md
+>             - portal-zh.md
+>             - portal.md
+>           - progress
+>             - CircularDeterminate.js
+>             - CircularDeterminate.tsx
+>             - CircularIndeterminate.js
+>             - CircularIndeterminate.tsx
+>             - CircularIntegration.js
+>             - CircularIntegration.tsx
+>             - CircularStatic.js
+>             - CircularStatic.tsx
+>             - CircularUnderLoad.js
+>             - CircularUnderLoad.tsx
+>             - CustomizedProgressBars.js
+>             - CustomizedProgressBars.tsx
+>             - DelayingAppearance.js
+>             - DelayingAppearance.tsx
+>             - LinearBuffer.js
+>             - LinearBuffer.tsx
+>             - LinearDeterminate.js
+>             - LinearDeterminate.tsx
+>             - LinearIndeterminate.js
+>             - LinearIndeterminate.tsx
+>             - LinearQuery.js
+>             - LinearQuery.tsx
+>             - progress-aa.md
+>             - progress-de.md
+>             - progress-es.md
+>             - progress-fr.md
+>             - progress-ja.md
+>             - progress-pt.md
+>             - progress-ru.md
+>             - progress-zh.md
+>             - progress.md
+>           - radio-buttons
+>             - CustomizedRadios.js
+>             - CustomizedRadios.tsx
+>             - ErrorRadios.js
+>             - ErrorRadios.tsx
+>             - FormControlLabelPlacement.js
+>             - FormControlLabelPlacement.tsx
+>             - RadioButtons.js
+>             - RadioButtons.tsx
+>             - RadioButtonsGroup.js
+>             - RadioButtonsGroup.tsx
+>             - radio-buttons-aa.md
+>             - radio-buttons-de.md
+>             - radio-buttons-es.md
+>             - radio-buttons-fr.md
+>             - radio-buttons-ja.md
+>             - radio-buttons-pt.md
+>             - radio-buttons-ru.md
+>             - radio-buttons-zh.md
+>             - radio-buttons.md
+>           - rating
+>             - CustomizedRatings.js
+>             - CustomizedRatings.tsx
+>             - HalfRating.js
+>             - HalfRating.tsx
+>             - HoverRating.js
+>             - HoverRating.tsx
+>             - RatingSize.js
+>             - RatingSize.tsx
+>             - SimpleRating.js
+>             - SimpleRating.tsx
+>             - rating-aa.md
+>             - rating-de.md
+>             - rating-es.md
+>             - rating-fr.md
+>             - rating-ja.md
+>             - rating-pt.md
+>             - rating-ru.md
+>             - rating-zh.md
+>             - rating.md
+>           - selects
+>             - ControlledOpenSelect.js
+>             - ControlledOpenSelect.tsx
+>             - CustomizedSelects.js
+>             - CustomizedSelects.tsx
+>             - DialogSelect.js
+>             - DialogSelect.tsx
+>             - GroupedSelect.js
+>             - GroupedSelect.tsx
+>             - MultipleSelect.js
+>             - MultipleSelect.tsx
+>             - NativeSelects.js
+>             - NativeSelects.tsx
+>             - SimpleSelect.js
+>             - SimpleSelect.tsx
+>             - selects-aa.md
+>             - selects-de.md
+>             - selects-es.md
+>             - selects-fr.md
+>             - selects-ja.md
+>             - selects-pt.md
+>             - selects-ru.md
+>             - selects-zh.md
+>             - selects.md
+>           - skeleton
+>             - Animations.js
+>             - Animations.tsx
+>             - Facebook.js
+>             - Facebook.tsx
+>             - Variants.js
+>             - Variants.tsx
+>             - YouTube.js
+>             - YouTube.tsx
+>             - skeleton-aa.md
+>             - skeleton-de.md
+>             - skeleton-es.md
+>             - skeleton-fr.md
+>             - skeleton-ja.md
+>             - skeleton-pt.md
+>             - skeleton-ru.md
+>             - skeleton-zh.md
+>             - skeleton.md
+>           - slider
+>             - ContinuousSlider.js
+>             - ContinuousSlider.tsx
+>             - CustomizedSlider.js
+>             - CustomizedSlider.tsx
+>             - DiscreteSlider.js
+>             - DiscreteSlider.tsx
+>             - DiscreteSliderLabel.js
+>             - DiscreteSliderLabel.tsx
+>             - DiscreteSliderMarks.js
+>             - DiscreteSliderMarks.tsx
+>             - DiscreteSliderSteps.js
+>             - DiscreteSliderSteps.tsx
+>             - DiscreteSliderValues.js
+>             - DiscreteSliderValues.tsx
+>             - InputSlider.js
+>             - InputSlider.tsx
+>             - NonLinearSlider.js
+>             - NonLinearSlider.tsx
+>             - RangeSlider.js
+>             - RangeSlider.tsx
+>             - TrackFalseSlider.js
+>             - TrackFalseSlider.tsx
+>             - TrackInvertedSlider.js
+>             - TrackInvertedSlider.tsx
+>             - VerticalSlider.js
+>             - VerticalSlider.tsx
+>             - slider-aa.md
+>             - slider-de.md
+>             - slider-es.md
+>             - slider-fr.md
+>             - slider-ja.md
+>             - slider-pt.md
+>             - slider-ru.md
+>             - slider-zh.md
+>             - slider.md
+>           - snackbars
+>             - ConsecutiveSnackbars.js
+>             - ConsecutiveSnackbars.tsx
+>             - CustomizedSnackbars.js
+>             - CustomizedSnackbars.tsx
+>             - DirectionSnackbar.js
+>             - DirectionSnackbar.tsx
+>             - FabIntegrationSnackbar.js
+>             - FabIntegrationSnackbar.tsx
+>             - IntegrationNotistack.js
+>             - IntegrationNotistack.tsx
+>             - LongTextSnackbar.js
+>             - LongTextSnackbar.tsx
+>             - PositionedSnackbar.js
+>             - PositionedSnackbar.tsx
+>             - SimpleSnackbar.js
+>             - SimpleSnackbar.tsx
+>             - TransitionsSnackbar.js
+>             - TransitionsSnackbar.tsx
+>             - snackbars-aa.md
+>             - snackbars-de.md
+>             - snackbars-es.md
+>             - snackbars-fr.md
+>             - snackbars-ja.md
+>             - snackbars-pt.md
+>             - snackbars-ru.md
+>             - snackbars-zh.md
+>             - snackbars.md
+>           - speed-dial
+>             - OpenIconSpeedDial.js
+>             - OpenIconSpeedDial.tsx
+>             - SpeedDialTooltipOpen.js
+>             - SpeedDialTooltipOpen.tsx
+>             - SpeedDials.js
+>             - SpeedDials.tsx
+>             - speed-dial-aa.md
+>             - speed-dial-de.md
+>             - speed-dial-es.md
+>             - speed-dial-fr.md
+>             - speed-dial-ja.md
+>             - speed-dial-pt.md
+>             - speed-dial-ru.md
+>             - speed-dial-zh.md
+>             - speed-dial.md
+>           - steppers
+>             - CustomizedSteppers.js
+>             - CustomizedSteppers.tsx
+>             - DotsMobileStepper.js
+>             - DotsMobileStepper.tsx
+>             - HorizontalLinearAlternativeLabelStepper.js
+>             - HorizontalLinearAlternativeLabelStepper.tsx
+>             - HorizontalLinearStepper.js
+>             - HorizontalLinearStepper.tsx
+>             - HorizontalNonLinearAlternativeLabelStepper.js
+>             - HorizontalNonLinearAlternativeLabelStepper.tsx
+>             - HorizontalNonLinearStepper.js
+>             - HorizontalNonLinearStepper.tsx
+>             - HorizontalNonLinearStepperWithError.js
+>             - HorizontalNonLinearStepperWithError.tsx
+>             - ProgressMobileStepper.js
+>             - ProgressMobileStepper.tsx
+>             - SwipeableTextMobileStepper.js
+>             - SwipeableTextMobileStepper.tsx
+>             - TextMobileStepper.js
+>             - TextMobileStepper.tsx
+>             - VerticalLinearStepper.js
+>             - VerticalLinearStepper.tsx
+>             - steppers-aa.md
+>             - steppers-de.md
+>             - steppers-es.md
+>             - steppers-fr.md
+>             - steppers-ja.md
+>             - steppers-pt.md
+>             - steppers-ru.md
+>             - steppers-zh.md
+>             - steppers.md
+>           - switches
+>             - CustomizedSwitches.js
+>             - CustomizedSwitches.tsx
+>             - FormControlLabelPosition.js
+>             - FormControlLabelPosition.tsx
+>             - SwitchLabels.js
+>             - SwitchLabels.tsx
+>             - Switches.js
+>             - Switches.tsx
+>             - SwitchesGroup.js
+>             - SwitchesGroup.tsx
+>             - SwitchesSize.js
+>             - SwitchesSize.tsx
+>             - switches-aa.md
+>             - switches-de.md
+>             - switches-es.md
+>             - switches-fr.md
+>             - switches-ja.md
+>             - switches-pt.md
+>             - switches-ru.md
+>             - switches-zh.md
+>             - switches.md
+>           - tables
+>             - AcccessibleTable.js
+>             - AcccessibleTable.tsx
+>             - CustomPaginationActionsTable.js
+>             - CustomPaginationActionsTable.tsx
+>             - CustomizedTables.js
+>             - CustomizedTables.tsx
+>             - DenseTable.js
+>             - DenseTable.tsx
+>             - EnhancedTable.js
+>             - EnhancedTable.tsx
+>             - MaterialTableDemo.js
+>             - MaterialTableDemo.tsx
+>             - ReactVirtualizedTable.js
+>             - ReactVirtualizedTable.tsx
+>             - SimpleTable.js
+>             - SimpleTable.tsx
+>             - SpanningTable.js
+>             - SpanningTable.tsx
+>             - StickyHeadTable.js
+>             - StickyHeadTable.tsx
+>             - tables-aa.md
+>             - tables-de.md
+>             - tables-es.md
+>             - tables-fr.md
+>             - tables-ja.md
+>             - tables-pt.md
+>             - tables-ru.md
+>             - tables-zh.md
+>             - tables.md
+>           - tabs
+>             - CenteredTabs.js
+>             - CenteredTabs.tsx
+>             - CustomizedTabs.js
+>             - CustomizedTabs.tsx
+>             - DisabledTabs.js
+>             - DisabledTabs.tsx
+>             - FullWidthTabs.js
+>             - FullWidthTabs.tsx
+>             - IconLabelTabs.js
+>             - IconLabelTabs.tsx
+>             - IconTabs.js
+>             - IconTabs.tsx
+>             - NavTabs.js
+>             - NavTabs.tsx
+>             - ScrollableTabsButtonAuto.js
+>             - ScrollableTabsButtonAuto.tsx
+>             - ScrollableTabsButtonForce.js
+>             - ScrollableTabsButtonForce.tsx
+>             - ScrollableTabsButtonPrevent.js
+>             - ScrollableTabsButtonPrevent.tsx
+>             - SimpleTabs.js
+>             - SimpleTabs.tsx
+>             - TabsWrappedLabel.js
+>             - TabsWrappedLabel.tsx
+>             - VerticalTabs.js
+>             - VerticalTabs.tsx
+>             - tabs-aa.md
+>             - tabs-de.md
+>             - tabs-es.md
+>             - tabs-fr.md
+>             - tabs-ja.md
+>             - tabs-pt.md
+>             - tabs-ru.md
+>             - tabs-zh.md
+>             - tabs.md
+>           - text-fields
+>             - BasicTextFields.js
+>             - BasicTextFields.tsx
+>             - ColorTextFields.js
+>             - ColorTextFields.tsx
+>             - ComposedTextField.js
+>             - ComposedTextField.tsx
+>             - CustomizedInputBase.js
+>             - CustomizedInputBase.tsx
+>             - CustomizedInputs.js
+>             - CustomizedInputs.tsx
+>             - FormPropsTextFields.js
+>             - FormPropsTextFields.tsx
+>             - FormattedInputs.js
+>             - FormattedInputs.tsx
+>             - InputAdornments.js
+>             - InputAdornments.tsx
+>             - InputWithIcon.js
+>             - InputWithIcon.tsx
+>             - Inputs.js
+>             - Inputs.tsx
+>             - LayoutTextFields.js
+>             - LayoutTextFields.tsx
+>             - MultilineTextFields.js
+>             - MultilineTextFields.tsx
+>             - SelectTextFields.js
+>             - SelectTextFields.tsx
+>             - StateTextFields.js
+>             - StateTextFields.tsx
+>             - TextFieldSizes.js
+>             - TextFieldSizes.tsx
+>             - ValidationTextFields.js
+>             - ValidationTextFields.tsx
+>             - text-fields-aa.md
+>             - text-fields-de.md
+>             - text-fields-es.md
+>             - text-fields-fr.md
+>             - text-fields-ja.md
+>             - text-fields-pt.md
+>             - text-fields-ru.md
+>             - text-fields-zh.md
+>             - text-fields.md
+>           - textarea-autosize
+>             - EmptyTextarea.js
+>             - EmptyTextarea.tsx
+>             - MaxHeightTextarea.js
+>             - MaxHeightTextarea.tsx
+>             - MinHeightTextarea.js
+>             - MinHeightTextarea.tsx
+>             - textarea-autosize-aa.md
+>             - textarea-autosize-de.md
+>             - textarea-autosize-es.md
+>             - textarea-autosize-fr.md
+>             - textarea-autosize-ja.md
+>             - textarea-autosize-pt.md
+>             - textarea-autosize-ru.md
+>             - textarea-autosize-zh.md
+>             - textarea-autosize.md
+>           - toggle-button
+>             - CustomizedDividers.js
+>             - CustomizedDividers.tsx
+>             - StandaloneToggleButton.js
+>             - StandaloneToggleButton.tsx
+>             - ToggleButtonNotEmpty.js
+>             - ToggleButtonNotEmpty.tsx
+>             - ToggleButtonSizes.js
+>             - ToggleButtonSizes.tsx
+>             - ToggleButtons.js
+>             - ToggleButtons.tsx
+>             - toggle-button-aa.md
+>             - toggle-button-de.md
+>             - toggle-button-es.md
+>             - toggle-button-fr.md
+>             - toggle-button-ja.md
+>             - toggle-button-pt.md
+>             - toggle-button-ru.md
+>             - toggle-button-zh.md
+>             - toggle-button.md
+>           - tooltips
+>             - ArrowTooltips.js
+>             - ArrowTooltips.tsx
+>             - ControlledTooltips.js
+>             - ControlledTooltips.tsx
+>             - CustomizedTooltips.js
+>             - CustomizedTooltips.tsx
+>             - DelayTooltips.js
+>             - DelayTooltips.tsx
+>             - DisabledTooltips.js
+>             - DisabledTooltips.tsx
+>             - InteractiveTooltips.js
+>             - InteractiveTooltips.tsx
+>             - PositionedTooltips.js
+>             - PositionedTooltips.tsx
+>             - SimpleTooltips.js
+>             - SimpleTooltips.tsx
+>             - TransitionsTooltips.js
+>             - TransitionsTooltips.tsx
+>             - TriggersTooltips.js
+>             - TriggersTooltips.tsx
+>             - VariableWidth.js
+>             - VariableWidth.tsx
+>             - tooltips-aa.md
+>             - tooltips-de.md
+>             - tooltips-es.md
+>             - tooltips-fr.md
+>             - tooltips-ja.md
+>             - tooltips-pt.md
+>             - tooltips-ru.md
+>             - tooltips-zh.md
+>             - tooltips.md
+>           - transfer-list
+>             - SelectAllTransferList.js
+>             - SelectAllTransferList.tsx
+>             - TransferList.js
+>             - TransferList.tsx
+>             - transfer-list-aa.md
+>             - transfer-list-de.md
+>             - transfer-list-es.md
+>             - transfer-list-fr.md
+>             - transfer-list-ja.md
+>             - transfer-list-pt.md
+>             - transfer-list-ru.md
+>             - transfer-list-zh.md
+>             - transfer-list.md
+>           - transitions
+>             - SimpleCollapse.js
+>             - SimpleCollapse.tsx
+>             - SimpleFade.js
+>             - SimpleFade.tsx
+>             - SimpleGrow.js
+>             - SimpleGrow.tsx
+>             - SimpleSlide.js
+>             - SimpleSlide.tsx
+>             - SimpleZoom.js
+>             - SimpleZoom.tsx
+>             - transitions-aa.md
+>             - transitions-de.md
+>             - transitions-es.md
+>             - transitions-fr.md
+>             - transitions-ja.md
+>             - transitions-pt.md
+>             - transitions-ru.md
+>             - transitions-zh.md
+>             - transitions.md
+>           - tree-view
+>             - ControlledTreeView.js
+>             - ControlledTreeView.tsx
+>             - CustomizedTreeView.js
+>             - CustomizedTreeView.tsx
+>             - FileSystemNavigator.js
+>             - FileSystemNavigator.tsx
+>             - GmailTreeView.js
+>             - GmailTreeView.tsx
+>             - MultiSelectTreeView.js
+>             - MultiSelectTreeView.tsx
+>             - RecursiveTreeView.js
+>             - RecursiveTreeView.tsx
+>             - tree-view-aa.md
+>             - tree-view-de.md
+>             - tree-view-es.md
+>             - tree-view-fr.md
+>             - tree-view-ja.md
+>             - tree-view-pt.md
+>             - tree-view-ru.md
+>             - tree-view-zh.md
+>             - tree-view.md
+>           - typography
+>             - Types.js
+>             - Types.tsx
+>             - TypographyTheme.js
+>             - TypographyTheme.tsx
+>             - typography-aa.md
+>             - typography-de.md
+>             - typography-es.md
+>             - typography-fr.md
+>             - typography-ja.md
+>             - typography-pt.md
+>             - typography-ru.md
+>             - typography-zh.md
+>             - typography.md
+>           - use-media-query
+>             - JavaScriptMedia.js
+>             - JavaScriptMedia.tsx
+>             - ServerSide.js
+>             - ServerSide.tsx
+>             - SimpleMediaQuery.js
+>             - SimpleMediaQuery.tsx
+>             - ThemeHelper.js
+>             - ThemeHelper.tsx
+>             - UseWidth.js
+>             - UseWidth.tsx
+>             - use-media-query-aa.md
+>             - use-media-query-de.md
+>             - use-media-query-es.md
+>             - use-media-query-fr.md
+>             - use-media-query-ja.md
+>             - use-media-query-pt.md
+>             - use-media-query-ru.md
+>             - use-media-query-zh.md
+>             - use-media-query.md
+>         - css-in-js
+>           - basics
+>             - AdaptingHook.js
+>             - AdaptingHook.tsx
+>             - AdaptingStyledComponents.js
+>             - AdaptingStyledComponents.tsx
+>         - customization
+>           - breakpoints
+>             - MediaQuery.js
+>             - MediaQuery.tsx
+>             - WithWidth.js
+>             - WithWidth.tsx
+>             - breakpoints-aa.md
+>             - breakpoints-de.md
+>             - breakpoints-es.md
+>             - breakpoints-fr.md
+>             - breakpoints-ja.md
+>             - breakpoints-pt.md
+>             - breakpoints-ru.md
+>             - breakpoints-zh.md
+>             - breakpoints.md
+>           - color
+>             - Color.js
+>             - ColorDemo.js
+>             - ColorTool.js
+>             - color-aa.md
+>             - color-de.md
+>             - color-es.md
+>             - color-fr.md
+>             - color-ja.md
+>             - color-pt.md
+>             - color-ru.md
+>             - color-zh.md
+>             - color.md
+>           - components
+>             - ClassNames.js
+>             - ClassNames.tsx
+>             - ClassesNesting.js
+>             - ClassesNesting.tsx
+>             - ClassesShorthand.js
+>             - ClassesShorthand.tsx
+>             - ClassesState.js
+>             - ClassesState.tsx
+>             - Component.js
+>             - Component.tsx
+>             - DynamicCSS.js
+>             - DynamicCSS.tsx
+>             - DynamicCSSVariables.js
+>             - DynamicCSSVariables.tsx
+>             - DynamicClassName.js
+>             - DynamicClassName.tsx
+>             - DynamicInlineStyle.js
+>             - DynamicInlineStyle.tsx
+>             - DynamicThemeNesting.js
+>             - DynamicThemeNesting.tsx
+>             - GlobalCssOverride.js
+>             - GlobalCssOverride.tsx
+>             - GlobalThemeOverride.js
+>             - GlobalThemeOverride.tsx
+>             - InlineStyle.js
+>             - InlineStyle.tsx
+>             - ThemeVariables.js
+>             - ThemeVariables.tsx
+>             - components-aa.md
+>             - components-de.md
+>             - components-es.md
+>             - components-fr.md
+>             - components-ja.md
+>             - components-pt.md
+>             - components-ru.md
+>             - components-zh.md
+>             - components.md
+>           - default-theme
+>             - DefaultTheme.js
+>             - default-theme-aa.md
+>             - default-theme-de.md
+>             - default-theme-es.md
+>             - default-theme-fr.md
+>             - default-theme-ja.md
+>             - default-theme-pt.md
+>             - default-theme-ru.md
+>             - default-theme-zh.md
+>             - default-theme.md
+>           - density
+>             - DensityTool.js
+>             - density-aa.md
+>             - density-de.md
+>             - density-es.md
+>             - density-fr.md
+>             - density-ja.md
+>             - density-pt.md
+>             - density-ru.md
+>             - density-zh.md
+>             - density.md
+>           - globals
+>             - DefaultProps.js
+>             - DefaultProps.tsx
+>             - GlobalCss.js
+>             - GlobalCss.tsx
+>             - globals-aa.md
+>             - globals-de.md
+>             - globals-es.md
+>             - globals-fr.md
+>             - globals-ja.md
+>             - globals-pt.md
+>             - globals-ru.md
+>             - globals-zh.md
+>             - globals.md
+>           - palette
+>             - DarkTheme.js
+>             - Intentions.js
+>             - Palette.js
+>             - Palette.tsx
+>             - palette-aa.md
+>             - palette-de.md
+>             - palette-es.md
+>             - palette-fr.md
+>             - palette-ja.md
+>             - palette-pt.md
+>             - palette-ru.md
+>             - palette-zh.md
+>             - palette.md
+>           - spacing
+>             - spacing-aa.md
+>             - spacing-de.md
+>             - spacing-es.md
+>             - spacing-fr.md
+>             - spacing-ja.md
+>             - spacing-pt.md
+>             - spacing-ru.md
+>             - spacing-zh.md
+>             - spacing.md
+>           - theming
+>             - CustomStyles.js
+>             - CustomStyles.tsx
+>             - ThemeNesting.js
+>             - ThemeNesting.tsx
+>             - ThemeNestingExtend.js
+>             - ThemeNestingExtend.tsx
+>             - theming-aa.md
+>             - theming-de.md
+>             - theming-es.md
+>             - theming-fr.md
+>             - theming-ja.md
+>             - theming-pt.md
+>             - theming-ru.md
+>             - theming-zh.md
+>             - theming.md
+>           - typography
+>             - CustomResponsiveFontSizes.js
+>             - CustomResponsiveFontSizes.tsx
+>             - FontSizeTheme.js
+>             - FontSizeTheme.tsx
+>             - ResponsiveFontSizes.js
+>             - ResponsiveFontSizes.tsx
+>             - ResponsiveFontSizesChart.js
+>             - TypographyVariants.js
+>             - TypographyVariants.tsx
+>             - typography-aa.md
+>             - typography-de.md
+>             - typography-es.md
+>             - typography-fr.md
+>             - typography-ja.md
+>             - typography-pt.md
+>             - typography-ru.md
+>             - typography-zh.md
+>             - typography.md
+>           - z-index
+>             - z-index-aa.md
+>             - z-index-de.md
+>             - z-index-es.md
+>             - z-index-fr.md
+>             - z-index-ja.md
+>             - z-index-pt.md
+>             - z-index-ru.md
+>             - z-index-zh.md
+>             - z-index.md
+>         - discover-more
+>           - backers
+>             - backers.md
+>           - changelog
+>             - changelog-aa.md
+>             - changelog-de.md
+>             - changelog-es.md
+>             - changelog-fr.md
+>             - changelog-ja.md
+>             - changelog-pt.md
+>             - changelog-ru.md
+>             - changelog-zh.md
+>             - changelog.md
+>           - languages
+>             - Languages.js
+>             - languages-aa.md
+>             - languages-de.md
+>             - languages-es.md
+>             - languages-fr.md
+>             - languages-ja.md
+>             - languages-pt.md
+>             - languages-ru.md
+>             - languages-zh.md
+>             - languages.md
+>           - related-projects
+>             - related-projects-aa.md
+>             - related-projects-de.md
+>             - related-projects-es.md
+>             - related-projects-fr.md
+>             - related-projects-ja.md
+>             - related-projects-pt.md
+>             - related-projects-ru.md
+>             - related-projects-zh.md
+>             - related-projects.md
+>           - roadmap
+>             - roadmap.md
+>           - showcase
+>             - Showcase.js
+>             - appList.js
+>             - showcase-aa.md
+>             - showcase-de.md
+>             - showcase-es.md
+>             - showcase-fr.md
+>             - showcase-ja.md
+>             - showcase-pt.md
+>             - showcase-ru.md
+>             - showcase-zh.md
+>             - showcase.md
+>           - team
+>             - Team.js
+>             - team-aa.md
+>             - team-de.md
+>             - team-es.md
+>             - team-fr.md
+>             - team-ja.md
+>             - team-pt.md
+>             - team-ru.md
+>             - team-zh.md
+>             - team.md
+>           - vision
+>             - vision-aa.md
+>             - vision-de.md
+>             - vision-es.md
+>             - vision-fr.md
+>             - vision-ja.md
+>             - vision-pt.md
+>             - vision-ru.md
+>             - vision-zh.md
+>             - vision.md
+>         - getting-started
+>           - example-projects
+>             - example-projects-aa.md
+>             - example-projects-de.md
+>             - example-projects-es.md
+>             - example-projects-fr.md
+>             - example-projects-ja.md
+>             - example-projects-pt.md
+>             - example-projects-ru.md
+>             - example-projects-zh.md
+>             - example-projects.md
+>           - faq
+>             - faq-aa.md
+>             - faq-de.md
+>             - faq-es.md
+>             - faq-fr.md
+>             - faq-ja.md
+>             - faq-pt.md
+>             - faq-ru.md
+>             - faq-zh.md
+>             - faq.md
+>           - installation
+>             - installation-aa.md
+>             - installation-de.md
+>             - installation-es.md
+>             - installation-fr.md
+>             - installation-ja.md
+>             - installation-pt.md
+>             - installation-ru.md
+>             - installation-zh.md
+>             - installation.md
+>           - learn
+>             - le
+> 
+> 
+> ```
+> 
+> 7. **Tool call: find_files**
+> Input:
+> ```json
+> {
+>   "globPatterns": [
+>     "**/*[tT][rR][eE][eE][iI][tT][eE][mM].*",
+>     "**/*[tT][rR][eE][eE][vV][iI][eE][wW].*"
+>   ],
+>   "toolPurpose": "- I want to locate the exact TreeItem and TreeView production files, type declarations, and nearby tests to inspect the current interaction contract."
+> }
+> ```
+> Output:
+> ```
+> Below are the 32 files found for the specified glob patterns (**/*[tT][rR][eE][eE][iI][tT][eE][mM].*, **/*[tT][rR][eE][eE][vV][iI][eE][wW].*):
+> 
+> mui__material-ui-20377/packages/material-ui-lab/src/TreeItem/TreeItem.d.ts
+> mui__material-ui-20377/packages/material-ui-lab/src/TreeItem/TreeItem.test.js
+> mui__material-ui-20377/packages/material-ui-lab/src/TreeItem/TreeItem.js
+> mui__material-ui-20657/packages/material-ui-lab/src/TreeItem/TreeItem.d.ts
+> mui__material-ui-20657/packages/material-ui-lab/src/TreeItem/TreeItem.test.js
+> mui__material-ui-20657/packages/material-ui-lab/src/TreeItem/TreeItem.js
+> mui__material-ui-20377/packages/material-ui-lab/src/TreeView/TreeView.test.js
+> mui__material-ui-20377/packages/material-ui-lab/src/TreeView/TreeView.js
+> mui__material-ui-20377/packages/material-ui-lab/src/TreeView/TreeView.d.ts
+> mui__material-ui-20657/packages/material-ui-lab/src/TreeView/TreeView.test.js
+> mui__material-ui-20657/packages/material-ui-lab/src/TreeView/TreeView.js
+> mui__material-ui-20657/packages/material-ui-lab/src/TreeView/TreeView.d.ts
+> mui__material-ui-20377/docs/src/pages/components/tree-view/CustomizedTreeView.tsx
+> mui__material-ui-20377/docs/src/pages/components/tree-view/MultiSelectTreeView.tsx
+> mui__material-ui-20377/docs/src/pages/components/tree-view/GmailTreeView.js
+> mui__material-ui-20377/docs/src/pages/components/tree-view/RecursiveTreeView.js
+> mui__material-ui-20377/docs/src/pages/components/tree-view/ControlledTreeView.js
+> mui__material-ui-20377/docs/src/pages/components/tree-view/RecursiveTreeView.tsx
+> mui__material-ui-20377/docs/src/pages/components/tree-view/ControlledTreeView.tsx
+> mui__material-ui-20377/docs/src/pages/components/tree-view/GmailTreeView.tsx
+> mui__material-ui-20377/docs/src/pages/components/tree-view/MultiSelectTreeView.js
+> mui__material-ui-20377/docs/src/pages/components/tree-view/CustomizedTreeView.js
+> mui__material-ui-20657/docs/src/pages/components/tree-view/CustomizedTreeView.tsx
+> mui__material-ui-20657/docs/src/pages/components/tree-view/MultiSelectTreeView.tsx
+> mui__material-ui-20657/docs/src/pages/components/tree-view/GmailTreeView.js
+> mui__material-ui-20657/docs/src/pages/components/tree-view/RecursiveTreeView.js
+> mui__material-ui-20657/docs/src/pages/components/tree-view/ControlledTreeView.js
+> mui__material-ui-20657/docs/src/pages/components/tree-view/RecursiveTreeView.tsx
+> mui__material-ui-20657/docs/src/pages/components/tree-view/ControlledTreeView.tsx
+> mui__material-ui-20657/docs/src/pages/components/tree-view/GmailTreeView.tsx
+> mui__material-ui-20657/docs/src/pages/components/tree-view/MultiSelectTreeView.js
+> mui__material-ui-20657/docs/src/pages/components/tree-view/CustomizedTreeView.js
+> 
+> Multiple matches were found. Use the request_user_input tool to specify which file should be referred to for the use case you are trying to implement.
+> 
+> 
+> ```
+> 
+> 8. **Tool call: grep**
+> Input:
+> ```json
+> {
+>   "pattern": "handleExpansion|onNodeToggle|expanded|iconContainer",
+>   "searchPath": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657/packages",
+>   "glob": [
+>     "**/*TreeItem*",
+>     "**/*TreeView*"
+>   ],
+>   "context": 4,
+>   "outputMode": "grouped",
+>   "headLimit": 300,
+>   "toolPurpose": "- I need to locate the TreeView expansion event logic and public API declarations in production and test files."
+> }
+> ```
+> Output:
+> ```
+> {"success":true,"mode":"content","numFiles":6,"numLines":90,"pagination":{"offset":0,"limit":300,"returned":90,"total":90,"hasMore":false},"matchesByFile":{"material-ui-lab/src/TreeItem/TreeItem.d.ts":[{"file":"material-ui-lab/src/TreeItem/TreeItem.d.ts","line":44,"content":"| 'expanded'","contextBefore":[{"line":40,"content":"}"},{"line":41,"content":""},{"line":42,"content":"export type TreeItemClassKey ="},{"line":43,"content":"| 'root'"}],"contextAfter":[{"line":45,"content":"| 'selected'"},{"line":46,"content":"| 'group'"},{"line":47,"content":"| 'content'"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.d.ts","line":48,"content":"| 'iconContainer'","contextBefore":[{"line":45,"content":"| 'selected'"},{"line":46,"content":"| 'group'"},{"line":47,"content":"| 'content'"}],"contextAfter":[{"line":49,"content":"| 'label';"},{"line":50,"content":""},{"line":51,"content":"/**"},{"line":52,"content":"*"}],"matches":["iconContainer"]}],"material-ui-lab/src/TreeItem/TreeItem.test.js":[{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":71,"content":"const getIcon = (testId) => getByTestId(testId).querySelector(`.${classes.iconContainer} div`);","contextBefore":[{"line":67,"content":""},{"line":68,"content":","},{"line":69,"content":");"},{"line":70,"content":""}],"contextAfter":[{"line":72,"content":""},{"line":73,"content":"expect(getIcon('1')).attribute('data-test').to.equal('defaultCollapseIcon');"},{"line":74,"content":"expect(getIcon('2')).attribute('data-test').to.equal('defaultEndIcon');"},{"line":75,"content":"expect(getIcon('3')).attribute('data-test').to.equal('defaultExpandIcon');"}],"matches":["iconContainer"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":99,"content":"expect(getByTestId('1')).to.have.attribute('aria-expanded', 'true');","contextBefore":[{"line":95,"content":");"},{"line":96,"content":"}"},{"line":97,"content":"const { getByTestId, queryByTestId } = render();"},{"line":98,"content":""}],"contextAfter":[{"line":100,"content":"expect(getByTestId('2')).not.to.equal(null);"},{"line":101,"content":"fireEvent.click(getByTestId('button'));"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":102,"content":"expect(getByTestId('1')).to.not.have.attribute('aria-expanded');","contextBefore":[{"line":100,"content":"expect(getByTestId('2')).not.to.equal(null);"},{"line":101,"content":"fireEvent.click(getByTestId('button'));"}],"contextAfter":[{"line":103,"content":"expect(queryByTestId('2')).to.equal(null);"},{"line":104,"content":"});"},{"line":105,"content":""},{"line":106,"content":"it('should treat an empty array equally to no children', () => {"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":117,"content":"expect(getByTestId('2')).to.not.have.attribute('aria-expanded');","contextBefore":[{"line":113,"content":""},{"line":114,"content":","},{"line":115,"content":");"},{"line":116,"content":""}],"contextAfter":[{"line":118,"content":"});"},{"line":119,"content":""},{"line":120,"content":"it('should not call onClick when children are clicked', () => {"},{"line":121,"content":"const handleClick = spy();"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":191,"content":"describe('aria-expanded', () => {","contextBefore":[{"line":187,"content":""},{"line":188,"content":"expect(getByRole('group')).to.contain(getByText('test2'));"},{"line":189,"content":"});"},{"line":190,"content":""}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":192,"content":"it('should have the attribute `aria-expanded=false` if collapsed', () => {","contextAfter":[{"line":193,"content":"const { getByTestId } = render("},{"line":194,"content":""},{"line":195,"content":""},{"line":196,"content":""}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":201,"content":"expect(getByTestId('test')).to.have.attribute('aria-expanded', 'false');","contextBefore":[{"line":197,"content":""},{"line":198,"content":","},{"line":199,"content":");"},{"line":200,"content":""}],"contextAfter":[{"line":202,"content":"});"},{"line":203,"content":""}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":204,"content":"it('should have the attribute `aria-expanded=true` if expanded', () => {","contextBefore":[{"line":202,"content":"});"},{"line":203,"content":""}],"contextAfter":[{"line":205,"content":"const { getByTestId } = render("},{"line":206,"content":""},{"line":207,"content":""},{"line":208,"content":""}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":213,"content":"expect(getByTestId('test')).to.have.attribute('aria-expanded', 'true');","contextBefore":[{"line":209,"content":""},{"line":210,"content":","},{"line":211,"content":");"},{"line":212,"content":""}],"contextAfter":[{"line":214,"content":"});"},{"line":215,"content":""}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":216,"content":"it('should not have the attribute `aria-expanded` if no children are present', () => {","contextBefore":[{"line":214,"content":"});"},{"line":215,"content":""}],"contextAfter":[{"line":217,"content":"const { getByTestId } = render("},{"line":218,"content":""},{"line":219,"content":""},{"line":220,"content":","}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":223,"content":"expect(getByTestId('test')).to.not.have.attribute('aria-expanded');","contextBefore":[{"line":219,"content":""},{"line":220,"content":","},{"line":221,"content":");"},{"line":222,"content":""}],"contextAfter":[{"line":224,"content":"});"},{"line":225,"content":"});"},{"line":226,"content":""},{"line":227,"content":"describe('aria-selected', () => {"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":362,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'false');","contextBefore":[{"line":358,"content":""},{"line":359,"content":","},{"line":360,"content":");"},{"line":361,"content":""}],"contextAfter":[{"line":363,"content":"getByTestId('one').focus();"},{"line":364,"content":"fireEvent.keyDown(document.activeElement, { key: 'ArrowRight' });"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":365,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'true');","contextBefore":[{"line":363,"content":"getByTestId('one').focus();"},{"line":364,"content":"fireEvent.keyDown(document.activeElement, { key: 'ArrowRight' });"}],"contextAfter":[{"line":366,"content":"expect(getByTestId('one')).toHaveFocus();"},{"line":367,"content":"});"},{"line":368,"content":""},{"line":369,"content":"it('should move focus to the first child if focus is on an open node', () => {"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":378,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'true');","contextBefore":[{"line":374,"content":""},{"line":375,"content":","},{"line":376,"content":");"},{"line":377,"content":""}],"contextAfter":[{"line":379,"content":"getByTestId('one').focus();"},{"line":380,"content":"fireEvent.keyDown(document.activeElement, { key: 'ArrowRight' });"},{"line":381,"content":"expect(getByTestId('two')).toHaveFocus();"},{"line":382,"content":"});"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":411,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'true');","contextBefore":[{"line":407,"content":","},{"line":408,"content":");"},{"line":409,"content":""},{"line":410,"content":"fireEvent.click(getByText('one'));"}],"contextAfter":[{"line":412,"content":"getByTestId('one').focus();"},{"line":413,"content":"fireEvent.keyDown(document.activeElement, { key: 'ArrowLeft' });"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":414,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'false');","contextBefore":[{"line":412,"content":"getByTestId('one').focus();"},{"line":413,"content":"fireEvent.keyDown(document.activeElement, { key: 'ArrowLeft' });"}],"contextAfter":[{"line":415,"content":"expect(getByTestId('one')).toHaveFocus();"},{"line":416,"content":"});"},{"line":417,"content":""},{"line":418,"content":"it(\"should move focus to the node's parent node if focus is on a child node that is an end node\", () => {"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":427,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'true');","contextBefore":[{"line":423,"content":""},{"line":424,"content":","},{"line":425,"content":");"},{"line":426,"content":""}],"contextAfter":[{"line":428,"content":"fireEvent.click(getByText('two'));"},{"line":429,"content":"fireEvent.keyDown(document.activeElement, { key: 'ArrowLeft' });"},{"line":430,"content":"expect(getByTestId('one')).toHaveFocus();"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":431,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'true');","contextBefore":[{"line":428,"content":"fireEvent.click(getByText('two'));"},{"line":429,"content":"fireEvent.keyDown(document.activeElement, { key: 'ArrowLeft' });"},{"line":430,"content":"expect(getByTestId('one')).toHaveFocus();"}],"contextAfter":[{"line":432,"content":"});"},{"line":433,"content":""},{"line":434,"content":"it(\"should move focus to the node's parent node if focus is on a child node that is closed\", () => {"},{"line":435,"content":"const { getByTestId, getByText } = render("}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":446,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'true');","contextBefore":[{"line":442,"content":","},{"line":443,"content":");"},{"line":444,"content":""},{"line":445,"content":"fireEvent.click(getByText('one'));"}],"contextAfter":[{"line":447,"content":"// move focus to node two"},{"line":448,"content":"fireEvent.click(getByText('two'));"},{"line":449,"content":"fireEvent.click(getByText('two'));"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":450,"content":"expect(getByTestId('two')).to.have.attribute('aria-expanded', 'false');","contextBefore":[{"line":447,"content":"// move focus to node two"},{"line":448,"content":"fireEvent.click(getByText('two'));"},{"line":449,"content":"fireEvent.click(getByText('two'));"}],"contextAfter":[{"line":451,"content":"fireEvent.keyDown(document.activeElement, { key: 'ArrowLeft' });"},{"line":452,"content":"expect(getByTestId('one')).toHaveFocus();"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":453,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'true');","contextBefore":[{"line":451,"content":"fireEvent.keyDown(document.activeElement, { key: 'ArrowLeft' });"},{"line":452,"content":"expect(getByTestId('one')).toHaveFocus();"}],"contextAfter":[{"line":454,"content":"});"},{"line":455,"content":""},{"line":456,"content":"it('should do nothing if focus is on a root node that is closed', () => {"},{"line":457,"content":"const { getByTestId } = render("}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":466,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'false');","contextBefore":[{"line":462,"content":","},{"line":463,"content":");"},{"line":464,"content":""},{"line":465,"content":"getByTestId('one').focus();"}],"contextAfter":[{"line":467,"content":"fireEvent.keyDown(document.activeElement, { key: 'ArrowLeft' });"},{"line":468,"content":"expect(getByTestId('one')).toHaveFocus();"},{"line":469,"content":"});"},{"line":470,"content":""}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":507,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'true');","contextBefore":[{"line":503,"content":""},{"line":504,"content":","},{"line":505,"content":");"},{"line":506,"content":""}],"contextAfter":[{"line":508,"content":"getByTestId('one').focus();"},{"line":509,"content":"fireEvent.keyDown(document.activeElement, { key: 'ArrowDown' });"},{"line":510,"content":"expect(getByTestId('two')).toHaveFocus();"},{"line":511,"content":"});"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":562,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'true');","contextBefore":[{"line":558,"content":""},{"line":559,"content":","},{"line":560,"content":");"},{"line":561,"content":""}],"contextAfter":[{"line":563,"content":"fireEvent.click(getByText('two'));"},{"line":564,"content":"expect(getByTestId('two')).toHaveFocus();"},{"line":565,"content":"fireEvent.keyDown(document.activeElement, { key: 'ArrowDown' });"},{"line":566,"content":"expect(getByTestId('three')).toHaveFocus();"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":594,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'true');","contextBefore":[{"line":590,"content":""},{"line":591,"content":","},{"line":592,"content":");"},{"line":593,"content":""}],"contextAfter":[{"line":595,"content":"fireEvent.click(getByText('two'));"},{"line":596,"content":"expect(getByTestId('two')).toHaveFocus();"},{"line":597,"content":"fireEvent.keyDown(document.activeElement, { key: 'ArrowUp' });"},{"line":598,"content":"expect(getByTestId('one')).toHaveFocus();"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":611,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'true');","contextBefore":[{"line":607,"content":""},{"line":608,"content":","},{"line":609,"content":");"},{"line":610,"content":""}],"contextAfter":[{"line":612,"content":"fireEvent.click(getByText('three'));"},{"line":613,"content":"expect(getByTestId('three')).toHaveFocus();"},{"line":614,"content":"fireEvent.keyDown(document.activeElement, { key: 'ArrowUp' });"},{"line":615,"content":"expect(getByTestId('two')).toHaveFocus();"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":638,"content":"it('moves focus to the last node in the tree without expanded items', () => {","contextBefore":[{"line":634,"content":"});"},{"line":635,"content":"});"},{"line":636,"content":""},{"line":637,"content":"describe('end key interaction', () => {"}],"contextAfter":[{"line":639,"content":"const { getByTestId } = render("},{"line":640,"content":""},{"line":641,"content":""},{"line":642,"content":""}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":654,"content":"it('moves focus to the last node in the tree with expanded items', () => {","contextBefore":[{"line":650,"content":"fireEvent.keyDown(document.activeElement, { key: 'End' });"},{"line":651,"content":"expect(getByTestId('four')).toHaveFocus();"},{"line":652,"content":"});"},{"line":653,"content":""}],"contextAfter":[{"line":655,"content":"const { getByTestId } = render("},{"line":656,"content":""},{"line":657,"content":""},{"line":658,"content":""}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":762,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'false');","contextBefore":[{"line":758,"content":","},{"line":759,"content":");"},{"line":760,"content":""},{"line":761,"content":"getByTestId('one').focus();"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":763,"content":"expect(getByTestId('three')).to.have.attribute('aria-expanded', 'false');","matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":764,"content":"expect(getByTestId('five')).to.have.attribute('aria-expanded', 'false');","contextAfter":[{"line":765,"content":"fireEvent.keyDown(document.activeElement, { key: '*' });"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":766,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'true');","contextBefore":[{"line":765,"content":"fireEvent.keyDown(document.activeElement, { key: '*' });"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":767,"content":"expect(getByTestId('three')).to.have.attribute('aria-expanded', 'true');","matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":768,"content":"expect(getByTestId('five')).to.have.attribute('aria-expanded', 'true');","matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":769,"content":"expect(getByTestId('six')).to.have.attribute('aria-expanded', 'false');","contextAfter":[{"line":770,"content":"});"},{"line":771,"content":"});"},{"line":772,"content":"});"},{"line":773,"content":""}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":786,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'false');","contextBefore":[{"line":782,"content":","},{"line":783,"content":");"},{"line":784,"content":""},{"line":785,"content":"getByTestId('one').focus();"}],"contextAfter":[{"line":787,"content":"fireEvent.keyDown(document.activeElement, { key: 'Enter' });"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":788,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'true');","contextBefore":[{"line":787,"content":"fireEvent.keyDown(document.activeElement, { key: 'Enter' });"}],"contextAfter":[{"line":789,"content":"});"},{"line":790,"content":""},{"line":791,"content":"it('collapses a node with children', () => {"},{"line":792,"content":"const { getByTestId, getByText } = render("}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":801,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'true');","contextBefore":[{"line":797,"content":","},{"line":798,"content":");"},{"line":799,"content":""},{"line":800,"content":"fireEvent.click(getByText('one'));"}],"contextAfter":[{"line":802,"content":"fireEvent.keyDown(document.activeElement, { key: 'Enter' });"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.test.js","line":803,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'false');","contextBefore":[{"line":802,"content":"fireEvent.keyDown(document.activeElement, { key: 'Enter' });"}],"contextAfter":[{"line":804,"content":"});"},{"line":805,"content":"});"},{"line":806,"content":"});"},{"line":807,"content":""}],"matches":["expanded"]}],"material-ui-lab/src/TreeItem/TreeItem.js":[{"file":"material-ui-lab/src/TreeItem/TreeItem.js","line":36,"content":"/* Pseudo-class applied to the root element when expanded. */","contextBefore":[{"line":32,"content":"backgroundColor: 'transparent',"},{"line":33,"content":"},"},{"line":34,"content":"},"},{"line":35,"content":"},"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.js","line":37,"content":"expanded: {},","contextAfter":[{"line":38,"content":"/* Pseudo-class applied to the root element when selected. */"},{"line":39,"content":"selected: {},"},{"line":40,"content":"/* Styles applied to the `role=\"group\"` element. */"},{"line":41,"content":"group: {"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.js","line":54,"content":"iconContainer: {","contextBefore":[{"line":50,"content":"alignItems: 'center',"},{"line":51,"content":"cursor: 'pointer',"},{"line":52,"content":"},"},{"line":53,"content":"/* Styles applied to the tree node icon and collapse/expand icon. */"}],"contextAfter":[{"line":55,"content":"marginRight: 4,"},{"line":56,"content":"width: 15,"},{"line":57,"content":"display: 'flex',"},{"line":58,"content":"flexShrink: 0,"}],"matches":["iconContainer"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.js","line":138,"content":"const expanded = isExpanded ? isExpanded(nodeId) : false;","contextBefore":[{"line":134,"content":""},{"line":135,"content":"let icon = iconProp;"},{"line":136,"content":""},{"line":137,"content":"const expandable = Boolean(Array.isArray(children) ? children.length : children);"}],"contextAfter":[{"line":139,"content":"const focused = isFocused ? isFocused(nodeId) : false;"},{"line":140,"content":"const tabbable = isTabbable ? isTabbable(nodeId) : false;"},{"line":141,"content":"const selected = isSelected ? isSelected(nodeId) : false;"},{"line":142,"content":"const icons = contextIcons || {};"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.js","line":147,"content":"if (!expanded) {","contextBefore":[{"line":143,"content":"const theme = useTheme();"},{"line":144,"content":""},{"line":145,"content":"if (!icon) {"},{"line":146,"content":"if (expandable) {"}],"contextAfter":[{"line":148,"content":"icon = expandIcon || icons.defaultExpandIcon;"},{"line":149,"content":"} else {"},{"line":150,"content":"icon = collapseIcon || icons.defaultCollapseIcon;"},{"line":151,"content":"}"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.js","line":168,"content":"// If already expanded and trying to toggle selection don't close","contextBefore":[{"line":164,"content":"}"},{"line":165,"content":""},{"line":166,"content":"const multiple = multiSelect && (event.shiftKey || event.ctrlKey || event.metaKey);"},{"line":167,"content":""}],"contextAfter":[{"line":169,"content":"if (expandable && !(multiple && isExpanded(nodeId))) {"},{"line":170,"content":"toggleExpansion(event, nodeId);"},{"line":171,"content":"}"},{"line":172,"content":""}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.js","line":200,"content":"if (expanded) {","contextBefore":[{"line":196,"content":"};"},{"line":197,"content":""},{"line":198,"content":"const handleNextArrow = (event) => {"},{"line":199,"content":"if (expandable) {"}],"contextAfter":[{"line":201,"content":"focusNextNode(nodeId);"},{"line":202,"content":"} else {"},{"line":203,"content":"toggleExpansion(event);"},{"line":204,"content":"}"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.js","line":210,"content":"if (expanded) {","contextBefore":[{"line":206,"content":"return true;"},{"line":207,"content":"};"},{"line":208,"content":""},{"line":209,"content":"const handlePreviousArrow = (event) => {"}],"contextAfter":[{"line":211,"content":"toggleExpansion(event, nodeId);"},{"line":212,"content":"return true;"},{"line":213,"content":"}"},{"line":214,"content":""}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.js","line":371,"content":"[classes.expanded]: expanded,","contextBefore":[{"line":367,"content":""},{"line":368,"content":"return ("},{"line":369,"content":"{icon}
+
+","contextBefore":[{"line":385,"content":"onClick={handleClick}"},{"line":386,"content":"onMouseDown={handleMouseDown}"},{"line":387,"content":"ref={contentRef}"},{"line":388,"content":">"}],"contextAfter":[{"line":390,"content":""},{"line":391,"content":"{label}"},{"line":392,"content":""},{"line":393,"content":""}],"matches":["iconContainer"]},{"file":"material-ui-lab/src/TreeItem/TreeItem.js","line":398,"content":"in={expanded}","contextBefore":[{"line":394,"content":"{children && ("},{"line":395,"content":""}],"matches":["expanded"]}],"material-ui-lab/src/TreeView/TreeView.test.js":[{"file":"material-ui-lab/src/TreeView/TreeView.test.js","line":40,"content":"it('should warn when switching from controlled to uncontrolled of the expanded prop', () => {","contextBefore":[{"line":36,"content":"afterEach(() => {"},{"line":37,"content":"consoleErrorMock.reset();"},{"line":38,"content":"});"},{"line":39,"content":""}],"contextAfter":[{"line":41,"content":"const { setProps } = render("}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.test.js","line":42,"content":"","contextBefore":[{"line":41,"content":"const { setProps } = render("}],"contextAfter":[{"line":43,"content":""},{"line":44,"content":","},{"line":45,"content":");"},{"line":46,"content":""}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.test.js","line":47,"content":"setProps({ expanded: undefined });","contextBefore":[{"line":43,"content":""},{"line":44,"content":","},{"line":45,"content":");"},{"line":46,"content":""}],"contextAfter":[{"line":48,"content":"expect(consoleErrorMock.messages()[0]).to.include("}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.test.js","line":49,"content":"'Material-UI: a component is changing the controlled expanded state of TreeView to be uncontrolled.',","contextBefore":[{"line":48,"content":"expect(consoleErrorMock.messages()[0]).to.include("}],"contextAfter":[{"line":50,"content":");"},{"line":51,"content":"});"},{"line":52,"content":""},{"line":53,"content":"it('should warn when switching from controlled to uncontrolled of the selected prop', () => {"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.test.js","line":67,"content":"it('should be able to be controlled with the expanded prop', () => {","contextBefore":[{"line":63,"content":");"},{"line":64,"content":"});"},{"line":65,"content":"});"},{"line":66,"content":""}],"contextAfter":[{"line":68,"content":"function MyComponent() {"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.test.js","line":69,"content":"const [expandedState, setExpandedState] = React.useState([]);","contextBefore":[{"line":68,"content":"function MyComponent() {"}],"contextAfter":[{"line":70,"content":"const handleNodeToggle = (event, nodes) => {"},{"line":71,"content":"setExpandedState(nodes);"},{"line":72,"content":"};"},{"line":73,"content":"return ("}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.test.js","line":74,"content":"","contextBefore":[{"line":70,"content":"const handleNodeToggle = (event, nodes) => {"},{"line":71,"content":"setExpandedState(nodes);"},{"line":72,"content":"};"},{"line":73,"content":"return ("}],"contextAfter":[{"line":75,"content":""},{"line":76,"content":""},{"line":77,"content":""},{"line":78,"content":""}],"matches":["expanded","onNodeToggle"]},{"file":"material-ui-lab/src/TreeView/TreeView.test.js","line":84,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'false');","contextBefore":[{"line":80,"content":"}"},{"line":81,"content":""},{"line":82,"content":"const { getByTestId, getByText } = render();"},{"line":83,"content":""}],"contextAfter":[{"line":85,"content":"fireEvent.click(getByText('one'));"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.test.js","line":86,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'true');","contextBefore":[{"line":85,"content":"fireEvent.click(getByText('one'));"}],"contextAfter":[{"line":87,"content":"fireEvent.click(getByText('one'));"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.test.js","line":88,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'false');","contextBefore":[{"line":87,"content":"fireEvent.click(getByText('one'));"}],"contextAfter":[{"line":89,"content":"fireEvent.keyDown(document.activeElement, { key: '*' });"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.test.js","line":90,"content":"expect(getByTestId('one')).to.have.attribute('aria-expanded', 'true');","contextBefore":[{"line":89,"content":"fireEvent.keyDown(document.activeElement, { key: '*' });"}],"contextAfter":[{"line":91,"content":"});"},{"line":92,"content":""},{"line":93,"content":"it('should be able to be controlled with the selected prop and singleSelect', () => {"},{"line":94,"content":"function MyComponent() {"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.test.js","line":198,"content":"describe('onNodeToggle', () => {","contextBefore":[{"line":194,"content":"fireEvent.click(getByText('Hide'));"},{"line":195,"content":"expect(queryByText('test')).to.equal(null);"},{"line":196,"content":"});"},{"line":197,"content":""}],"contextAfter":[{"line":199,"content":"it('should be called when a parent node is clicked', () => {"},{"line":200,"content":"const handleNodeToggle = spy();"},{"line":201,"content":""},{"line":202,"content":"const { getByText } = render("}],"matches":["onNodeToggle"]},{"file":"material-ui-lab/src/TreeView/TreeView.test.js","line":203,"content":"","contextBefore":[{"line":199,"content":"it('should be called when a parent node is clicked', () => {"},{"line":200,"content":"const handleNodeToggle = spy();"},{"line":201,"content":""},{"line":202,"content":"const { getByText } = render("}],"contextAfter":[{"line":204,"content":""},{"line":205,"content":""},{"line":206,"content":""},{"line":207,"content":","}],"matches":["onNodeToggle"]}],"material-ui-lab/src/TreeView/TreeView.js":[{"file":"material-ui-lab/src/TreeView/TreeView.js","line":52,"content":"expanded: expandedProp,","contextBefore":[{"line":48,"content":"defaultParentIcon,"},{"line":49,"content":"defaultSelected = defaultSelectedDefault,"},{"line":50,"content":"disableSelection = false,"},{"line":51,"content":"multiSelect = false,"}],"contextAfter":[{"line":53,"content":"onNodeSelect,"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.js","line":54,"content":"onNodeToggle,","contextBefore":[{"line":53,"content":"onNodeSelect,"}],"contextAfter":[{"line":55,"content":"selected: selectedProp,"},{"line":56,"content":"...other"},{"line":57,"content":"} = props;"},{"line":58,"content":"const [tabbable, setTabbable] = React.useState(null);"}],"matches":["onNodeToggle"]},{"file":"material-ui-lab/src/TreeView/TreeView.js","line":66,"content":"const [expanded, setExpandedState] = useControlled({","contextBefore":[{"line":62,"content":""},{"line":63,"content":"const firstCharMap = React.useRef({});"},{"line":64,"content":"const visibleNodes = React.useRef([]);"},{"line":65,"content":""}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.js","line":67,"content":"controlled: expandedProp,","contextAfter":[{"line":68,"content":"default: defaultExpanded,"},{"line":69,"content":"name: 'TreeView',"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.js","line":70,"content":"state: 'expanded',","contextBefore":[{"line":68,"content":"default: defaultExpanded,"},{"line":69,"content":"name: 'TreeView',"}],"contextAfter":[{"line":71,"content":"});"},{"line":72,"content":""},{"line":73,"content":"const [selected, setSelectedState] = useControlled({"},{"line":74,"content":"controlled: selectedProp,"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.js","line":84,"content":"(id) => (Array.isArray(expanded) ? expanded.indexOf(id) !== -1 : false),","contextBefore":[{"line":80,"content":"/*"},{"line":81,"content":"* Status Helpers"},{"line":82,"content":"*/"},{"line":83,"content":"const isExpanded = React.useCallback("}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.js","line":85,"content":"[expanded],","contextAfter":[{"line":86,"content":");"},{"line":87,"content":""},{"line":88,"content":"const isSelected = React.useCallback("},{"line":89,"content":"(id) => (Array.isArray(selected) ? selected.indexOf(id) !== -1 : selected === id),"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.js","line":189,"content":"if (expanded.indexOf(value) !== -1) {","contextBefore":[{"line":185,"content":"*/"},{"line":186,"content":""},{"line":187,"content":"const toggleExpansion = (event, value = focusedNodeId) => {"},{"line":188,"content":"let newExpanded;"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.js","line":190,"content":"newExpanded = expanded.filter((id) => id !== value);","contextAfter":[{"line":191,"content":"setTabbable((oldTabbable) => {"},{"line":192,"content":"const map = nodeMap.current[oldTabbable];"},{"line":193,"content":"if (oldTabbable && (map && map.parent ? map.parent.id : null) === value) {"},{"line":194,"content":"return value;"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.js","line":199,"content":"newExpanded = [value, ...expanded];","contextBefore":[{"line":195,"content":"}"},{"line":196,"content":"return oldTabbable;"},{"line":197,"content":"});"},{"line":198,"content":"} else {"}],"contextAfter":[{"line":200,"content":"}"},{"line":201,"content":""}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.js","line":202,"content":"if (onNodeToggle) {","contextBefore":[{"line":200,"content":"}"},{"line":201,"content":""}],"matches":["onNodeToggle"]},{"file":"material-ui-lab/src/TreeView/TreeView.js","line":203,"content":"onNodeToggle(event, newExpanded);","contextAfter":[{"line":204,"content":"}"},{"line":205,"content":""},{"line":206,"content":"setExpandedState(newExpanded);"},{"line":207,"content":"};"}],"matches":["onNodeToggle"]},{"file":"material-ui-lab/src/TreeView/TreeView.js","line":220,"content":"const newExpanded = [...expanded, ...diff];","contextBefore":[{"line":216,"content":"} else {"},{"line":217,"content":"const topLevelNodes = nodeMap.current[-1].children;"},{"line":218,"content":"diff = topLevelNodes.filter((node) => !isExpanded(node));"},{"line":219,"content":"}"}],"contextAfter":[{"line":221,"content":""},{"line":222,"content":"setExpandedState(newExpanded);"},{"line":223,"content":""}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.js","line":224,"content":"if (onNodeToggle) {","contextBefore":[{"line":221,"content":""},{"line":222,"content":"setExpandedState(newExpanded);"},{"line":223,"content":""}],"matches":["onNodeToggle"]},{"file":"material-ui-lab/src/TreeView/TreeView.js","line":225,"content":"onNodeToggle(event, newExpanded);","contextAfter":[{"line":226,"content":"}"},{"line":227,"content":"};"},{"line":228,"content":""},{"line":229,"content":"/*"}],"matches":["onNodeToggle"]},{"file":"material-ui-lab/src/TreeView/TreeView.js","line":497,"content":"}, [expanded, childrenCalculated, isExpanded, children]);","contextBefore":[{"line":493,"content":""},{"line":494,"content":"if (childrenCalculated) {"},{"line":495,"content":"visibleNodes.current = buildVisible(nodeMap.current[-1].children);"},{"line":496,"content":"}"}],"contextAfter":[{"line":498,"content":""},{"line":499,"content":"const noopSelection = () => {"},{"line":500,"content":"return false;"},{"line":501,"content":"};"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.js","line":598,"content":"expanded: PropTypes.arrayOf(PropTypes.string),","contextBefore":[{"line":594,"content":"disableSelection: PropTypes.bool,"},{"line":595,"content":"/**"},{"line":596,"content":"* Expanded node ids. (Controlled)"},{"line":597,"content":"*/"}],"contextAfter":[{"line":599,"content":"/**"},{"line":600,"content":"* If true `ctrl` and `shift` will trigger multiselect."},{"line":601,"content":"*/"},{"line":602,"content":"multiSelect: PropTypes.bool,"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.js","line":612,"content":"* Callback fired when tree items are expanded/collapsed.","contextBefore":[{"line":608,"content":"* this is an array of strings; when false (default) a string."},{"line":609,"content":"*/"},{"line":610,"content":"onNodeSelect: PropTypes.func,"},{"line":611,"content":"/**"}],"contextAfter":[{"line":613,"content":"*"},{"line":614,"content":"* @param {object} event The event source of the callback."}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.js","line":615,"content":"* @param {array} nodeIds The ids of the expanded nodes.","contextBefore":[{"line":613,"content":"*"},{"line":614,"content":"* @param {object} event The event source of the callback."}],"contextAfter":[{"line":616,"content":"*/"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.js","line":617,"content":"onNodeToggle: PropTypes.func,","contextBefore":[{"line":616,"content":"*/"}],"contextAfter":[{"line":618,"content":"/**"},{"line":619,"content":"* Selected node ids. (Controlled)"},{"line":620,"content":"* When `multiSelect` is true this takes an array of strings; when false (default) a string."},{"line":621,"content":"*/"}],"matches":["onNodeToggle"]}],"material-ui-lab/src/TreeView/TreeView.d.ts":[{"file":"material-ui-lab/src/TreeView/TreeView.d.ts","line":35,"content":"expanded?: string[];","contextBefore":[{"line":31,"content":"disableSelection?: boolean;"},{"line":32,"content":"/**"},{"line":33,"content":"* Expanded node ids. (Controlled)"},{"line":34,"content":"*/"}],"contextAfter":[{"line":36,"content":"/**"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.d.ts","line":37,"content":"* Callback fired when tree items are expanded/collapsed.","contextBefore":[{"line":36,"content":"/**"}],"contextAfter":[{"line":38,"content":"*"},{"line":39,"content":"* @param {object} event The event source of the callback."}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.d.ts","line":40,"content":"* @param {array} nodeIds The ids of the expanded nodes.","contextBefore":[{"line":38,"content":"*"},{"line":39,"content":"* @param {object} event The event source of the callback."}],"contextAfter":[{"line":41,"content":"*/"}],"matches":["expanded"]},{"file":"material-ui-lab/src/TreeView/TreeView.d.ts","line":42,"content":"onNodeToggle?: (event: React.ChangeEvent, nodeIds: string[]) => void;","contextBefore":[{"line":41,"content":"*/"}],"contextAfter":[{"line":43,"content":"}"},{"line":44,"content":""},{"line":45,"content":"export interface MultiSelectTreeViewProps extends TreeViewPropsBase {"},{"line":46,"content":"/**"}],"matches":["onNodeToggle"]}]}}
+```
+
+9. **Tool call: run_terminal_command**
+Input:
+```json
+{
+  "commands": [
+    {
+      "command": "/Users/sankanum1/.slingshot/bin/rtk git --no-pager status --short --branch",
+      "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657",
+      "profileName": "zsh",
+      "readTerminalFullOutput": true,
+      "timeoutMs": 30000,
+      "isInteractive": false
+    },
+    {
+      "command": "/Users/sankanum1/.slingshot/bin/rtk git --no-pager rev-parse HEAD",
+      "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657",
+      "profileName": "zsh",
+      "readTerminalFullOutput": true,
+      "timeoutMs": 30000,
+      "isInteractive": false
+    }
+  ],
+  "toolPurpose": "- I want to verify the isolated worktree is clean and exactly at the requested base commit before implementing the fix."
+}
+```
+Output:
+```
+I ran all provided commands and below are the outcomes for each command with their status. Please analyze each output carefully and run the commands again for which you see errors to get their output by correcting the command and other parameters.
+
+=== EXECUTION SUMMARY ===
+Total Commands: 2
+Number of Successful Commands: 2
+Number of Failed Commands: 0
+Number of Timed Out Commands: 0
+========================
+
+╔══════════════════════════════════════════════════════════════════════╗
+║ COMMAND 1 of 2                                                        ║
+╚══════════════════════════════════════════════════════════════════════╝
+Command: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '/Users/sankanum1/.slingshot/bin/rtk git --no-pager status --short --branch'
+Status: SUCCESS
+─────────────────────────────────────────────────────────────────────────
+Output:
+Command success.
+
+--- Full Output ---
+## HEAD (no branch)
+
+__CMD_FINISHED__ 0
+--- End of Full Output ---
+═════════════════════════════════════════════════════════════════════════
+
+╔══════════════════════════════════════════════════════════════════════╗
+║ COMMAND 2 of 2                                                        ║
+╚══════════════════════════════════════════════════════════════════════╝
+Command: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '/Users/sankanum1/.slingshot/bin/rtk git --no-pager rev-parse HEAD'
+Status: SUCCESS
+─────────────────────────────────────────────────────────────────────────
+Output:
+Command success.
+
+--- Full Output ---
+72a477f3ca678afd1c2d03cb05df4d20089c85cf
+__CMD_FINISHED__ 0
+--- End of Full Output ---
+═════════════════════════════════════════════════════════════════════════
+
+```
+
+10. **Tool call: read_file**
+Input:
+```json
+{
+  "fileNames": [
+    {
+      "fileName": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657/packages/material-ui-lab/src/TreeItem/TreeItem.js",
+      "startLine": 1
+    },
+    {
+      "fileName": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657/packages/material-ui-lab/src/TreeItem/TreeItem.d.ts",
+      "startLine": 1
+    },
+    {
+      "fileName": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657/packages/material-ui-lab/src/TreeView/TreeView.js",
+      "startLine": 1
+    },
+    {
+      "fileName": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657/packages/material-ui-lab/src/TreeView/TreeView.d.ts",
+      "startLine": 1
+    },
+    {
+      "fileName": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657/packages/material-ui-lab/src/TreeItem/TreeItem.test.js",
+      "startLine": 120
+    }
+  ],
+  "toolPurpose": "- I want to read the complete TreeItem and TreeView production implementations and declarations, plus the interaction-test section that defines click behavior, before selecting the minimal production-only API change."
+}
+```
+
+11. **Tool call: grep**
+Input:
+```json
+{
+  "pattern": "defaultMuiPrevented|onLabelClick|preventDefault\\(\\).*toggle|event.defaultPrevented",
+  "searchPath": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657/packages",
+  "glob": [
+    "**/*.js",
+    "**/*.d.ts"
+  ],
+  "context": 3,
+  "outputMode": "grouped",
+  "headLimit": 300,
+  "toolPurpose": "- I need to identify existing Material-UI conventions for cancelable internal click behavior and label-specific callbacks before defining the TreeItem API."
+}
+```
+Output:
+```
+{"success":true,"mode":"content","numFiles":8,"numLines":19,"pagination":{"offset":0,"limit":300,"returned":19,"total":19,"hasMore":false},"matchesByFile":{"material-ui-lab/src/Autocomplete/Autocomplete.test.js":[{"file":"material-ui-lab/src/Autocomplete/Autocomplete.test.js","line":321,"content":"if (!event.defaultPrevented && event.key === 'Enter') {","contextBefore":[{"line":318,"content":"{...defaultProps}"},{"line":319,"content":"options={['one', 'two']}"},{"line":320,"content":"onKeyDown={(event) => {"}],"contextAfter":[{"line":322,"content":"handleSubmit();"},{"line":323,"content":"}"},{"line":324,"content":"}}"}],"matches":["event.defaultPrevented"]}],"material-ui/src/ClickAwayListener/ClickAwayListener.js":[{"file":"material-ui/src/ClickAwayListener/ClickAwayListener.js","line":51,"content":"// The handler doesn't take event.defaultPrevented into account:","contextBefore":[{"line":48,"content":"}, []);"},{"line":49,"content":"const handleRef = useForkRef(children.ref, handleOwnRef);"},{"line":50,"content":""}],"contextAfter":[{"line":52,"content":"//"},{"line":53,"content":"// event.preventDefault() is meant to stop default behaviours like"},{"line":54,"content":"// clicking a checkbox to check it, hitting a button to submit a form,"}],"matches":["event.defaultPrevented"]}],"material-ui/src/Modal/Modal.js":[{"file":"material-ui/src/Modal/Modal.js","line":186,"content":"// The handler doesn't take event.defaultPrevented into account:","contextBefore":[{"line":183,"content":"};"},{"line":184,"content":""},{"line":185,"content":"const handleKeyDown = (event) => {"}],"contextAfter":[{"line":187,"content":"//"},{"line":188,"content":"// event.preventDefault() is meant to stop default behaviours like"},{"line":189,"content":"// clicking a checkbox to check it, hitting a button to submit a form,"}],"matches":["event.defaultPrevented"]}],"material-ui/src/Chip/Chip.test.js":[{"file":"material-ui/src/Chip/Chip.test.js","line":365,"content":"const handleKeyDown = spy((event) => event.defaultPrevented);","contextBefore":[{"line":362,"content":"['Backspace', 'Delete'].forEach((key) => {"},{"line":363,"content":"it(`should call onDelete '${key}' is released`, () => {"},{"line":364,"content":"const handleDelete = spy();"}],"contextAfter":[{"line":366,"content":"const { getAllByRole } = render("},{"line":367,"content":" {}} onKeyDown={handleKeyDown} onDelete={handleDelete} />,"},{"line":368,"content":");"}],"matches":["event.defaultPrevented"]},{"file":"material-ui/src/Chip/Chip.test.js","line":385,"content":"const handleKeyDown = spy((event) => event.defaultPrevented);","contextBefore":[{"line":382,"content":"});"},{"line":383,"content":""},{"line":384,"content":"it('should not prevent default on input', () => {"}],"contextAfter":[{"line":386,"content":"const { container } = render(} onKeyDown={handleKeyDown} />);"},{"line":387,"content":"const input = container.querySelector('input');"},{"line":388,"content":"input.focus();"}],"matches":["event.defaultPrevented"]}],"material-ui/src/SwipeableDrawer/SwipeableDrawer.js":[{"file":"material-ui/src/SwipeableDrawer/SwipeableDrawer.js","line":409,"content":"if (event.defaultPrevented) {","contextBefore":[{"line":406,"content":"const handleBodyTouchStart = useEventCallback((event) => {"},{"line":407,"content":"// We are not supposed to handle this touch move."},{"line":408,"content":"// Example of use case: ignore the event if there is a Slider."}],"contextAfter":[{"line":410,"content":"return;"},{"line":411,"content":"}"},{"line":412,"content":""}],"matches":["event.defaultPrevented"]}],"material-ui/src/ButtonBase/ButtonBase.js":[{"file":"material-ui/src/ButtonBase/ButtonBase.js","line":235,"content":"!event.defaultPrevented","contextBefore":[{"line":232,"content":"event.key === ' ' &&"},{"line":233,"content":"rippleRef.current &&"},{"line":234,"content":"focusVisible &&"}],"contextAfter":[{"line":236,"content":") {"},{"line":237,"content":"keydownRef.current = false;"},{"line":238,"content":"event.persist();"}],"matches":["event.defaultPrevented"]},{"file":"material-ui/src/ButtonBase/ButtonBase.js","line":253,"content":"!event.defaultPrevented","contextBefore":[{"line":250,"content":"event.target === event.currentTarget &&"},{"line":251,"content":"isNonNativeButton() &&"},{"line":252,"content":"event.key === ' ' &&"}],"contextAfter":[{"line":254,"content":") {"},{"line":255,"content":"onClick(event);"},{"line":256,"content":"}"}],"matches":["event.defaultPrevented"]}],"material-ui/src/ButtonBase/ButtonBase.test.js":[{"file":"material-ui/src/ButtonBase/ButtonBase.test.js","line":732,"content":"const onKeyDown = spy((event) => event.defaultPrevented);","contextBefore":[{"line":729,"content":""},{"line":730,"content":"describe('keyboard accessibility for non interactive elements', () => {"},{"line":731,"content":"it('does not call onClick when a spacebar is pressed on the element but prevents the default', () => {"}],"matches":["event.defaultPrevented"]},{"file":"material-ui/src/ButtonBase/ButtonBase.test.js","line":733,"content":"const onClickSpy = spy((event) => event.defaultPrevented);","contextAfter":[{"line":734,"content":"const { getByRole } = render("},{"line":735,"content":""},{"line":736,"content":"Hello"}],"matches":["event.defaultPrevented"]},{"file":"material-ui/src/ButtonBase/ButtonBase.test.js","line":752,"content":"const onClickSpy = spy((event) => event.defaultPrevented);","contextBefore":[{"line":749,"content":"});"},{"line":750,"content":""},{"line":751,"content":"it('does call onClick when a spacebar is released on the element', () => {"}],"contextAfter":[{"line":753,"content":"const { getByRole } = render("},{"line":754,"content":""},{"line":755,"content":"Hello"}],"matches":["event.defaultPrevented"]},{"file":"material-ui/src/ButtonBase/ButtonBase.test.js","line":771,"content":"const onClickSpy = spy((event) => event.defaultPrevented);","contextBefore":[{"line":768,"content":"});"},{"line":769,"content":""},{"line":770,"content":"it('does not call onClick when a spacebar is released and the default is prevented', () => {"}],"contextAfter":[{"line":772,"content":"const { getByRole } = render("},{"line":773,"content":" event.defaultPrevented);","contextBefore":[{"line":794,"content":"});"},{"line":795,"content":""},{"line":796,"content":"it('calls onClick when Enter is pressed on the element', () => {"}],"contextAfter":[{"line":798,"content":"const { getByRole } = render("},{"line":799,"content":""},{"line":800,"content":"Hello"}],"matches":["event.defaultPrevented"]},{"file":"material-ui/src/ButtonBase/ButtonBase.test.js","line":816,"content":"const onClickSpy = spy((event) => event.defaultPrevented);","contextBefore":[{"line":813,"content":"});"},{"line":814,"content":""},{"line":815,"content":"it('does not call onClick if Enter was pressed on a child', () => {"}],"contextAfter":[{"line":817,"content":"const onKeyDownSpy = spy();"},{"line":818,"content":"render("},{"line":819,"content":""}],"matches":["event.defaultPrevented"]},{"file":"material-ui/src/ButtonBase/ButtonBase.test.js","line":833,"content":"const onClickSpy = spy((event) => event.defaultPrevented);","contextBefore":[{"line":830,"content":"});"},{"line":831,"content":""},{"line":832,"content":"it('does not call onClick if Space was released on a child', () => {"}],"contextAfter":[{"line":834,"content":"const onKeyUpSpy = spy();"},{"line":835,"content":"render("},{"line":836,"content":""}],"matches":["event.defaultPrevented"]},{"file":"material-ui/src/ButtonBase/ButtonBase.test.js","line":850,"content":"const onClickSpy = spy((event) => event.defaultPrevented);","contextBefore":[{"line":847,"content":"});"},{"line":848,"content":""},{"line":849,"content":"it('prevents default with an anchor and empty href', () => {"}],"contextAfter":[{"line":851,"content":"const { getByRole } = render("},{"line":852,"content":""},{"line":853,"content":"Hello"}],"matches":["event.defaultPrevented"]},{"file":"material-ui/src/ButtonBase/ButtonBase.test.js","line":868,"content":"const onKeyDown = spy((event) => event.defaultPrevented);","contextBefore":[{"line":865,"content":""},{"line":866,"content":"it('should ignore anchors with href', () => {"},{"line":867,"content":"const onClick = spy();"}],"contextAfter":[{"line":869,"content":"const { getByText } = render("},{"line":870,"content":""},{"line":871,"content":"Hello"}],"matches":["event.defaultPrevented"]}],"material-ui/src/Select/Select.test.js":[{"file":"material-ui/src/Select/Select.test.js","line":101,"content":"if (event.defaultPrevented === false) {","contextBefore":[{"line":98,"content":"value=\"\""},{"line":99,"content":"onMouseDown={(event) => {"},{"line":100,"content":"// simulating certain platforms that focus on mousedown"}],"contextAfter":[{"line":102,"content":"event.currentTarget.focus();"},{"line":103,"content":"}"},{"line":104,"content":"}}"}],"matches":["event.defaultPrevented"]},{"file":"material-ui/src/Select/Select.test.js","line":961,"content":"const keyUpSpy = spy((event) => event.defaultPrevented);","contextBefore":[{"line":958,"content":"});"},{"line":959,"content":""},{"line":960,"content":"it('prevents the default when releasing Space on the children', () => {"}],"contextAfter":[{"line":962,"content":"render("},{"line":963,"content":""},{"line":964,"content":""}],"matches":["event.defaultPrevented"]}]}}
+```
+
+12. **Tool call: grep**
+Input:
+```json
+{
+  "pattern": "iconContainer.*onClick|onClick=.*toggle|handleIconClick",
+  "searchPath": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657/packages",
+  "glob": [
+    "**/*.js"
+  ],
+  "context": 3,
+  "outputMode": "grouped",
+  "headLimit": 200,
+  "toolPurpose": "- I need to inspect established patterns for icon-only toggling in existing production components."
+}
+```
+Output:
+```
+{"success":true,"matches":[],"pagination":{"offset":0,"limit":200,"returned":0,"total":0,"hasMore":false},"message":"No matches found for the given pattern","mode":"content","numFiles":0,"numLines":0}
+```
+
+13. **Tool call: run_terminal_command**
+Input:
+```json
+{
+  "commands": [
+    {
+      "command": "/Users/sankanum1/.slingshot/bin/rtk git --no-pager log -1 --format='%H %s'",
+      "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657",
+      "profileName": "zsh",
+      "readTerminalFullOutput": true,
+      "timeoutMs": 30000,
+      "isInteractive": false
+    },
+    {
+      "command": "/Users/sankanum1/.slingshot/bin/rtk ls node_modules/.bin",
+      "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657",
+      "profileName": "zsh",
+      "readTerminalFullOutput": true,
+      "timeoutMs": 30000,
+      "isInteractive": false
+    }
+  ],
+  "toolPurpose": "- I want to confirm the base commit summary and determine whether local test and lint executables are available for offline validation."
+}
+```
+Output:
+```
+I ran all provided commands and below are the outcomes for each command with their status. Please analyze each output carefully and run the commands again for which you see errors to get their output by correcting the command and other parameters.
+
+=== EXECUTION SUMMARY ===
+Total Commands: 2
+Number of Successful Commands: 1
+Number of Failed Commands: 1
+Number of Timed Out Commands: 0
+========================
+
+╔══════════════════════════════════════════════════════════════════════╗
+║ COMMAND 1 of 2                                                        ║
+╚══════════════════════════════════════════════════════════════════════╝
+Command: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '/Users/sankanum1/.slingshot/bin/rtk git --no-pager log -1 --format='"'"'%H %s'"'"''
+Status: SUCCESS
+─────────────────────────────────────────────────────────────────────────
+Output:
+Command success.
+
+--- Full Output ---
+72a477f3ca678afd1c2d03cb05df4d20089c85cf Skip locales in dev
+__CMD_FINISHED__ 0
+--- End of Full Output ---
+═════════════════════════════════════════════════════════════════════════
+
+╔══════════════════════════════════════════════════════════════════════╗
+║ COMMAND 2 of 2                                                        ║
+╚══════════════════════════════════════════════════════════════════════╝
+Command: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '/Users/sankanum1/.slingshot/bin/rtk ls node_modules/.bin'
+Status: ERROR
+─────────────────────────────────────────────────────────────────────────
+Output:
+Command failed with exit code 1.
+
+--- Full Output ---
+ls: node_modules/.bin: No such file or directory
+__CMD_FINISHED__ 1
+--- End of Full Output ---
+═════════════════════════════════════════════════════════════════════════
+
+```
+
+14. **Tool call: edit_file**
+Input:
+```json
+{
+  "operations": [
+    {
+      "filePath": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657/packages/material-ui-lab/src/TreeItem/TreeItem.js",
+      "originalContent": "    label,\n    nodeId,\n    onClick,\n    onFocus,\n    onKeyDown,\n    onMouseDown,\n    TransitionComponent = Collapse,\n    TransitionProps,\n    ...other\n  } = props;",
+      "newContent": "    label,\n    nodeId,\n    onClick,\n    onFocus,\n    onKeyDown,\n    onLabelClick,\n    onMouseDown,\n    TransitionComponent = Collapse,\n    TransitionProps,\n    ...other\n  } = props;"
+    },
+    {
+      "filePath": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657/packages/material-ui-lab/src/TreeItem/TreeItem.js",
+      "originalContent": "    const multiple = multiSelect && (event.shiftKey || event.ctrlKey || event.metaKey);\n\n    // If already expanded and trying to toggle selection don't close\n    if (expandable && !(multiple && isExpanded(nodeId))) {\n      toggleExpansion(event, nodeId);\n    }\n\n    if (multiple) {\n      if (event.shiftKey) {\n        selectRange(event, { end: nodeId });\n      } else {\n        selectNode(event, nodeId, true);\n      }\n    } else {\n      selectNode(event, nodeId);\n    }\n\n    if (onClick) {\n      onClick(event);\n    }\n  };\n\n  const handleMouseDown = (event) => {\n    if (event.shiftKey || event.ctrlKey || event.metaKey) {\n      event.preventDefault();\n    }\n\n    if (onMouseDown) {\n      onMouseDown(event);\n    }\n  };",
+      "newContent": "    const multiple = multiSelect && (event.shiftKey || event.ctrlKey || event.metaKey);\n\n    // If already expanded and trying to toggle selection don't close\n    if (expandable && !event.defaultPrevented && !(multiple && isExpanded(nodeId))) {\n      toggleExpansion(event, nodeId);\n    }\n\n    if (multiple) {\n      if (event.shiftKey) {\n        selectRange(event, { end: nodeId });\n      } else {\n        selectNode(event, nodeId, true);\n      }\n    } else {\n      selectNode(event, nodeId);\n    }\n\n    if (onClick) {\n      onClick(event);\n    }\n  };\n\n  const handleLabelClick = (event) => {\n    if (onLabelClick) {\n      onLabelClick(event);\n    }\n  };\n\n  const handleMouseDown = (event) => {\n    if (event.shiftKey || event.ctrlKey || event.metaKey) {\n      event.preventDefault();\n    }\n\n    if (onMouseDown) {\n      onMouseDown(event);\n    }\n  };"
+    },
+    {
+      "filePath": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657/packages/material-ui-lab/src/TreeItem/TreeItem.js",
+      "originalContent": "        onMouseDown={handleMouseDown}\n        ref={contentRef}\n      >\n        
+
+💭 **Agent Thoughts:**
+> {icon}\n        \n          {label}\n        \n      \n      {children && (\n        \n        {icon}\n        \n          {label}\n        \n      \n      {children && (\n        ;\n  /**\n   * Props applied to the [`Transition`](http://reactcommunity.org/react-transition-group/transition#Transition-props) element.\n   */\n  TransitionProps?: TransitionProps;\n}",
+>       "newContent": "  /**\n   * The id of the node.\n   */\n  nodeId: string;\n  /**\n   * Callback fired when the label is clicked.\n   */\n  onLabelClick?: React.MouseEventHandler;\n  /**\n   * The component used for the transition.\n   * [Follow this guide](/components/transitions/#transitioncomponent-prop) to learn more about the requirements for this component.\n   */\n  TransitionComponent?: React.ComponentType;\n  /**\n   * Props applied to the [`Transition`](http://reactcommunity.org/react-transition-group/transition#Transition-props) element.\n   */\n  TransitionProps?: TransitionProps;\n}"
+>     }
+>   ],
+>   "toolPurpose": "- I want to add a label-specific click callback and make expansion cancelable with `preventDefault()`, enabling label clicks to select/show node details while reserving expansion for the icon and preserving existing default and keyboard behavior.",
+>   "references": {
+>     "hasJiraContext": false,
+>     "hasFigmaContext": false
+>   }
+> }
+> ```
+> 
+> 15. **Tool call: read_file**
+> Input:
+> ```json
+> {
+>   "fileNames": [
+>     {
+>       "fileName": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657/packages/material-ui-lab/src/TreeItem/TreeItem.js",
+>       "startLine": 85
+>     },
+>     {
+>       "fileName": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657/packages/material-ui-lab/src/TreeItem/TreeItem.d.ts",
+>       "startLine": 1
+>     }
+>   ],
+>   "toolPurpose": "- I want to verify the edited production code and declaration in full context, including imports, handlers, JSX wiring, and public typing."
+> }
+> ```
+> 
+> 16. **Tool call: run_terminal_command**
+> Input:
+> ```json
+> {
+>   "commands": [
+>     {
+>       "command": "/Users/sankanum1/.slingshot/bin/rtk git --no-pager diff --check",
+>       "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657",
+>       "profileName": "zsh",
+>       "readTerminalFullOutput": true,
+>       "timeoutMs": 30000,
+>       "isInteractive": false
+>     },
+>     {
+>       "command": "/Users/sankanum1/.slingshot/bin/rtk git --no-pager diff --stat",
+>       "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657",
+>       "profileName": "zsh",
+>       "readTerminalFullOutput": true,
+>       "timeoutMs": 30000,
+>       "isInteractive": false
+>     },
+>     {
+>       "command": "/Users/sankanum1/.slingshot/bin/rtk node --check packages/material-ui-lab/src/TreeItem/TreeItem.js",
+>       "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657",
+>       "profileName": "zsh",
+>       "readTerminalFullOutput": true,
+>       "timeoutMs": 30000,
+>       "isInteractive": false
+>     }
+>   ],
+>   "toolPurpose": "- I want to run lightweight local quality checks for whitespace, diff scope, and JavaScript syntax since repository dependencies are not installed."
+> }
+> ```
+> Output:
+> ```
+> I ran all provided commands and below are the outcomes for each command with their status. Please analyze each output carefully and run the commands again for which you see errors to get their output by correcting the command and other parameters.
+> 
+> === EXECUTION SUMMARY ===
+> Total Commands: 3
+> Number of Successful Commands: 2
+> Number of Failed Commands: 1
+> Number of Timed Out Commands: 0
+> ========================
+> 
+> ╔══════════════════════════════════════════════════════════════════════╗
+> ║ COMMAND 1 of 3                                                        ║
+> ╚══════════════════════════════════════════════════════════════════════╝
+> Command: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '/Users/sankanum1/.slingshot/bin/rtk git --no-pager diff --check'
+> Status: SUCCESS
+> ─────────────────────────────────────────────────────────────────────────
+> Output:
+> Command success.
+> 
+> --- Full Output ---
+> __CMD_FINISHED__ 0
+> --- End of Full Output ---
+> ═════════════════════════════════════════════════════════════════════════
+> 
+> ╔══════════════════════════════════════════════════════════════════════╗
+> ║ COMMAND 2 of 3                                                        ║
+> ╚══════════════════════════════════════════════════════════════════════╝
+> Command: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '/Users/sankanum1/.slingshot/bin/rtk git --no-pager diff --stat'
+> Status: SUCCESS
+> ─────────────────────────────────────────────────────────────────────────
+> Output:
+> Command success.
+> 
+> --- Full Output ---
+> packages/material-ui-lab/src/TreeItem/TreeItem.d.ts |  4 ++++
+>  packages/material-ui-lab/src/TreeItem/TreeItem.js   | 15 +++++++++++++--
+>  2 files changed, 17 insertions(+), 2 deletions(-)
+> __CMD_FINISHED__ 0
+> --- End of Full Output ---
+> ═════════════════════════════════════════════════════════════════════════
+> 
+> ╔══════════════════════════════════════════════════════════════════════╗
+> ║ COMMAND 3 of 3                                                        ║
+> ╚══════════════════════════════════════════════════════════════════════╝
+> Command: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '/Users/sankanum1/.slingshot/bin/rtk node --check packages/material-ui-lab/src/TreeItem/TreeItem.js'
+> Status: ERROR
+> ─────────────────────────────────────────────────────────────────────────
+> Output:
+> Command failed with exit code 1.
+> 
+> --- Full Output ---
+> /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657/packages/material-ui-lab/src/TreeItem/TreeItem.js:376
+>     ;","contextBefore":[{"line":32,"content":"* Callback fired when the label is clicked."},{"line":33,"content":"*/"}],"contextAfter":[{"line":35,"content":"/**"},{"line":36,"content":"* The component used for the transition."}],"matches":["onLabelClick?: React.MouseEventHandler"]}]}}
+> ```
+> 
+> 18. **Tool call: grep**
+> Input:
+> ```json
+> {
+>   "pattern": "React\\.MouseEvent",
+>   "searchPath": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657/packages",
+>   "glob": [
+>     "**/*.d.ts"
+>   ],
+>   "context": 1,
+>   "outputMode": "grouped",
+>   "headLimit": 200,
+>   "toolPurpose": "- I need to compare all local public mouse-event callback types and match the established declaration style."
+> }
+> ```
+> Output:
+> ```
+> {"success":true,"mode":"content","numFiles":6,"numLines":7,"pagination":{"offset":0,"limit":200,"returned":7,"total":7,"hasMore":false},"matchesByFile":{"material-ui-lab/src/TreeItem/TreeItem.d.ts":[{"file":"material-ui-lab/src/TreeItem/TreeItem.d.ts","line":34,"content":"onLabelClick?: React.MouseEventHandler;","contextBefore":[{"line":33,"content":"*/"}],"contextAfter":[{"line":35,"content":"/**"}],"matches":["React.MouseEvent"]}],"material-ui-lab/src/ToggleButtonGroup/ToggleButtonGroup.d.ts":[{"file":"material-ui-lab/src/ToggleButtonGroup/ToggleButtonGroup.d.ts","line":27,"content":"onChange?: (event: React.MouseEvent, value: any) => void;","contextBefore":[{"line":26,"content":"*/"}],"contextAfter":[{"line":28,"content":"/**"}],"matches":["React.MouseEvent"]}],"material-ui/src/ClickAwayListener/ClickAwayListener.d.ts":[{"file":"material-ui/src/ClickAwayListener/ClickAwayListener.d.ts","line":19,"content":"onClickAway: (event: React.MouseEvent) => void;","contextBefore":[{"line":18,"content":"*/"}],"contextAfter":[{"line":20,"content":"/**"}],"matches":["React.MouseEvent"]}],"material-ui/src/Snackbar/Snackbar.d.ts":[{"file":"material-ui/src/Snackbar/Snackbar.d.ts","line":97,"content":"onMouseEnter?: React.MouseEventHandler;","contextBefore":[{"line":96,"content":"onExiting?: TransitionHandlerProps['onExiting'];"}],"matches":["React.MouseEvent"]},{"file":"material-ui/src/Snackbar/Snackbar.d.ts","line":98,"content":"onMouseLeave?: React.MouseEventHandler;","contextAfter":[{"line":99,"content":"/**"}],"matches":["React.MouseEvent"]}],"material-ui/src/TablePagination/TablePaginationActions.d.ts":[{"file":"material-ui/src/TablePagination/TablePaginationActions.d.ts","line":8,"content":"onChangePage: (event: React.MouseEvent | null, page: number) => void;","contextBefore":[{"line":7,"content":"nextIconButtonProps?: Partial;"}],"contextAfter":[{"line":9,"content":"page: number;"}],"matches":["React.MouseEvent"]}],"material-ui/src/TablePagination/TablePagination.d.ts":[{"file":"material-ui/src/TablePagination/TablePagination.d.ts","line":25,"content":"onChangePage: (event: React.MouseEvent | null, page: number) => void;","contextBefore":[{"line":24,"content":"nextIconButtonProps?: Partial;"}],"contextAfter":[{"line":26,"content":"onChangeRowsPerPage?: React.ChangeEventHandler;"}],"matches":["React.MouseEvent"]}]}}
+> ```
+> 
+> 19. **Tool call: run_terminal_command**
+> Input:
+> ```json
+> {
+>   "commands": [
+>     {
+>       "command": "/Users/sankanum1/.slingshot/bin/rtk git --no-pager diff --no-compact > /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/swe-results/mui__material-ui-20657.patch",
+>       "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657",
+>       "profileName": "zsh",
+>       "readTerminalFullOutput": false,
+>       "timeoutMs": 30000,
+>       "isInteractive": false
+>     }
+>   ],
+>   "toolPurpose": "- I want to generate the requested patch artifact from the complete uncommitted Git diff at the exact benchmark output path."
+> }
+> ```
+> Output:
+> ```
+> I ran all provided commands and below are the outcomes for each command with their status. Please analyze each output carefully and run the commands again for which you see errors to get their output by correcting the command and other parameters.
+> 
+> === EXECUTION SUMMARY ===
+> Total Commands: 1
+> Number of Successful Commands: 1
+> Number of Failed Commands: 0
+> Number of Timed Out Commands: 0
+> ========================
+> 
+> ╔══════════════════════════════════════════════════════════════════════╗
+> ║ COMMAND 1 of 1                                                        ║
+> ╚══════════════════════════════════════════════════════════════════════╝
+> Command: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '/Users/sankanum1/.slingshot/bin/rtk git --no-pager diff --no-compact > /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/swe-results/mui__material-ui-20657.patch'
+> Status: SUCCESS
+> ─────────────────────────────────────────────────────────────────────────
+> Output:
+> Command success.
+> 
+> --- Output (last 1 lines, 18 chars) ---
+> __CMD_FINISHED__ 0
+> --- End of Output ---
+> ═════════════════════════════════════════════════════════════════════════
+> 
+> 
+> ```
+> 
+> 20. **Tool call: run_terminal_command**
+> Input:
+> ```json
+> {
+>   "commands": [
+>     {
+>       "command": "/Users/sankanum1/.slingshot/bin/rtk cat /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/swe-results/mui__material-ui-20657.patch",
+>       "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657",
+>       "profileName": "zsh",
+>       "readTerminalFullOutput": true,
+>       "timeoutMs": 30000,
+>       "isInteractive": false
+>     },
+>     {
+>       "command": "/Users/sankanum1/.slingshot/bin/rtk grep '^diff --git\\|^+++ b/' /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/swe-results/mui__material-ui-20657.patch",
+>       "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657",
+>       "profileName": "zsh",
+>       "readTerminalFullOutput": true,
+>       "timeoutMs": 30000,
+>       "isInteractive": false
+>     },
+>     {
+>       "command": "/Users/sankanum1/.slingshot/bin/rtk git apply --check /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/swe-results/mui__material-ui-20657.patch",
+>       "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657",
+>       "profileName": "zsh",
+>       "readTerminalFullOutput": true,
+>       "timeoutMs": 30000,
+>       "isInteractive": false
+>     },
+>     {
+>       "command": "/Users/sankanum1/.slingshot/bin/rtk git --no-pager diff --name-only",
+>       "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657",
+>       "profileName": "zsh",
+>       "readTerminalFullOutput": true,
+>       "timeoutMs": 30000,
+>       "isInteractive": false
+>     }
+>   ],
+>   "toolPurpose": "- I want to inspect the complete generated patch, verify its file headers contain only production files, confirm it applies cleanly, and compare its scope with the working-tree diff."
+> }
+> ```
+> Output:
+> ```
+> I ran all provided commands and below are the outcomes for each command with their status. Please analyze each output carefully and run the commands again for which you see errors to get their output by correcting the command and other parameters.
+> 
+> === EXECUTION SUMMARY ===
+> Total Commands: 4
+> Number of Successful Commands: 3
+> Number of Failed Commands: 1
+> Number of Timed Out Commands: 0
+> ========================
+> 
+> ╔══════════════════════════════════════════════════════════════════════╗
+> ║ COMMAND 1 of 4                                                        ║
+> ╚══════════════════════════════════════════════════════════════════════╝
+> Command: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '/Users/sankanum1/.slingshot/bin/rtk cat /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/swe-results/mui__material-ui-20657.patch'
+> Status: SUCCESS
+> ─────────────────────────────────────────────────────────────────────────
+> Output:
+> Command success.
+> 
+> --- Full Output ---
+> diff --git a/packages/material-ui-lab/src/TreeItem/TreeItem.d.ts b/packages/material-ui-lab/src/TreeItem/TreeItem.d.ts
+> index a5598cb..a35ee43 100644
+> --- a/packages/material-ui-lab/src/TreeItem/TreeItem.d.ts
+> +++ b/packages/material-ui-lab/src/TreeItem/TreeItem.d.ts
+> @@ -28,6 +28,10 @@ export interface TreeItemProps
+>     * The id of the node.
+>     */
+>    nodeId: string;
+> +  /**
+> +   * Callback fired when the label is clicked.
+> +   */
+> +  onLabelClick?: React.MouseEventHandler;
+>    /**
+>     * The component used for the transition.
+>     * [Follow this guide](/components/transitions/#transitioncomponent-prop) to learn more about the requirements for this component.
+> diff --git a/packages/material-ui-lab/src/TreeItem/TreeItem.js b/packages/material-ui-lab/src/TreeItem/TreeItem.js
+> index 6b29a4c..a94f800 100644
+> --- a/packages/material-ui-lab/src/TreeItem/TreeItem.js
+> +++ b/packages/material-ui-lab/src/TreeItem/TreeItem.js
+> @@ -94,6 +94,7 @@ const TreeItem = React.forwardRef(function TreeItem(props, ref) {
+>      onClick,
+>      onFocus,
+>      onKeyDown,
+> +    onLabelClick,
+>      onMouseDown,
+>      TransitionComponent = Collapse,
+>      TransitionProps,
+> @@ -166,7 +167,7 @@ const TreeItem = React.forwardRef(function TreeItem(props, ref) {
+>      const multiple = multiSelect && (event.shiftKey || event.ctrlKey || event.metaKey);
+>  
+>      // If already expanded and trying to toggle selection don't close
+> -    if (expandable && !(multiple && isExpanded(nodeId))) {
+> +    if (expandable && !event.defaultPrevented && !(multiple && isExpanded(nodeId))) {
+>        toggleExpansion(event, nodeId);
+>      }
+>  
+> @@ -185,6 +186,12 @@ const TreeItem = React.forwardRef(function TreeItem(props, ref) {
+>      }
+>    };
+>  
+> +  const handleLabelClick = (event) => {
+> +    if (onLabelClick) {
+> +      onLabelClick(event);
+> +    }
+> +  };
+> +
+>    const handleMouseDown = (event) => {
+>      if (event.shiftKey || event.ctrlKey || event.metaKey) {
+>        event.preventDefault();
+> @@ -387,7 +394,7 @@ const TreeItem = React.forwardRef(function TreeItem(props, ref) {
+>          ref={contentRef}
+>        >
+>          {icon}
+
+-        
++        
+           {label}
+
+@@ -461,6 +468,10 @@ TreeItem.propTypes = {
+    * @ignore
+    */
+   onKeyDown: PropTypes.func,
++  /**
++   * Callback fired when the label is clicked.
++   */
++  onLabelClick: PropTypes.func,
+   /**
+    * @ignore
+    */
+__CMD_FINISHED__ 0
+--- End of Full Output ---
+═════════════════════════════════════════════════════════════════════════
+
+╔══════════════════════════════════════════════════════════════════════╗
+║ COMMAND 2 of 4                                                        ║
+╚══════════════════════════════════════════════════════════════════════╝
+Command: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '/Users/sankanum1/.slingshot/bin/rtk grep '"'"'^diff --git\|^+++ b/'"'"' /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/swe-results/mui__material-ui-20657.patch'
+Status: SUCCESS
+─────────────────────────────────────────────────────────────────────────
+Output:
+Command success.
+
+--- Full Output ---
+diff --git a/packages/material-ui-lab/src/TreeItem/TreeItem.d.ts b/packages/material-ui-lab/src/TreeItem/TreeItem.d.ts
++++ b/packages/material-ui-lab/src/TreeItem/TreeItem.d.ts
+diff --git a/packages/material-ui-lab/src/TreeItem/TreeItem.js b/packages/material-ui-lab/src/TreeItem/TreeItem.js
++++ b/packages/material-ui-lab/src/TreeItem/TreeItem.js
+__CMD_FINISHED__ 0
+--- End of Full Output ---
+═════════════════════════════════════════════════════════════════════════
+
+╔══════════════════════════════════════════════════════════════════════╗
+║ COMMAND 3 of 4                                                        ║
+╚══════════════════════════════════════════════════════════════════════╝
+Command: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '/Users/sankanum1/.slingshot/bin/rtk git apply --check /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/swe-results/mui__material-ui-20657.patch'
+Status: ERROR
+─────────────────────────────────────────────────────────────────────────
+Output:
+Command failed with exit code 1.
+
+--- Full Output ---
+error: patch failed: packages/material-ui-lab/src/TreeItem/TreeItem.d.ts:28
+error: packages/material-ui-lab/src/TreeItem/TreeItem.d.ts: patch does not apply
+error: patch failed: packages/material-ui-lab/src/TreeItem/TreeItem.js:94
+error: packages/material-ui-lab/src/TreeItem/TreeItem.js: patch does not apply
+__CMD_FINISHED__ 1
+--- End of Full Output ---
+═════════════════════════════════════════════════════════════════════════
+
+╔══════════════════════════════════════════════════════════════════════╗
+║ COMMAND 4 of 4                                                        ║
+╚══════════════════════════════════════════════════════════════════════╝
+Command: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '/Users/sankanum1/.slingshot/bin/rtk git --no-pager diff --name-only'
+Status: SUCCESS
+─────────────────────────────────────────────────────────────────────────
+Output:
+Command success.
+
+--- Full Output ---
+packages/material-ui-lab/src/TreeItem/TreeItem.d.ts
+packages/material-ui-lab/src/TreeItem/TreeItem.js
+
+Changes:
+
+__CMD_FINISHED__ 0
+--- End of Full Output ---
+═════════════════════════════════════════════════════════════════════════
+
+```
+
+21. **Tool call: grep**
+Input:
+```json
+{
+  "pattern": "\"test[^\\\"]*\"|\"lint[^\\\"]*\"|\"typescript[^\\\"]*\"|\"proptypes[^\\\"]*\"",
+  "searchPath": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657/package.json",
+  "context": 0,
+  "outputMode": "matches",
+  "headLimit": 100,
+  "toolPurpose": "- I need to identify the repository's exact local quality-gate scripts before attempting validation without installed dependencies."
+}
+```
+Output:
+```
+{"success":false,"error":"Search failed","details":"spawn ENOTDIR","code":"ENOTDIR","context":"Error occurred while searching: /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657/package.json"}
+```
+
+22. **Tool call: read_file**
+Input:
+```json
+{
+  "fileNames": [
+    {
+      "fileName": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657/package.json",
+      "startLine": 1
+    }
+  ],
+  "toolPurpose": "- I want to inspect package scripts and tool versions so I can run the smallest relevant offline validation command accurately."
+}
+```
+Output:
+```
+
+File successfully read, file name package.json with file path: enc_file_sovfhn/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657/package.json
+
+**File Read Information:**
+- Lines read: 1 to 186 (186 lines)
+- Total lines in file: 186
+- Remaining lines: 0
+
+Content:
+{
+  "version": "4.9.11",
+  "private": true,
+  "scripts": {
+    "proptypes": "ts-node --skip-project ./scripts/generateProptypes.ts",
+    "deduplicate": "node scripts/deduplicate.js",
+    "argos": "argos upload test/regressions/screenshots/chrome --token $ARGOS_TOKEN",
+    "build:codesandbox": "lerna run --parallel --scope \"@material-ui/*\" build",
+    "docs:api": "rimraf ./docs/pages/api-docs && cross-env BABEL_ENV=test __NEXT_EXPORT_TRAILING_SLASH=true babel-node ./docs/scripts/buildApi.js ./packages/material-ui/src ./docs/pages/api-docs && cross-env BABEL_ENV=test __NEXT_EXPORT_TRAILING_SLASH=true babel-node ./docs/scripts/buildApi.js ./packages/material-ui-lab/src ./docs/pages/api-docs",
+    "docs:build": "yarn workspace docs build",
+    "docs:build-sw": "yarn workspace docs build-sw",
+    "docs:build-color-preview": "babel-node scripts/buildColorTypes",
+    "docs:deploy": "yarn workspace docs deploy",
+    "docs:dev": "yarn workspace docs dev",
+    "docs:export": "yarn workspace docs export",
+    "docs:icons": "yarn workspace docs icons",
+    "docs:size-why": "cross-env DOCS_STATS_ENABLED=true yarn docs:build",
+    "docs:start": "yarn workspace docs start",
+    "docs:i18n": "cross-env BABEL_ENV=test babel-node ./docs/scripts/i18n.js",
+    "docs:typescript": "yarn workspace docs typescript:transpile:dev",
+    "docs:typescript:check": "yarn workspace docs typescript",
+    "docs:typescript:formatted": "yarn workspace docs typescript:transpile",
+    "docs:mdicons:synonyms": "babel-node --config-file ./babel.config.js ./docs/scripts/updateIconSynonyms",
+    "framer:build": "yarn workspace framer build",
+    "jsonlint": "node scripts/jsonlint.js",
+    "lint": "eslint . --cache --report-unused-disable-directives",
+    "lint:ci": "eslint . --report-unused-disable-directives",
+    "lint:fix": "eslint . --cache --fix",
+    "prettier": "node ./scripts/prettier.js",
+    "prettier:all": "node ./scripts/prettier.js write",
+    "size:snapshot": "node scripts/sizeSnapshot/create",
+    "size:why": "size-limit --why packages/material-ui/build/index.js",
+    "start": "yarn docs:dev",
+    "test": "yarn lint && yarn typescript && yarn test:coverage",
+    "test:coverage": "cross-env NODE_ENV=test BABEL_ENV=coverage nyc mocha 'packages/**/*.test.js' 'docs/**/*.test.js' --exclude '**/node_modules/**' && nyc report -r lcovonly",
+    "test:coverage:html": "cross-env NODE_ENV=test BABEL_ENV=coverage nyc mocha 'packages/**/**/*.test.js' --exclude '**/node_modules/**' && nyc report --reporter=html",
+    "test:karma": "cross-env NODE_ENV=test karma start test/karma.conf.js",
+    "test:regressions": "yarn test:regressions:build && rimraf test/regressions/screenshots/chrome/* && vrtest run --config test/vrtest.config.js --record",
+    "test:regressions:build": "webpack --config test/regressions/webpack.config.js",
+    "test:umd": "node packages/material-ui/test/umd/run.js",
+    "test:unit": "cross-env NODE_ENV=test mocha 'packages/**/*.test.js' 'docs/**/*.test.js' 'scripts/**/*.test.js' --exclude '**/node_modules/**'",
+    "test:watch": "yarn test:unit --watch",
+    "typescript": "lerna run typescript --parallel"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.8.4",
+    "@babel/core": "^7.9.0",
+    "@babel/node": "^7.8.7",
+    "@babel/plugin-proposal-class-properties": "^7.8.3",
+    "@babel/plugin-proposal-object-rest-spread": "^7.9.0",
+    "@babel/plugin-transform-object-assign": "^7.8.3",
+    "@babel/plugin-transform-react-constant-elements": "^7.9.0",
+    "@babel/plugin-transform-runtime": "^7.9.0",
+    "@babel/preset-env": "^7.9.0",
+    "@babel/preset-react": "^7.9.1",
+    "@babel/register": "^7.9.0",
+    "@rollup/plugin-replace": "^2.3.1",
+    "@testing-library/dom": "^7.0.3",
+    "@testing-library/react": "^10.0.1",
+    "@testing-library/react-hooks": "3.2.1",
+    "@types/chai": "^4.2.3",
+    "@types/chai-dom": "^0.0.9",
+    "@types/enzyme": "^3.10.3",
+    "@types/fs-extra": "^8.0.0",
+    "@types/glob": "^7.1.1",
+    "@types/jsdom": "^16.1.0",
+    "@types/lodash": "^4.14.138",
+    "@types/mocha": "^7.0.1",
+    "@types/prettier": "^2.0.0",
+    "@types/react": "^16.9.3",
+    "@types/sinon": "^9.0.0",
+    "argos-cli": "^0.1.2",
+    "babel-core": "^7.0.0-bridge.0",
+    "babel-eslint": "^10.0.3",
+    "babel-loader": "^8.0.0",
+    "babel-plugin-istanbul": "^6.0.0",
+    "babel-plugin-module-resolver": "^4.0.0",
+    "babel-plugin-optimize-clsx": "^2.3.0",
+    "babel-plugin-react-remove-properties": "^0.3.0",
+    "babel-plugin-tester": "^9.0.0",
+    "babel-plugin-transform-dev-warning": "^0.1.0",
+    "babel-plugin-transform-react-remove-prop-types": "^0.4.21",
+    "chai": "^4.1.2",
+    "chai-dom": "^1.8.1",
+    "chalk": "^4.0.0",
+    "compression-webpack-plugin": "^3.0.0",
+    "confusing-browser-globals": "^1.0.9",
+    "core-js": "^2.6.11",
+    "cross-env": "^7.0.0",
+    "danger": "^10.0.0",
+    "dom-accessibility-api": "^0.4.3",
+    "dtslint": "^3.2.0",
+    "enzyme": "^3.9.0",
+    "enzyme-adapter-react-16": "^1.14.0",
+    "eslint": "^6.8.0",
+    "eslint-config-airbnb": "^18.1.0",
+    "eslint-config-prettier": "^6.2.0",
+    "eslint-import-resolver-webpack": "^0.12.0",
+    "eslint-plugin-babel": "^5.3.0",
+    "eslint-plugin-import": "^2.18.2",
+    "eslint-plugin-jsx-a11y": "^6.2.3",
+    "eslint-plugin-mocha": "^6.1.1",
+    "eslint-plugin-react": "^7.14.3",
+    "eslint-plugin-react-hooks": "^2.1.1",
+    "expect-puppeteer": "^4.3.0",
+    "format-util": "^1.0.5",
+    "fs-extra": "^9.0.0",
+    "glob": "^7.1.2",
+    "glob-gitignore": "^1.0.11",
+    "jsdom": "^16.0.0",
+    "karma": "^5.0.1",
+    "karma-browserstack-launcher": "~1.4.0",
+    "karma-chrome-launcher": "^3.0.0",
+    "karma-mocha": "^2.0.0",
+    "karma-mocha-reporter": "^2.2.5",
+    "karma-sourcemap-loader": "^0.3.7",
+    "karma-webpack": "^4.0.2",
+    "lerna": "^3.16.4",
+    "lodash": "^4.17.15",
+    "mocha": "^7.0.0",
+    "node-fetch": "^ 2.6.0",
+    "nyc": "^15.0.0",
+    "prettier": "^2.0.1",
+    "pretty-bytes": "^5.3.0",
+    "pretty-format-v24": "npm:pretty-format@24",
+    "prop-types": "^15.7.2",
+    "puppeteer": "^3.0.0",
+    "react": "^16.13.0",
+    "react-dom": "^16.13.0",
+    "react-test-renderer": "^16.13.0",
+    "remark": "^12.0.0",
+    "rimraf": "^3.0.0",
+    "rollup": "^1.21.4",
+    "rollup-plugin-babel": "^4.3.3",
+    "rollup-plugin-commonjs": "^10.1.0",
+    "rollup-plugin-node-globals": "^1.4.0",
+    "rollup-plugin-node-resolve": "^5.2.0",
+    "rollup-plugin-size-snapshot": "^0.11.0",
+    "rollup-plugin-terser": "^5.1.1",
+    "sinon": "^9.0.0",
+    "size-limit": "^0.21.0",
+    "ts-node": "^8.3.0",
+    "tslint": "5.14.0",
+    "typescript": "^3.8.2",
+    "typescript-to-proptypes": "^1.5.0",
+    "unist-util-visit": "^2.0.2",
+    "vrtest-mui": "^0.3.3",
+    "webpack": "^4.41.0",
+    "webpack-cli": "^3.3.9",
+    "yargs": "^15.2.0",
+    "yarn-deduplicate": "^2.0.0"
+  },
+  "resolutions": {
+    "**/@babel/core": "^7.9.0",
+    "**/@babel/plugin-proposal-class-properties": "^7.8.3",
+    "**/@babel/plugin-proposal-object-rest-spread": "^7.9.0",
+    "**/@babel/plugin-proposal-nullish-coalescing-operator": "^7.8.3",
+    "**/@babel/plugin-proposal-optional-chaining": "^7.8.3",
+    "**/@babel/plugin-transform-destructuring": "npm:@minh.nguyen/plugin-transform-destructuring@^7.5.2",
+    "**/@babel/plugin-transform-runtime": "^7.9.0",
+    "**/@babel/preset-env": "^7.9.0",
+    "**/@babel/preset-react": "^7.9.0",
+    "**/@babel/runtime": "^7.8.4",
+    "**/@babel/types": "^7.8.6",
+    "**/hoist-non-react-statics": "^3.3.2",
+    "**/next/terser": "^4.1.2"
+  },
+  "nyc": {
+    "include": [
+      "packages/material-ui/src/**/*.js",
+      "packages/material-ui-utils/src/**/*.js",
+      "packages/material-ui-styles/src/**/*.js"
+    ],
+    "exclude": [
+      "**/*.test.js"
+    ],
+    "sourceMap": false,
+    "instrument": false
+  },
+  "workspaces": [
+    "packages/*",
+    "docs",
+    "framer"
+  ]
+}
+
+```
+
+23. **Tool call: run_terminal_command**
+Input:
+```json
+{
+  "commands": [
+    {
+      "command": "/Users/sankanum1/.slingshot/bin/rtk yarn test:unit --grep TreeItem",
+      "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657",
+      "profileName": "zsh",
+      "readTerminalFullOutput": false,
+      "timeoutMs": 120000,
+      "isInteractive": false
+    },
+    {
+      "command": "/Users/sankanum1/.slingshot/bin/rtk yarn eslint packages/material-ui-lab/src/TreeItem/TreeItem.js",
+      "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657",
+      "profileName": "zsh",
+      "readTerminalFullOutput": false,
+      "timeoutMs": 120000,
+      "isInteractive": false
+    },
+    {
+      "command": "/Users/sankanum1/.slingshot/bin/rtk yarn proptypes",
+      "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657",
+      "profileName": "zsh",
+      "readTerminalFullOutput": false,
+      "timeoutMs": 120000,
+      "isInteractive": false
+    }
+  ],
+  "toolPurpose": "- I want to run the focused TreeItem unit tests, lint the modified implementation, and verify generated PropTypes against the updated declaration using only local dependencies."
+}
+```
+Output:
+```
+I ran all provided commands and below are the outcomes for each command with their status. Please analyze each output carefully and run the commands again for which you see errors to get their output by correcting the command and other parameters.
+
+=== EXECUTION SUMMARY ===
+Total Commands: 3
+Number of Successful Commands: 0
+Number of Failed Commands: 3
+Number of Timed Out Commands: 0
+========================
+
+╔══════════════════════════════════════════════════════════════════════╗
+║ COMMAND 1 of 3                                                        ║
+╚══════════════════════════════════════════════════════════════════════╝
+Command: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '/Users/sankanum1/.slingshot/bin/rtk yarn test:unit --grep TreeItem'
+Status: ERROR
+─────────────────────────────────────────────────────────────────────────
+Output:
+Command failed with exit code 1.
+
+--- Output (last 12 lines, 1033 chars) ---
+Internal Error: root-workspace-0b6124@workspace:.: This package doesn't seem to be present in your lockfile; run "yarn install" to update the lockfile
+    at QO.getCandidates (/Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:206:4607)
+    at Dy.getCandidates (/Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:143:1311)
+    at /Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:211:8429
+    at Fw (/Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:142:45058)
+    at ot (/Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:211:8409)
+    at async Promise.allSettled (index 0)
+    at async bf (/Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:142:44386)
+    at async /Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:211:9175
+    at async rs.startProgressPromise (/Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:142:130224)
+    at async t.resolveEverything (/Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:211:7147)
+__CMD_FINISHED__ 1
+--- End of Output ---
+═════════════════════════════════════════════════════════════════════════
+
+╔══════════════════════════════════════════════════════════════════════╗
+║ COMMAND 2 of 3                                                        ║
+╚══════════════════════════════════════════════════════════════════════╝
+Command: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '/Users/sankanum1/.slingshot/bin/rtk yarn eslint packages/material-ui-lab/src/TreeItem/TreeItem.js'
+Status: ERROR
+─────────────────────────────────────────────────────────────────────────
+Output:
+Command failed with exit code 1.
+
+--- Output (last 12 lines, 1033 chars) ---
+Internal Error: root-workspace-0b6124@workspace:.: This package doesn't seem to be present in your lockfile; run "yarn install" to update the lockfile
+    at QO.getCandidates (/Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:206:4607)
+    at Dy.getCandidates (/Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:143:1311)
+    at /Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:211:8429
+    at Fw (/Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:142:45058)
+    at ot (/Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:211:8409)
+    at async Promise.allSettled (index 0)
+    at async bf (/Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:142:44386)
+    at async /Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:211:9175
+    at async rs.startProgressPromise (/Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:142:130224)
+    at async t.resolveEverything (/Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:211:7147)
+__CMD_FINISHED__ 1
+--- End of Output ---
+═════════════════════════════════════════════════════════════════════════
+
+╔══════════════════════════════════════════════════════════════════════╗
+║ COMMAND 3 of 3                                                        ║
+╚══════════════════════════════════════════════════════════════════════╝
+Command: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '/Users/sankanum1/.slingshot/bin/rtk yarn proptypes'
+Status: ERROR
+─────────────────────────────────────────────────────────────────────────
+Output:
+Command failed with exit code 1.
+
+--- Output (last 12 lines, 1033 chars) ---
+Internal Error: root-workspace-0b6124@workspace:.: This package doesn't seem to be present in your lockfile; run "yarn install" to update the lockfile
+    at QO.getCandidates (/Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:206:4607)
+    at Dy.getCandidates (/Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:143:1311)
+    at /Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:211:8429
+    at Fw (/Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:142:45058)
+    at ot (/Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:211:8409)
+    at async Promise.allSettled (index 0)
+    at async bf (/Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:142:44386)
+    at async /Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:211:9175
+    at async rs.startProgressPromise (/Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:142:130224)
+    at async t.resolveEverything (/Users/sankanum1/.cache/node/corepack/v1/yarn/4.18.0/yarn.js:211:7147)
+__CMD_FINISHED__ 1
+--- End of Output ---
+═════════════════════════════════════════════════════════════════════════
+
+```
+
+24. **Tool call: run_terminal_command**
+Input:
+```json
+{
+  "commands": [
+    {
+      "command": "/Users/sankanum1/.slingshot/bin/rtk git apply --check --cached /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/swe-results/mui__material-ui-20657.patch",
+      "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657",
+      "profileName": "zsh",
+      "readTerminalFullOutput": true,
+      "timeoutMs": 30000,
+      "isInteractive": false
+    },
+    {
+      "command": "/Users/sankanum1/.slingshot/bin/rtk git --no-pager diff --check",
+      "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657",
+      "profileName": "zsh",
+      "readTerminalFullOutput": true,
+      "timeoutMs": 30000,
+      "isInteractive": false
+    },
+    {
+      "command": "/Users/sankanum1/.slingshot/bin/rtk git --no-pager status --short",
+      "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657",
+      "profileName": "zsh",
+      "readTerminalFullOutput": true,
+      "timeoutMs": 30000,
+      "isInteractive": false
+    },
+    {
+      "command": "/Users/sankanum1/.slingshot/bin/rtk git --no-pager diff --numstat",
+      "cwd": "/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/mui__material-ui-20657",
+      "profileName": "zsh",
+      "readTerminalFullOutput": true,
+      "timeoutMs": 30000,
+      "isInteractive": false
+    }
+  ],
+  "toolPurpose": "- I want to perform final patch applicability, whitespace, repository-scope, and line-stat checks after all validation attempts, ensuring no tests or artifacts entered the Git diff."
+}
+```
+Output:
+```
+I ran all provided commands and below are the outcomes for each command with their status. Please analyze each output carefully and run the commands again for which you see errors to get their output by correcting the command and other parameters.
+
+=== EXECUTION SUMMARY ===
+Total Commands: 4
+Number of Successful Commands: 4
+Number of Failed Commands: 0
+Number of Timed Out Commands: 0
+========================
+
+╔══════════════════════════════════════════════════════════════════════╗
+║ COMMAND 1 of 4                                                        ║
+╚══════════════════════════════════════════════════════════════════════╝
+Command: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '/Users/sankanum1/.slingshot/bin/rtk git apply --check --cached /Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/swe-results/mui__material-ui-20657.patch'
+Status: SUCCESS
+─────────────────────────────────────────────────────────────────────────
+Output:
+Command success.
+
+--- Full Output ---
+__CMD_FINISHED__ 0
+--- End of Full Output ---
+═════════════════════════════════════════════════════════════════════════
+
+╔══════════════════════════════════════════════════════════════════════╗
+║ COMMAND 2 of 4                                                        ║
+╚══════════════════════════════════════════════════════════════════════╝
+Command: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '/Users/sankanum1/.slingshot/bin/rtk git --no-pager diff --check'
+Status: SUCCESS
+─────────────────────────────────────────────────────────────────────────
+Output:
+Command success.
+
+--- Full Output ---
+__CMD_FINISHED__ 0
+--- End of Full Output ---
+═════════════════════════════════════════════════════════════════════════
+
+╔══════════════════════════════════════════════════════════════════════╗
+║ COMMAND 3 of 4                                                        ║
+╚══════════════════════════════════════════════════════════════════════╝
+Command: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '/Users/sankanum1/.slingshot/bin/rtk git --no-pager status --short'
+Status: SUCCESS
+─────────────────────────────────────────────────────────────────────────
+Output:
+Command success.
+
+--- Full Output ---
+M packages/material-ui-lab/src/TreeItem/TreeItem.d.ts
+ M packages/material-ui-lab/src/TreeItem/TreeItem.js__CMD_FINISHED__ 0
+--- End of Full Output ---
+═════════════════════════════════════════════════════════════════════════
+
+╔══════════════════════════════════════════════════════════════════════╗
+║ COMMAND 4 of 4                                                        ║
+╚══════════════════════════════════════════════════════════════════════╝
+Command: /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' /bin/zsh -lc '/Users/sankanum1/.slingshot/bin/rtk git --no-pager diff --numstat'
+Status: SUCCESS
+─────────────────────────────────────────────────────────────────────────
+Output:
+Command success.
+
+--- Full Output ---
+4	0	packages/material-ui-lab/src/TreeItem/TreeItem.d.ts
+13	2	packages/material-ui-lab/src/TreeItem/TreeItem.js
+__CMD_FINISHED__ 0
+--- End of Full Output ---
+═════════════════════════════════════════════════════════════════════════
+
+```
+
+25. **Tool call: add_agent_memory**
+Input:
+```json
+{
+  "memories": [
+    {
+      "content": "MUI v4 TreeItem label expansion can be canceled by onLabelClick calling preventDefault while selection and keyboard expansion remain intact.",
+      "scope": "workspace"
+    }
+  ],
+  "toolPurpose": "- I am saving the project-specific TreeItem interaction contract so future work in this codebase preserves the distinction between label selection and cancelable mouse expansion."
+}
+```
+Output:
+```
+Processed 1 memory item(s): 1 stored, 0 skipped (duplicates), 0 failed.
+```
+
+## Final Response
+
+## Summary
+
+Tree item expansion can now be canceled from `onLabelClick` using `event.preventDefault()`. This allows label clicks to select/show node details while expansion remains available through the icon. Keyboard expansion behavior is unchanged.
+
+The patch contains only production implementation/type files and applies cleanly against the Git index.
+
+## 📝 Files Modified
+
+- [TreeItem.js](packages/material-ui-lab/src/TreeItem/TreeItem.js) — Added cancelable label-click handling. **+13 −2 lines**
+- [TreeItem.d.ts](packages/material-ui-lab/src/TreeItem/TreeItem.d.ts) — Added the typed `onLabelClick` API. **+4 −0 lines**
+
+## 📁 Files Created
+
+- [mui__material-ui-20657.patch](/Users/sankanum1/Documents/SWEPolyBenchRuns/R2VerifiedGPT5.6Sol/running-env/swe-results/mui__material-ui-20657.patch) — Requested production-only patch. **+17 −2 lines**
+
+## Validation
+
+- Base commit verified: `72a477f3ca678afd1c2d03cb05df4d20089c85cf`
+- Patch applicability: passed
+- Git whitespace check: passed
+- Patch scope: two production files; no tests or test artifacts
+- Unit tests, lint, and PropTypes generation: blocked because dependencies are absent and the available Yarn 4 runtime is incompatible with this Yarn 1 workspace lockfile.
+
+---
