@@ -10,7 +10,12 @@
 
 Hello! We are delighted to announce SWE-PolyBench! A multi language repo level software engineering benchmark. It contains 2110 curated issues in four languages (Java, JavaScript, TypeScript, and Python). In addition, it contains a stratified subset of 500 issues (SWE-PolyBench500) and a Verified subset of 382 issues (SWE-PolyBench_Verified) for the purpose of rapid experimentation. Please find more details below.
 
+## Note on data contamination
+SWE-PolyBench is built from public GitHub repositories, so some of this history may be part of the training data of recent models. We have noticed that some recent submissions contain patches that closely match the reference solutions. We check submissions for leaks through the evaluation setup and report results as submitted, but we wanted to point this out as context when comparing results. We welcome submitters who report how similar their patches are to the reference patches.
+
 ## 🚀 Updates 🚀
+* **11/24/2026**
+  - Added a [note on data contamination](#note-on-data-contamination).
 * **09/18/2025**
   - After receiving valuable feedback about our verified split, we updated the `Dockerfile` column for some instances and ensured that the pre-built images result in a 100% pass rate on the gold patch. 
   - We removed two duplicate-like entries from the Java split of SWE-PolyBench_Verified
